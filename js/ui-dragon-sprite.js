@@ -1079,6 +1079,23 @@ export function renderDragonSprite(phenotype, compact = false) {
   container.style.height = `${rows * cellSize}px`;
   container.style.flexShrink = '0';
 
+  // ── Responsive wrapper: scales sprite to fit container on mobile ──
+  const spriteW = cols * cellSize;
+  const spriteH = rows * cellSize;
+  const wrapper = document.createElement('div');
+  wrapper.className = 'sprite-scale-wrapper';
+  wrapper.style.maxWidth = '100%';
+  wrapper.style.overflow = 'hidden';
+  wrapper.style.position = 'relative';
+  // Natural width/height so layout knows the size
+  wrapper.style.width = `${spriteW}px`;
+  wrapper.style.height = `${spriteH}px`;
+
+  // Use container query: if the sprite is wider than viewport, scale it
+  // We use an inline style approach that respects available space
+  wrapper.dataset.spriteW = spriteW;
+  wrapper.dataset.spriteH = spriteH;
+
   // Opacity effect (container-level): low opacity = translucent
   const alpha = 0.7 + (opacityLevel / 3) * 0.3;
   if (alpha < 0.99) {
@@ -1127,5 +1144,40 @@ export function renderDragonSprite(phenotype, compact = false) {
     }
   }
 
-  return container;
+  wrapper.appendChild(container);
+
+  // After DOM insertion, check if scaling is needed via ResizeObserver
+  const ro = new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      const availW = entry.contentRect.width;
+      const natW = parseFloat(wrapper.dataset.spriteW);
+      const natH = parseFloat(wrapper.dataset.spriteH);
+      if (availW > 0 && availW < natW) {
+        const scale = availW / natW;
+        container.style.transform = `scale(${scale})`;
+        container.style.transformOrigin = 'top left';
+        wrapper.style.height = `${Math.ceil(natH * scale)}px`;
+      } else {
+        container.style.transform = '';
+        wrapper.style.height = `${natH}px`;
+      }
+    }
+  });
+  // Observe after insertion (requestAnimationFrame ensures it's in DOM)
+  requestAnimationFrame(() => {
+    if (wrapper.parentElement) {
+      ro.observe(wrapper);
+    } else {
+      // Fallback: observe when it eventually enters the DOM
+      const mo = new MutationObserver(() => {
+        if (wrapper.parentElement) {
+          ro.observe(wrapper);
+          mo.disconnect();
+        }
+      });
+      mo.observe(document.body, { childList: true, subtree: true });
+    }
+  });
+
+  return wrapper;
 }

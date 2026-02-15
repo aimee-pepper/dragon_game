@@ -639,12 +639,17 @@ header .subtitle {
 
 /* ---- Dragon Sprite ---- */
 
+.sprite-scale-wrapper {
+  align-self: center;
+  flex-shrink: 1;
+  max-width: 100%;
+}
+
 .dragon-sprite {
   image-rendering: pixelated;
   border-radius: var(--radius-sm);
   background: rgba(0, 0, 0, 0.2);
   padding: 4px;
-  align-self: center;
 }
 
 .compact .dragon-sprite {
@@ -1279,4 +1284,157 @@ header .subtitle {
 
 .quest-completed-name-link:hover {
   color: var(--text-bright);
+}
+
+/* ============================================
+   MOBILE RESPONSIVE LAYOUT
+   ============================================ */
+
+/* On narrow screens, scale sprites to fit */
+@media (max-width: 600px) {
+
+  /* Reduce base spacing */
+  :root {
+    --spacing: 12px;
+    --spacing-sm: 6px;
+  }
+
+  /* Header: tighter */
+  header {
+    padding: var(--spacing-sm) var(--spacing) 0;
+    padding-bottom: var(--spacing-xs);
+  }
+
+  header h1 {
+    font-size: 18px;
+  }
+
+  header .subtitle {
+    font-size: 11px;
+    margin-bottom: var(--spacing-xs);
+  }
+
+  /* Tab nav: smaller text, tighter */
+  .tab-btn {
+    padding: 8px 0;
+    font-size: 13px;
+  }
+
+  /* Tab panels: less padding */
+  .tab-panel {
+    padding: var(--spacing-sm);
+    padding-bottom: calc(var(--spacing) * 3);
+  }
+
+  /* Cards: stack sprite above info */
+  .card-visual {
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Visual info: full width when stacked */
+  .visual-info {
+    width: 100%;
+    text-align: center;
+  }
+
+  /* Color name centered */
+  .color-name {
+    font-size: 15px;
+  }
+
+  /* CMY breakdown: centered */
+  .cmy-breakdown {
+    text-align: center;
+  }
+
+  /* Finish badge: centered */
+  .finish-badge {
+    display: inline-block;
+  }
+
+  /* Breath row: tighter */
+  .breath-row {
+    padding: 6px 8px;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  /* Action buttons: wrap to 2 rows if needed */
+  .offspring-actions {
+    flex-wrap: wrap;
+  }
+
+  .offspring-actions .btn {
+    min-width: calc(50% - 4px);
+    flex: 1 1 auto;
+  }
+
+  /* Genotype: narrower gene labels */
+  .genotype-gene {
+    min-width: 100px;
+    font-size: 10px;
+  }
+
+  .genotype-alleles {
+    min-width: 70px;
+    font-size: 11px;
+  }
+
+  .genotype-row {
+    gap: 6px;
+  }
+
+  /* Breed tab: parent slots stack vertically (already done) */
+  .parent-slots {
+    flex-direction: column;
+  }
+
+  /* Picker panel: full height on mobile */
+  .picker-panel {
+    max-height: 85vh;
+  }
+
+  /* Buttons: bigger touch targets */
+  .btn {
+    min-height: 48px;
+    font-size: 14px;
+  }
+
+  .btn-small {
+    min-height: 40px;
+    font-size: 12px;
+  }
+
+  /* Quest cards: tighter */
+  .quest-card {
+    padding: var(--spacing-sm) var(--spacing);
+  }
+}
+
+/* Extra-small screens (iPhone SE, etc.) */
+@media (max-width: 380px) {
+  header h1 {
+    font-size: 16px;
+  }
+
+  .tab-btn {
+    font-size: 12px;
+    padding: 7px 0;
+  }
+
+  .dragon-name {
+    font-size: 16px;
+  }
+
+  .offspring-actions .btn {
+    font-size: 11px;
+    padding: 6px 4px;
+  }
+
+  .genotype-gene {
+    min-width: 80px;
+    font-size: 9px;
+  }
 }
