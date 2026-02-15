@@ -1,0 +1,1282 @@
+/* Dragon Breeder — Genetics Prototype */
+/* Mobile-first, portrait mode */
+
+/* Dark mode — Grimoire / Aged Leather */
+:root {
+  --bg: #1e1a16;
+  --bg-card: #2a2420;
+  --bg-card-alt: #352f28;
+  --text: #d4cdc4;
+  --text-muted: #8a7e72;
+  --text-bright: #f0ebe4;
+  --accent: #c4a265;
+  --accent-secondary: #6b3a4a;
+  --border: #3d3530;
+  --btn-bg: #c4a265;
+  --btn-text: #1e1a16;
+  --btn-secondary-bg: #3d3530;
+  --success: #6a9f5b;
+  --mutation: #d4a832;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --spacing: 16px;
+  --spacing-sm: 8px;
+  --spacing-xs: 4px;
+}
+
+/* Light mode — Sunlit Parchment */
+body.light-mode {
+  --bg: #f5f0e8;
+  --bg-card: #ebe3d5;
+  --bg-card-alt: #e0d5c3;
+  --text: #3a3028;
+  --text-muted: #7a6e62;
+  --text-bright: #1e1a16;
+  --accent: #a07830;
+  --accent-secondary: #7d3a4e;
+  --border: #cfc3b0;
+  --btn-bg: #a07830;
+  --btn-text: #f5f0e8;
+  --btn-secondary-bg: #d9cfbf;
+  --success: #4a7d3e;
+  --mutation: #b08828;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+body {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ---- Header ---- */
+
+header {
+  text-align: center;
+  padding: var(--spacing) var(--spacing) 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--spacing-sm);
+}
+
+.header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header-row > div {
+  text-align: left;
+}
+
+.theme-toggle-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--accent);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  line-height: 1;
+  transition: background 0.15s;
+}
+
+.theme-toggle-btn:hover {
+  background: var(--bg-card);
+}
+
+header h1 {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-bright);
+  letter-spacing: 1px;
+}
+
+header .subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: var(--spacing-sm);
+}
+
+/* ---- Tab Navigation ---- */
+
+#main-nav {
+  display: flex;
+  gap: var(--spacing-xs);
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 10px 0;
+  border: none;
+  background: var(--btn-secondary-bg);
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background 0.2s, color 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tab-btn.active {
+  background: var(--accent);
+  color: var(--btn-text);
+}
+
+/* ---- Tab Panels ---- */
+
+.tab-panel {
+  display: none;
+  padding: var(--spacing);
+  padding-bottom: calc(var(--spacing) * 4);
+}
+
+.tab-panel.active {
+  display: block;
+}
+
+/* ---- Buttons ---- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 20px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s, transform 0.1s;
+  min-height: 44px;
+}
+
+.btn:active {
+  transform: scale(0.97);
+  opacity: 0.85;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--btn-text);
+  width: 100%;
+}
+
+.btn-secondary {
+  background: var(--btn-secondary-bg);
+  color: var(--text);
+}
+
+.btn-small {
+  padding: 8px 14px;
+  font-size: 13px;
+  min-height: 36px;
+}
+
+.btn-breed {
+  background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+  color: var(--btn-text);
+  width: 100%;
+  font-size: 17px;
+  padding: 14px 20px;
+}
+
+.btn-group {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing);
+}
+
+.btn-group .btn {
+  flex: 1;
+}
+
+/* ---- Dragon Card ---- */
+
+.dragon-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--spacing);
+  margin-bottom: var(--spacing);
+  overflow: hidden;
+}
+
+.dragon-card.compact {
+  padding: 12px;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.dragon-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-bright);
+}
+
+.compact .dragon-name {
+  font-size: 15px;
+}
+
+.dragon-sex {
+  font-size: 14px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.dragon-id {
+  font-size: 11px;
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+/* ---- Color & Finish Row ---- */
+
+.card-visual {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.color-swatch {
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--border);
+  flex-shrink: 0;
+}
+
+.compact .color-swatch {
+  width: 48px;
+  height: 48px;
+}
+
+.visual-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.color-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-bright);
+  margin-bottom: 2px;
+}
+
+.compact .color-name {
+  font-size: 14px;
+}
+
+.finish-badge {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: var(--bg-card-alt);
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+/* ---- Breath Element ---- */
+
+.breath-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  background: var(--bg-card-alt);
+  border-radius: var(--radius-sm);
+}
+
+.breath-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 1px solid rgba(255,255,255,0.2);
+}
+
+.breath-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-bright);
+}
+
+.breath-detail {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ---- Trait Sections ---- */
+
+.trait-section {
+  margin-bottom: 8px;
+}
+
+.trait-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.trait-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.trait-tag {
+  font-size: 13px;
+  padding: 3px 8px;
+  background: var(--bg-card-alt);
+  border-radius: 4px;
+  color: var(--text);
+}
+
+.trait-tag .trait-label {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+/* ---- Genotype Toggle ---- */
+
+.genotype-toggle {
+  margin-top: 10px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.genotype-toggle-btn {
+  background: var(--accent-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  -webkit-tap-highlight-color: transparent;
+  width: 100%;
+  text-align: center;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.genotype-toggle-btn:hover {
+  background: var(--accent-secondary);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.genotype-content {
+  display: none;
+  margin-top: 8px;
+  font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.genotype-content.open {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.genotype-row {
+  display: flex;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 2px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  width: auto;
+  max-width: 100%;
+}
+
+.genotype-gene {
+  color: var(--text-muted);
+  text-align: right;
+  min-width: 140px;
+  flex-shrink: 0;
+}
+
+.genotype-trait-name {
+  color: var(--text-bright);
+  font-weight: 600;
+}
+
+.genotype-alleles {
+  color: var(--text-muted);
+  font-size: 12px;
+  flex-shrink: 0;
+  text-align: left;
+  min-width: 100px;
+}
+
+.genotype-row.mutated {
+  background: rgba(255, 221, 0, 0.1);
+  border-radius: 3px;
+  padding: 2px 4px;
+}
+
+.genotype-row.mutated .genotype-alleles {
+  color: var(--mutation);
+  font-weight: 600;
+}
+
+.mutation-badge {
+  font-size: 10px;
+  color: var(--mutation);
+  margin-left: 4px;
+}
+
+/* ---- Breeding UI ---- */
+
+.parent-slots {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing);
+}
+
+.parent-slot {
+  flex: 1;
+  min-width: 0;
+}
+
+.parent-slot-empty {
+  background: var(--bg-card);
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 20px 10px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.parent-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  margin-bottom: var(--spacing-sm);
+  text-align: center;
+}
+
+.clutch-results {
+  margin-top: var(--spacing);
+}
+
+.clutch-header {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: var(--spacing-sm);
+  text-align: center;
+}
+
+.offspring-actions {
+  display: flex;
+  gap: var(--spacing-xs);
+  margin-top: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+}
+
+.offspring-actions .btn {
+  flex: 1;
+  font-size: 12px;
+  padding: 8px 6px;
+}
+
+/* ---- Dragon Picker Modal ---- */
+
+.picker-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 200;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.picker-panel {
+  background: var(--bg);
+  border-top-left-radius: var(--radius);
+  border-top-right-radius: var(--radius);
+  width: 100%;
+  max-height: 75vh;
+  overflow-y: auto;
+  padding: var(--spacing);
+  padding-bottom: calc(var(--spacing) + env(safe-area-inset-bottom));
+}
+
+.picker-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-bright);
+  text-align: center;
+  margin-bottom: var(--spacing);
+}
+
+.picker-section-header {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 10px 12px 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border);
+}
+
+.picker-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  background: var(--bg-card);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--spacing-sm);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  border: 1px solid var(--border);
+}
+
+.picker-item:active {
+  background: var(--bg-card-alt);
+}
+
+.picker-swatch {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+}
+
+.picker-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.picker-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-bright);
+}
+
+.picker-traits {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.picker-close {
+  text-align: center;
+  margin-top: var(--spacing-sm);
+}
+
+/* ---- Section Dividers ---- */
+
+.section-divider {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+  margin: var(--spacing) 0;
+  position: relative;
+}
+
+.section-divider::before,
+.section-divider::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 30%;
+  height: 1px;
+  background: var(--border);
+}
+
+.section-divider::before { left: 0; }
+.section-divider::after { right: 0; }
+
+/* ---- Utility ---- */
+
+.text-center { text-align: center; }
+.mb-sm { margin-bottom: var(--spacing-sm); }
+.mb { margin-bottom: var(--spacing); }
+.hidden { display: none !important; }
+
+/* ---- Dragon Sprite ---- */
+
+.dragon-sprite {
+  image-rendering: pixelated;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.2);
+  padding: 4px;
+  align-self: center;
+}
+
+.compact .dragon-sprite {
+  padding: 2px;
+}
+
+.sprite-cell {
+  /* empty cells are transparent */
+}
+
+/* Per-cell finish effects — metallic edge gleam animation */
+.metallic-animate .sprite-cell-edge {
+  animation: metallic-gleam 3s ease-in-out infinite;
+}
+
+@keyframes metallic-gleam {
+  0%, 100% { filter: brightness(1.0); }
+  50% { filter: brightness(1.2); }
+}
+
+/* Per-pixel schiller shimmer — each cell animates independently */
+.sprite-cell-schiller {
+  animation: pixel-shimmer var(--shimmer-duration) ease-in-out infinite;
+  animation-delay: var(--shimmer-delay);
+}
+
+@keyframes pixel-shimmer {
+  0%, 100% { filter: hue-rotate(0deg); }
+  50% { filter: hue-rotate(var(--shimmer-deg)); }
+}
+
+/* ---- Parent Color Coding ---- */
+
+.parent-label-a {
+  color: #44bbff;
+}
+
+.parent-label-b {
+  color: #ff66aa;
+}
+
+/* Allele origin colors in genotype view */
+.allele-from-a {
+  color: #44bbff;
+  font-weight: 700;
+}
+
+.allele-from-b {
+  color: #ff66aa;
+  font-weight: 700;
+}
+
+/* Genotype legend showing which color = which parent */
+.genotype-legend {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 8px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  align-self: stretch;
+}
+
+.legend-parent-a {
+  color: #44bbff;
+}
+
+.legend-parent-b {
+  color: #ff66aa;
+}
+
+/* ---- Parent Slot Layout for Breed Tab ---- */
+
+.parent-slots {
+  flex-direction: column;
+}
+
+.parent-slot .dragon-card {
+  font-size: 14px;
+}
+
+/* ---- CMY Breakdown Display ---- */
+
+.cmy-breakdown {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  letter-spacing: 0.3px;
+}
+
+.cmy-c { color: #66dddd; }
+.cmy-m { color: #dd66cc; }
+.cmy-y { color: #ddcc66; }
+
+/* ---- Breath Element Breakdown Display ---- */
+
+.breath-breakdown {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  letter-spacing: 0.3px;
+}
+.breath-f { color: #ff6644; }
+.breath-i { color: #66aaff; }
+.breath-l { color: #ffdd44; }
+
+.breath-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ---- Stables ---- */
+
+.stables-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  margin-bottom: 8px;
+}
+
+.stables-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.stables-empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 40px 20px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* ---- Save to Stables Button ---- */
+
+.btn-stable {
+  background: var(--success);
+  border: 1px solid var(--success);
+  color: var(--btn-text);
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+.btn-stable:hover {
+  opacity: 1;
+}
+
+.btn-stabled {
+  background: var(--bg-card-alt) !important;
+  border-color: var(--border) !important;
+  color: var(--text-muted) !important;
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* ---- Quests Tab ---- */
+
+.quests-wrapper {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.quests-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: var(--spacing);
+}
+
+.quests-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-bright);
+}
+
+.quests-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.quests-empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 40px 20px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* Quest Card */
+.quest-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--spacing);
+  margin-bottom: var(--spacing);
+}
+
+.quest-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.quest-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-bright);
+  flex: 1;
+  line-height: 1.3;
+}
+
+/* Difficulty badges */
+.quest-difficulty {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.quest-difficulty-easy {
+  background: rgba(106, 159, 91, 0.2);
+  color: var(--success);
+}
+
+.quest-difficulty-medium {
+  background: rgba(196, 162, 101, 0.2);
+  color: var(--accent);
+}
+
+.quest-difficulty-hard {
+  background: rgba(107, 58, 74, 0.25);
+  color: #c96b7e;
+}
+
+.quest-description {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+/* Requirements checklist */
+.quest-requirements {
+  margin-bottom: 12px;
+}
+
+.quest-req-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.quest-req-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.quest-req-dot {
+  font-size: 8px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.quest-req-text {
+  font-size: 14px;
+  color: var(--text);
+}
+
+/* Submit button */
+.quest-submit-btn {
+  width: 100%;
+  background: var(--accent);
+  color: var(--btn-text);
+}
+
+/* ---- Completed Quests Section ---- */
+
+.quests-completed-section {
+  margin-top: var(--spacing);
+  border-top: 1px solid var(--border);
+  padding-top: var(--spacing);
+}
+
+.quests-completed-toggle {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  width: 100%;
+  text-align: left;
+  transition: background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.quests-completed-toggle::before {
+  content: '▸ ';
+}
+
+.quests-completed-toggle.open::before {
+  content: '▾ ';
+}
+
+.quests-completed-toggle:hover {
+  background: var(--bg-card);
+}
+
+.quests-completed-list {
+  display: none;
+  margin-top: var(--spacing-sm);
+}
+
+.quests-completed-list.open {
+  display: block;
+}
+
+.quest-card.quest-completed {
+  opacity: 0.6;
+  padding: 12px var(--spacing);
+}
+
+.quest-completed-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.quest-check {
+  color: var(--success);
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.quest-completed-by {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  margin-left: 24px;
+}
+
+/* ---- Quest Dragon Picker ---- */
+
+.quest-picker-subtitle {
+  font-size: 13px;
+  color: var(--accent);
+  text-align: center;
+  margin-bottom: var(--spacing);
+  margin-top: -8px;
+}
+
+.quest-picker-item {
+  position: relative;
+}
+
+.quest-picker-item.quest-match {
+  border-color: var(--success);
+  background: rgba(106, 159, 91, 0.08);
+}
+
+.quest-req-indicators {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 4px;
+}
+
+.quest-indicator-met {
+  color: var(--success);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.quest-indicator-unmet {
+  color: #a06060;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.quest-indicator-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-right: 4px;
+}
+
+.quest-match-badge {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--success);
+  padding: 4px 10px;
+  background: rgba(106, 159, 91, 0.15);
+  border-radius: 4px;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+/* ---- Quest Toast Messages ---- */
+
+.quest-toast {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  padding: 12px 24px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  z-index: 300;
+  opacity: 0;
+  transition: opacity 0.3s, transform 0.3s;
+  pointer-events: none;
+  max-width: 90%;
+  text-align: center;
+}
+
+.quest-toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.quest-toast-success {
+  background: var(--success);
+  color: #fff;
+}
+
+.quest-toast-error {
+  background: var(--accent-secondary);
+  color: var(--text-bright);
+}
+
+/* ---- Generation Badge ---- */
+
+.dragon-gen {
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 600;
+  opacity: 0.8;
+}
+
+.picker-gen {
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 500;
+  margin-left: 6px;
+}
+
+/* ---- Lineage Button ---- */
+
+.btn-lineage {
+  background: var(--bg-card-alt);
+  border: 1px solid var(--border);
+  color: var(--accent);
+  font-size: 12px;
+  width: 100%;
+  margin-top: 6px;
+}
+
+.btn-lineage:hover {
+  border-color: var(--accent);
+}
+
+/* ---- Family Tree Popup ---- */
+
+.family-tree-overlay {
+  z-index: 200;
+}
+
+.family-tree-panel {
+  max-height: 85vh;
+}
+
+.family-tree-gen-info {
+  text-align: center;
+  font-size: 13px;
+  color: var(--accent);
+  margin-bottom: var(--spacing);
+  margin-top: -8px;
+}
+
+.family-tree-container {
+  overflow-x: auto;
+  overflow-y: visible;
+  padding: var(--spacing-sm);
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Tree level: recursive container for parents-row + connector + node */
+.tree-level {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 80px;
+}
+
+/* Row of two parent subtrees side by side */
+.tree-parents-row {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+}
+
+/* Connector lines between parents and child */
+.tree-connector {
+  position: relative;
+  width: 100%;
+  height: 20px;
+}
+
+.tree-line-left,
+.tree-line-right {
+  position: absolute;
+  top: 0;
+  height: 10px;
+  border-top: 2px solid var(--border);
+  width: 50%;
+}
+
+.tree-line-left {
+  left: 25%;
+  border-right: 2px solid var(--border);
+}
+
+.tree-line-right {
+  right: 25%;
+  border-left: 2px solid var(--border);
+}
+
+.tree-line-down {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+  height: 10px;
+  background: var(--border);
+}
+
+/* Individual dragon node in the tree */
+.tree-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.15s, background 0.15s;
+  max-width: 100px;
+  margin: 2px;
+}
+
+.tree-node:active {
+  background: var(--bg-card-alt);
+  border-color: var(--accent);
+}
+
+.tree-node-unknown {
+  opacity: 0.4;
+  cursor: default;
+  min-height: 60px;
+  justify-content: center;
+}
+
+.tree-node-unknown:active {
+  background: var(--bg-card);
+  border-color: var(--border);
+}
+
+/* Scaled-down sprite inside tree nodes */
+.tree-sprite {
+  transform: scale(0.4);
+  transform-origin: top center;
+  margin-bottom: -60px;
+}
+
+.tree-node-label {
+  text-align: center;
+}
+
+.tree-node-name {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-bright);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 80px;
+}
+
+.tree-node-gen {
+  font-size: 9px;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* Ancestor detail popup — stacks above family tree */
+.ancestor-detail-overlay {
+  z-index: 250;
+}
+
+.ancestor-detail-panel {
+  max-height: 80vh;
+}
+
+/* Clickable dragon name in completed quests */
+.quest-completed-name-link {
+  color: var(--accent);
+  cursor: pointer;
+  border-bottom: 1px dotted var(--accent);
+}
+
+.quest-completed-name-link:hover {
+  color: var(--text-bright);
+}

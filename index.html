@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Dragon Breeder — Genetics Prototype</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header>
+    <div class="header-row">
+      <div>
+        <h1>Dragon Breeder</h1>
+        <p class="subtitle">Genetics Prototype</p>
+      </div>
+      <button id="theme-toggle" class="theme-toggle-btn" title="Toggle theme">☀</button>
+    </div>
+    <nav id="main-nav">
+      <button data-tab="generate" class="tab-btn active">Generate</button>
+      <button data-tab="breed" class="tab-btn">Breed</button>
+      <button data-tab="stables" class="tab-btn">Stables</button>
+      <button data-tab="quests" class="tab-btn">Quests</button>
+    </nav>
+  </header>
+  <main id="app">
+    <section id="tab-generate" class="tab-panel active"></section>
+    <section id="tab-breed" class="tab-panel"></section>
+    <section id="tab-stables" class="tab-panel"></section>
+    <section id="tab-quests" class="tab-panel"></section>
+  </main>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
