@@ -29,6 +29,17 @@ const ELEMENT_TARGETS = [
   'Fire', 'Ice', 'Lightning', 'Steam', 'Solar', 'Aurora', 'Plasma',
 ];
 
+// Breath element recipe hints (Fire / Ice / Lightning axes)
+const ELEMENT_RECIPES = {
+  Fire:      'F: High · I: None · L: None',
+  Ice:       'F: None · I: High · L: None',
+  Lightning: 'F: None · I: None · L: High',
+  Steam:     'F: High · I: High · L: None',
+  Solar:     'F: High · I: None · L: High',
+  Aurora:    'F: None · I: High · L: High',
+  Plasma:    'F: High · I: High · L: High',
+};
+
 const SIZE_TARGETS = [
   { value: 'Bird', label: 'Bird-sized' },
   { value: 'Dog', label: 'Dog-sized' },
@@ -40,6 +51,17 @@ const SIZE_TARGETS = [
 const FINISH_TARGETS = [
   'Mirror', 'Polished', 'Matte', 'Satin', 'Lustrous', 'Prismatic', 'Iridescent',
 ];
+
+// Finish recipe hints (Opacity / Shine / Schiller axes)
+const FINISH_RECIPES = {
+  Mirror:     'Shine: High',
+  Polished:   'Shine: Mid–High',
+  Matte:      'Shine: None',
+  Satin:      'Shine: Low',
+  Lustrous:   'Shine: Mid',
+  Prismatic:  'Schiller: High',
+  Iridescent: 'Schiller: Mid',
+};
 
 const WING_TARGETS = [
   { value: 'None', label: 'wingless' },
@@ -81,16 +103,20 @@ function makeColorReq() {
     value: color,
     label: `${color} coloring`,
     hint: recipe || null,
+    hintType: 'color',
   };
 }
 
 function makeElementReq() {
   const elem = pick(ELEMENT_TARGETS);
+  const recipe = ELEMENT_RECIPES[elem];
   return {
     path: 'breathElement.name',
     match: 'exact',
     value: elem,
     label: `${elem} breath`,
+    hint: recipe || null,
+    hintType: 'element',
   };
 }
 
@@ -106,11 +132,14 @@ function makeSizeReq() {
 
 function makeFinishReq() {
   const finish = pick(FINISH_TARGETS);
+  const recipe = FINISH_RECIPES[finish];
   return {
     path: 'finish.displayName',
     match: 'includes',
     value: finish,
     label: `${finish} finish`,
+    hint: recipe || null,
+    hintType: 'finish',
   };
 }
 

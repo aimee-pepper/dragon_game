@@ -155,12 +155,20 @@ export function renderDragonCard(dragon, options = {}) {
     }
     if (onUseAsParentA) {
       const btnA = el('button', 'btn btn-secondary btn-small', 'Set Parent A');
-      btnA.addEventListener('click', () => onUseAsParentA(dragon));
+      btnA.addEventListener('click', () => {
+        onUseAsParentA(dragon);
+        btnA.textContent = '✓ Parent A';
+        btnA.classList.add('btn-parent-set');
+      });
       actions.appendChild(btnA);
     }
     if (onUseAsParentB) {
       const btnB = el('button', 'btn btn-secondary btn-small', 'Set Parent B');
-      btnB.addEventListener('click', () => onUseAsParentB(dragon));
+      btnB.addEventListener('click', () => {
+        onUseAsParentB(dragon);
+        btnB.textContent = '✓ Parent B';
+        btnB.classList.add('btn-parent-set');
+      });
       actions.appendChild(btnB);
     }
     card.appendChild(actions);

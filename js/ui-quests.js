@@ -105,15 +105,21 @@ function renderQuestCard(quest) {
     reqItem.appendChild(el('span', 'quest-req-dot', '●'));
     const reqText = el('span', 'quest-req-text', req.label);
     reqItem.appendChild(reqText);
-    // Show CMY recipe hint for color requirements
+    // Show recipe hint for triangle-system requirements (color, finish, element)
     if (req.hint) {
       const hint = el('span', 'quest-req-hint');
       hint.appendChild(document.createTextNode(' ('));
-      // Parse "C: High · M: None · Y: High" into tinted spans
       const parts = req.hint.split(' · ');
       parts.forEach((part, i) => {
-        const axis = part.charAt(0); // C, M, or Y
-        const axisClass = axis === 'C' ? 'cmy-c' : axis === 'M' ? 'cmy-m' : 'cmy-y';
+        const axis = part.charAt(0);
+        let axisClass = '';
+        if (req.hintType === 'color') {
+          axisClass = axis === 'C' ? 'cmy-c' : axis === 'M' ? 'cmy-m' : 'cmy-y';
+        } else if (req.hintType === 'element') {
+          axisClass = axis === 'F' ? 'breath-f' : axis === 'I' ? 'breath-i' : 'breath-l';
+        } else if (req.hintType === 'finish') {
+          axisClass = 'finish-hint-axis';
+        }
         hint.appendChild(el('span', axisClass, part));
         if (i < parts.length - 1) hint.appendChild(document.createTextNode(' · '));
       });
