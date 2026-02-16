@@ -1364,6 +1364,154 @@ header .subtitle {
   color: var(--text-bright);
 }
 
+/* ---- Almanac Tab ---- */
+
+.almanac-wrapper {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+/* Sub-navigation: hidden on desktop, shown on mobile */
+.almanac-nav {
+  display: none;
+  gap: var(--spacing-xs);
+  margin-bottom: var(--spacing);
+}
+
+.almanac-pane-btn {
+  flex: 1;
+  padding: 8px 0;
+  border: 1px solid var(--border);
+  background: var(--btn-secondary-bg);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background 0.2s, color 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.almanac-pane-btn.active {
+  background: var(--accent);
+  color: var(--btn-text);
+  border-color: var(--accent);
+}
+
+/* Panes: 3-column flex on desktop */
+.almanac-panes {
+  display: flex;
+  gap: var(--spacing);
+  align-items: flex-start;
+}
+
+.almanac-pane {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Pane header */
+.almanac-pane-header {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-bright);
+  margin-bottom: 4px;
+  text-align: center;
+}
+
+/* Axis label row */
+.almanac-axis-row {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  margin-bottom: var(--spacing-sm);
+}
+
+.almanac-axis-label-prefix {
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+/* Tier group labels */
+.almanac-tier-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--accent);
+  opacity: 0.7;
+  margin-top: var(--spacing-sm);
+  margin-bottom: var(--spacing-xs);
+  padding-top: var(--spacing-xs);
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+
+.almanac-entries > .almanac-tier-label:first-child {
+  border-top: none;
+  margin-top: 0;
+}
+
+/* Entry rows */
+.almanac-entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--spacing-xs);
+}
+
+.almanac-entry-visual {
+  flex-shrink: 0;
+}
+
+.almanac-swatch {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.almanac-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.2);
+}
+
+.almanac-entry-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.almanac-entry-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-bright);
+  margin-bottom: 2px;
+}
+
+.almanac-entry-formula {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.almanac-entry-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  opacity: 0.8;
+  font-style: italic;
+}
+
+/* Finish axis tint classes */
+.finish-o { color: #bbaa88; }
+.finish-s { color: #aaccee; }
+.finish-sc { color: #cc99dd; }
+
 /* ============================================
    MOBILE RESPONSIVE LAYOUT
    ============================================ */
@@ -1553,6 +1701,23 @@ header .subtitle {
   .tree-node-more {
     font-size: 7px;
   }
+
+  /* ---- Almanac: mobile single-pane toggle ---- */
+  .almanac-nav {
+    display: flex;
+  }
+
+  .almanac-panes {
+    display: block;
+  }
+
+  .almanac-pane {
+    display: none;
+  }
+
+  .almanac-pane.active {
+    display: block;
+  }
 }
 
 /* Extra-small screens (iPhone SE, etc.) */
@@ -1578,5 +1743,18 @@ header .subtitle {
   .genotype-gene {
     min-width: 80px;
     font-size: 9px;
+  }
+
+  .almanac-pane-btn {
+    font-size: 12px;
+    padding: 6px 0;
+  }
+
+  .almanac-entry-name {
+    font-size: 13px;
+  }
+
+  .almanac-entry-formula {
+    font-size: 11px;
   }
 }

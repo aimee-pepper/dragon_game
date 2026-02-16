@@ -175,12 +175,12 @@ export const COLOR_PHENOTYPES = {
 
 export const FINISH_PHENOTYPES = {
   'L-L-L': { name: 'Seaglass',        desc: 'Translucent, matte, no color-shift' },
-  'H-L-L': { name: 'Matte',           desc: 'Opaque, flat finish' },
+  'H-L-L': { name: 'Velvet',          desc: 'Opaque, soft matte texture' },
   'L-H-L': { name: 'Glass',           desc: 'Translucent, glossy surface' },
-  'L-L-H': { name: 'Prismatic',       desc: 'Translucent, color-shifting' },
-  'H-H-L': { name: 'Metallic',        desc: 'Opaque, glossy sheen' },
-  'H-L-H': { name: 'Holographic',     desc: 'Opaque, color-shifting' },
-  'L-H-H': { name: 'Opalescent',      desc: 'Glossy, color-shifting' },
+  'L-L-H': { name: 'Opalescent',      desc: 'Translucent, color-shifting' },
+  'H-H-L': { name: 'Mirror',          desc: 'Opaque, reflective sheen' },
+  'H-L-H': { name: 'Gemstone',        desc: 'Opaque, faceted color-shifting' },
+  'L-H-H': { name: 'Iridescent',      desc: 'Glossy, color-shifting' },
   'H-H-H': { name: 'Mother of Pearl', desc: 'Opaque, glossy, color-shifting' },
 };
 
@@ -489,8 +489,8 @@ export const TRIANGLE_TIER_WEIGHTS = {
   },
   finish: {
     0: 0.03,   // Seaglass — rarest (3%)
-    1: 0.12,   // Matte/Glass/Prismatic — uncommon (12% split 3 ways ≈ 4% each)
-    2: 0.35,   // Metallic/Holographic/Opalescent — common (35% split 3 ways ≈ 12% each)
+    1: 0.12,   // Velvet/Glass/Opalescent — uncommon (12% split 3 ways ≈ 4% each)
+    2: 0.35,   // Mirror/Gemstone/Iridescent — common (35% split 3 ways ≈ 12% each)
     3: 0.50,   // Mother of Pearl — most common, "standard dragon" (50%)
   },
 };

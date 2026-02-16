@@ -3,6 +3,7 @@ import { initGenerateTab } from './ui-generator.js';
 import { initBreedTab } from './ui-breeder.js';
 import { initStablesTab } from './ui-stables.js';
 import { initQuestsTab } from './ui-quests.js';
+import { initAlmanacTab } from './ui-almanac.js';
 
 // Shared dragon registry — all dragons accessible across tabs
 class DragonRegistry {
@@ -72,6 +73,7 @@ function init() {
   initBreedTab(document.getElementById('tab-breed'), registry);
   initStablesTab(document.getElementById('tab-stables'), registry);
   initQuestsTab(document.getElementById('tab-quests'), registry);
+  initAlmanacTab(document.getElementById('tab-almanac'));
 }
 
 document.addEventListener('DOMContentLoaded', init);
