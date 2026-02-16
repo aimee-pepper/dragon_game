@@ -8,6 +8,23 @@ const COLOR_TARGETS = [
   'Purple', 'Teal', 'Indigo', 'Gold', 'Rose',
 ];
 
+// CMY recipe hints for each color target
+// Uses the same dot separator as the card UI
+const COLOR_RECIPES = {
+  Red:     'C: None · M: High · Y: High',
+  Blue:    'C: High · M: High · Y: None',
+  Green:   'C: High · M: None · Y: High',
+  Cyan:    'C: High · M: None · Y: None',
+  Magenta: 'C: None · M: High · Y: None',
+  Yellow:  'C: None · M: None · Y: High',
+  Orange:  'C: None · M: Mid+ · Y: High',
+  Purple:  'C: Mid+ · M: High · Y: None',
+  Teal:    'C: High · M: None · Y: Mid+',
+  Indigo:  'C: High · M: High · Y: Low',
+  Gold:    'C: None · M: Low · Y: High',
+  Rose:    'C: None · M: High · Y: Mid+',
+};
+
 const ELEMENT_TARGETS = [
   'Fire', 'Ice', 'Lightning', 'Steam', 'Solar', 'Aurora', 'Plasma',
 ];
@@ -57,11 +74,13 @@ function pick(arr) {
 
 function makeColorReq() {
   const color = pick(COLOR_TARGETS);
+  const recipe = COLOR_RECIPES[color];
   return {
     path: 'color.displayName',
     match: 'includes',
     value: color,
     label: `${color} coloring`,
+    hint: recipe || null,
   };
 }
 

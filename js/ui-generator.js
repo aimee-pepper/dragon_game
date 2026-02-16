@@ -20,7 +20,7 @@ export function initGenerateTab(container, registry) {
   // Controls
   const controls = el('div', 'btn-group');
 
-  const generateBtn = el('button', 'btn btn-primary', 'Generate Random Dragon');
+  const generateBtn = el('button', 'btn btn-primary', 'Capture Random Dragon');
   generateBtn.addEventListener('click', () => generateOne(list));
   controls.appendChild(generateBtn);
 
@@ -28,7 +28,7 @@ export function initGenerateTab(container, registry) {
 
   const controls2 = el('div', 'btn-group');
 
-  const generate5Btn = el('button', 'btn btn-secondary', 'Generate 5');
+  const generate5Btn = el('button', 'btn btn-secondary', 'Capture 5');
   generate5Btn.addEventListener('click', () => {
     for (let i = 0; i < 5; i++) generateOne(list);
   });
@@ -47,8 +47,16 @@ export function initGenerateTab(container, registry) {
   container.appendChild(list);
 }
 
-function switchToBreedTab() {
-  document.querySelector('[data-tab="breed"]')?.click();
+function showParentSetToast(slot, dragon) {
+  const existing = document.querySelector('.parent-set-toast');
+  if (existing) existing.remove();
+  const toast = el('div', 'parent-set-toast', `Parent ${slot} set: ${dragon.name}`);
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('visible'));
+  setTimeout(() => {
+    toast.classList.remove('visible');
+    setTimeout(() => toast.remove(), 300);
+  }, 1800);
 }
 
 function generateOne(listContainer) {
@@ -58,8 +66,8 @@ function generateOne(listContainer) {
   const card = renderDragonCard(dragon, {
     onSaveToStables: (d) => addToStables(d),
     onViewLineage: (d) => openFamilyTree(d, dragonRegistry),
-    onUseAsParentA: (d) => { setParentExternal('A', d); switchToBreedTab(); },
-    onUseAsParentB: (d) => { setParentExternal('B', d); switchToBreedTab(); },
+    onUseAsParentA: (d) => { setParentExternal('A', d); showParentSetToast('A', d); },
+    onUseAsParentB: (d) => { setParentExternal('B', d); showParentSetToast('B', d); },
   });
   // Insert at top of list
   listContainer.insertBefore(card, listContainer.firstChild);

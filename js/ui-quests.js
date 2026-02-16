@@ -103,7 +103,23 @@ function renderQuestCard(quest) {
   for (const req of quest.requirements) {
     const reqItem = el('div', 'quest-req-item');
     reqItem.appendChild(el('span', 'quest-req-dot', '●'));
-    reqItem.appendChild(el('span', 'quest-req-text', req.label));
+    const reqText = el('span', 'quest-req-text', req.label);
+    reqItem.appendChild(reqText);
+    // Show CMY recipe hint for color requirements
+    if (req.hint) {
+      const hint = el('span', 'quest-req-hint');
+      hint.appendChild(document.createTextNode(' ('));
+      // Parse "C: High · M: None · Y: High" into tinted spans
+      const parts = req.hint.split(' · ');
+      parts.forEach((part, i) => {
+        const axis = part.charAt(0); // C, M, or Y
+        const axisClass = axis === 'C' ? 'cmy-c' : axis === 'M' ? 'cmy-m' : 'cmy-y';
+        hint.appendChild(el('span', axisClass, part));
+        if (i < parts.length - 1) hint.appendChild(document.createTextNode(' · '));
+      });
+      hint.appendChild(document.createTextNode(')'));
+      reqItem.appendChild(hint);
+    }
     reqList.appendChild(reqItem);
   }
   card.appendChild(reqList);
@@ -156,7 +172,7 @@ function openQuestPicker(quest) {
   const dragons = getStabledDragons();
 
   if (dragons.length === 0) {
-    showQuestMessage('No stabled dragons! Stable dragons from the Generate or Breed tabs first.', 'error');
+    showQuestMessage('No stabled dragons! Stable dragons from the Capture or Breed tabs first.', 'error');
     return;
   }
 

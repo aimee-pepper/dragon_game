@@ -247,10 +247,34 @@ function renderGenotypeSection(dragon, parentNames) {
     for (const axis of td.axes) triangleAxes.add(axis);
   }
 
-  for (const [geneName, alleles] of Object.entries(dragon.genotype)) {
+  // Define canonical gene ordering with groups for visual separation
+  const geneGroups = [
+    { label: 'Body', genes: ['body_size', 'body_type', 'body_scales'] },
+    { label: 'Frame', genes: ['frame_wings', 'frame_limbs', 'frame_bones'] },
+    { label: 'Breath', genes: ['breath_shape', 'breath_range'] },
+    { label: 'Color', genes: ['color_cyan', 'color_magenta', 'color_yellow'] },
+    { label: 'Finish', genes: ['finish_opacity', 'finish_shine', 'finish_schiller'] },
+    { label: 'Element', genes: ['breath_fire', 'breath_ice', 'breath_lightning'] },
+    { label: 'Horns', genes: ['horn_style', 'horn_direction'] },
+    { label: 'Spines', genes: ['spine_style', 'spine_height'] },
+    { label: 'Tail', genes: ['tail_shape', 'tail_length'] },
+  ];
+
+  for (const group of geneGroups) {
+    const groupEl = el('div', 'genotype-group');
+    const groupLabel = el('div', 'genotype-group-label', group.label);
+    groupEl.appendChild(groupLabel);
+
+  for (const geneName of group.genes) {
+    const alleles = dragon.genotype[geneName];
+    if (!alleles) continue;
     const row = el('div', 'genotype-row');
     const isMutated = dragon.mutations.includes(geneName);
     if (isMutated) row.classList.add('mutated');
+    // Tint CMY gene rows
+    if (geneName === 'color_cyan') row.classList.add('genotype-cmy-c');
+    else if (geneName === 'color_magenta') row.classList.add('genotype-cmy-m');
+    else if (geneName === 'color_yellow') row.classList.add('genotype-cmy-y');
 
     const def = GENE_DEFS[geneName];
     const label = def?.label || geneName;
@@ -317,8 +341,11 @@ function renderGenotypeSection(dragon, parentNames) {
     row.appendChild(geneEl);
     row.appendChild(allelesEl);
 
-    content.appendChild(row);
-  }
+    groupEl.appendChild(row);
+  } // end gene loop
+
+    content.appendChild(groupEl);
+  } // end group loop
 
   wrapper.appendChild(toggleBtn);
   wrapper.appendChild(content);

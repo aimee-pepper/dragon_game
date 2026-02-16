@@ -74,7 +74,7 @@ function refreshStablesList() {
 
   if (dragons.length === 0) {
     const empty = el('div', 'stables-empty');
-    empty.textContent = 'No dragons stabled yet. Save dragons from the Generate or Breed tabs!';
+    empty.textContent = 'No dragons stabled yet. Save dragons from the Capture or Breed tabs!';
     stablesList.appendChild(empty);
     return;
   }
