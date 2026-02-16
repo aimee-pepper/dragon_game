@@ -1044,6 +1044,46 @@ function getBounds(grid) {
   return { minR, maxR, minC, maxC };
 }
 
+// ── Shared animation loop for shimmer/metallic effects ──
+// Manages all animated sprites via a single requestAnimationFrame loop
+const animatedSprites = new Set();
+let animFrameId = null;
+
+function animationTick(timestamp) {
+  for (const sprite of animatedSprites) {
+    // Auto-cleanup: remove sprites no longer in the DOM
+    if (!sprite.canvas.isConnected) {
+      animatedSprites.delete(sprite);
+      continue;
+    }
+    const filters = [];
+    // Schiller shimmer: oscillating hue-rotate
+    if (sprite.shimmerDeg > 0) {
+      const period = sprite.shimmerDuration * 1000; // ms
+      const phase = (timestamp % period) / period;  // 0..1
+      const deg = Math.sin(phase * Math.PI * 2) * sprite.shimmerDeg;
+      filters.push(`hue-rotate(${deg.toFixed(1)}deg)`);
+    }
+    // Metallic gleam: oscillating brightness
+    if (sprite.hasMetallic) {
+      const phase = (timestamp % 3000) / 3000;
+      const brightness = 1.0 + 0.15 * Math.sin(phase * Math.PI * 2);
+      filters.push(`brightness(${brightness.toFixed(3)})`);
+    }
+    sprite.canvas.style.filter = filters.length ? filters.join(' ') : '';
+  }
+  if (animatedSprites.size > 0) {
+    animFrameId = requestAnimationFrame(animationTick);
+  } else {
+    animFrameId = null;
+  }
+}
+
+function startAnimationLoop() {
+  if (animFrameId !== null) return;
+  animFrameId = requestAnimationFrame(animationTick);
+}
+
 export function renderDragonSprite(phenotype, compact = false) {
   const grid = buildSpriteGrid(phenotype);
 
@@ -1062,122 +1102,60 @@ export function renderDragonSprite(phenotype, compact = false) {
   // 4. Schiller hue variance (hue-only shifts)
   applySchillerHue(grid, schillerLevel);
 
-  // ── Render grid to DOM ──
+  // ── Render grid to canvas ──
   const { minR, maxR, minC, maxC } = getBounds(grid);
   const rows = maxR - minR + 1;
   const cols = maxC - minC + 1;
   const cellSize = compact ? CELL_PX_COMPACT : CELL_PX;
+  const canvasW = cols * cellSize;
+  const canvasH = rows * cellSize;
 
-  const container = document.createElement('div');
-  let className = 'dragon-sprite';
-  if (hasMetallic) className += ' metallic-animate';
-  container.className = className;
-  container.style.display = 'grid';
-  container.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
-  container.style.gridTemplateRows = `repeat(${rows}, ${cellSize}px)`;
-  container.style.width = `${cols * cellSize}px`;
-  container.style.height = `${rows * cellSize}px`;
-  container.style.flexShrink = '0';
+  const canvas = document.createElement('canvas');
+  canvas.width = canvasW;
+  canvas.height = canvasH;
+  canvas.className = 'dragon-sprite';
 
-  // ── Responsive wrapper: scales sprite to fit container on mobile ──
-  const spriteW = cols * cellSize;
-  const spriteH = rows * cellSize;
-  const wrapper = document.createElement('div');
-  wrapper.className = 'sprite-scale-wrapper';
-  wrapper.style.maxWidth = '100%';
-  wrapper.style.overflow = 'hidden';
-  wrapper.style.position = 'relative';
-  // Natural width/height so layout knows the size
-  wrapper.style.width = `${spriteW}px`;
-  wrapper.style.height = `${spriteH}px`;
-
-  // Use container query: if the sprite is wider than viewport, scale it
-  // We use an inline style approach that respects available space
-  wrapper.dataset.spriteW = spriteW;
-  wrapper.dataset.spriteH = spriteH;
-
-  // Opacity effect (container-level): low opacity = translucent
-  const alpha = 0.7 + (opacityLevel / 3) * 0.3;
-  if (alpha < 0.99) {
-    container.style.opacity = alpha.toFixed(2);
-  }
-
-  // Per-pixel schiller shimmer config
-  const doSchillerAnim = schillerLevel >= 0.5;
-  // Hue rotation range: subtle at low schiller, vivid at max
-  // Low (~0.5): ±4°, Mid (~1.5): ±10°, High (3): ±20°
-  const shimmerDeg = doSchillerAnim ? Math.round((schillerLevel / 3) * 20) : 0;
-  // Speed: faster at low schiller (subtle flicker), slower at max (dramatic waves)
-  // Low: 1.5s, High: 3s
-  const shimmerDurationBase = doSchillerAnim ? 1.5 + (schillerLevel / 3) * 1.5 : 0;
-
+  const ctx = canvas.getContext('2d');
   for (let r = minR; r <= maxR; r++) {
     for (let c = minC; c <= maxC; c++) {
-      const cell = document.createElement('div');
-      const gridCell = grid[r][c];
-      if (gridCell) {
-        let cls = gridCell.isEdge ? 'sprite-cell sprite-cell-edge' : 'sprite-cell';
-
-        // Add per-pixel schiller shimmer with randomized delay & direction
-        if (doSchillerAnim && gridCell.type !== 'eye' && gridCell.type !== 'breath' && gridCell.type !== 'nostril') {
-          cls += ' sprite-cell-schiller';
-          // Deterministic pseudo-random delay based on grid position
-          const noise = Math.sin(r * 73.1 + c * 179.3) * 43758.5453;
-          const rand01 = noise - Math.floor(noise);
-          const delay = (rand01 * shimmerDurationBase).toFixed(2);
-          // Slight duration variance so pixels don't all sync up
-          const durVariance = 0.8 + rand01 * 0.4; // 0.8x to 1.2x
-          const duration = (shimmerDurationBase * durVariance).toFixed(2);
-          // Alternate positive/negative hue shift per pixel
-          const dir = rand01 > 0.5 ? shimmerDeg : -shimmerDeg;
-          cell.style.setProperty('--shimmer-delay', `${delay}s`);
-          cell.style.setProperty('--shimmer-duration', `${duration}s`);
-          cell.style.setProperty('--shimmer-deg', `${dir}deg`);
-        }
-
-        cell.className = cls;
-        cell.style.backgroundColor = gridCell.color;
-      } else {
-        cell.className = 'sprite-cell';
+      const cell = grid[r][c];
+      if (cell) {
+        ctx.fillStyle = cell.color;
+        ctx.fillRect((c - minC) * cellSize, (r - minR) * cellSize, cellSize, cellSize);
       }
-      container.appendChild(cell);
     }
   }
 
-  wrapper.appendChild(container);
+  // Opacity effect: low opacity = translucent
+  const alpha = 0.7 + (opacityLevel / 3) * 0.3;
+  if (alpha < 0.99) {
+    canvas.style.opacity = alpha.toFixed(2);
+  }
 
-  // After DOM insertion, check if scaling is needed via ResizeObserver
-  const ro = new ResizeObserver((entries) => {
-    for (const entry of entries) {
-      const availW = entry.contentRect.width;
-      const natW = parseFloat(wrapper.dataset.spriteW);
-      const natH = parseFloat(wrapper.dataset.spriteH);
-      if (availW > 0 && availW < natW) {
-        const scale = availW / natW;
-        container.style.transform = `scale(${scale})`;
-        container.style.transformOrigin = 'top left';
-        wrapper.style.height = `${Math.ceil(natH * scale)}px`;
-      } else {
-        container.style.transform = '';
-        wrapper.style.height = `${natH}px`;
-      }
-    }
-  });
-  // Observe after insertion (requestAnimationFrame ensures it's in DOM)
-  requestAnimationFrame(() => {
-    if (wrapper.parentElement) {
-      ro.observe(wrapper);
-    } else {
-      // Fallback: observe when it eventually enters the DOM
-      const mo = new MutationObserver(() => {
-        if (wrapper.parentElement) {
-          ro.observe(wrapper);
-          mo.disconnect();
-        }
-      });
-      mo.observe(document.body, { childList: true, subtree: true });
-    }
-  });
+  // ── Responsive wrapper: canvas scales via CSS automatically ──
+  const wrapper = document.createElement('div');
+  wrapper.className = 'sprite-scale-wrapper';
+  // Canvas scales responsively: width:100% makes it shrink to fit,
+  // maxWidth prevents it from growing beyond natural size
+  canvas.style.width = '100%';
+  canvas.style.maxWidth = `${canvasW}px`;
+  canvas.style.height = 'auto';
+  wrapper.appendChild(canvas);
+
+  // ── Register for animation if needed ──
+  const doSchillerAnim = schillerLevel >= 0.5;
+  const shimmerDeg = doSchillerAnim ? Math.round((schillerLevel / 3) * 20) : 0;
+  const shimmerDuration = doSchillerAnim ? 1.5 + (schillerLevel / 3) * 1.5 : 0;
+
+  if (doSchillerAnim || hasMetallic) {
+    animatedSprites.add({
+      canvas,
+      shimmerDeg,
+      shimmerDuration,
+      hasMetallic,
+    });
+    startAnimationLoop();
+  }
 
   return wrapper;
 }

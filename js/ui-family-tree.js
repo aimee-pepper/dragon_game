@@ -4,6 +4,8 @@ import { renderDragonSprite } from './ui-dragon-sprite.js';
 import { renderDragonCard } from './ui-card.js';
 
 const MAX_DEPTH = 4; // up to great-great-grandparents (5 rows total)
+const MOBILE_MAX_DEPTH = 2; // grandparents only on mobile (fits ~320px)
+const MOBILE_BREAKPOINT = 600;
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -14,17 +16,22 @@ function el(tag, className, text) {
 
 /**
  * Build the ancestor data structure by traversing parentIds.
- * Returns a tree node: { dragon, parentA: node|null, parentB: node|null }
+ * Returns a tree node: { dragon, parentA: node|null, parentB: node|null, truncated: boolean }
  */
-function buildAncestorTree(dragon, registry, depth = 0, visited = new Set()) {
+function buildAncestorTree(dragon, registry, depth = 0, maxDepth = MAX_DEPTH, visited = new Set()) {
   const node = {
     dragon,
     parentA: null,
     parentB: null,
+    truncated: false,
   };
 
   // Safety: prevent circular refs and limit depth
-  if (depth >= MAX_DEPTH || !dragon.parentIds || visited.has(dragon.id)) {
+  if (depth >= maxDepth || !dragon.parentIds || visited.has(dragon.id)) {
+    // Mark as truncated if this dragon has parents we're not showing
+    if (dragon.parentIds && depth >= maxDepth) {
+      node.truncated = true;
+    }
     return node;
   }
   visited.add(dragon.id);
@@ -34,10 +41,10 @@ function buildAncestorTree(dragon, registry, depth = 0, visited = new Set()) {
   const parentBDragon = registry.get(parentBId);
 
   if (parentADragon) {
-    node.parentA = buildAncestorTree(parentADragon, registry, depth + 1, visited);
+    node.parentA = buildAncestorTree(parentADragon, registry, depth + 1, maxDepth, visited);
   }
   if (parentBDragon) {
-    node.parentB = buildAncestorTree(parentBDragon, registry, depth + 1, visited);
+    node.parentB = buildAncestorTree(parentBDragon, registry, depth + 1, maxDepth, visited);
   }
 
   return node;
@@ -59,11 +66,26 @@ export function openFamilyTree(dragon, registry) {
     : `Generation ${dragon.generation}`;
   panel.appendChild(el('div', 'family-tree-gen-info', genText));
 
+  // On mobile, clamp depth so the tree fits on screen
+  const isMobile = window.innerWidth <= MOBILE_BREAKPOINT;
+  const effectiveDepth = isMobile ? MOBILE_MAX_DEPTH : MAX_DEPTH;
+
   // Build and render tree
-  const tree = buildAncestorTree(dragon, registry);
+  const tree = buildAncestorTree(dragon, registry, 0, effectiveDepth);
   const treeContainer = el('div', 'family-tree-container');
   treeContainer.appendChild(renderTreeLevel(tree, registry));
   panel.appendChild(treeContainer);
+
+  // Scroll hint: show if tree overflows horizontally
+  requestAnimationFrame(() => {
+    if (treeContainer.scrollWidth > treeContainer.clientWidth + 10) {
+      const hint = el('div', 'tree-scroll-hint', '← Swipe to see full tree →');
+      treeContainer.insertBefore(hint, treeContainer.firstChild);
+      treeContainer.addEventListener('scroll', () => {
+        if (hint.parentElement) hint.remove();
+      }, { once: true });
+    }
+  });
 
   // Close button
   const closeRow = el('div', 'picker-close');
@@ -114,7 +136,7 @@ function renderTreeLevel(node, registry) {
   }
 
   // This dragon's node
-  wrapper.appendChild(renderDragonNode(node.dragon, registry));
+  wrapper.appendChild(renderDragonNode(node.dragon, registry, node.truncated));
 
   return wrapper;
 }
@@ -123,9 +145,11 @@ function renderTreeLevel(node, registry) {
  * Render a single dragon node in the tree.
  * Shows: scaled compact sprite, name, generation.
  * Clickable to open ancestor detail popup.
+ * If truncated=true, shows a "..." indicator for deeper ancestors.
  */
-function renderDragonNode(dragon, registry) {
+function renderDragonNode(dragon, registry, truncated = false) {
   const node = el('div', 'tree-node');
+  if (truncated) node.classList.add('tree-node-truncated');
 
   // Compact sprite, scaled down via CSS
   const sprite = renderDragonSprite(dragon.phenotype, true);
@@ -136,6 +160,9 @@ function renderDragonNode(dragon, registry) {
   const label = el('div', 'tree-node-label');
   label.appendChild(el('div', 'tree-node-name', dragon.name));
   label.appendChild(el('div', 'tree-node-gen', `Gen ${dragon.generation}`));
+  if (truncated) {
+    label.appendChild(el('div', 'tree-node-more', '⋯ tap for more'));
+  }
   node.appendChild(label);
 
   // Click to open detail popup
