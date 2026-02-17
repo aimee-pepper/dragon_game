@@ -584,6 +584,34 @@ header h1 {
   display: block;
 }
 
+/* Compact genotype inside narrow parent slots */
+.parent-detail-container .genotype-row {
+  flex-wrap: wrap;
+  gap: 2px 6px;
+}
+
+.parent-detail-container .genotype-gene {
+  min-width: 0;
+  text-align: left;
+  font-size: 11px;
+  width: 100%;
+}
+
+.parent-detail-container .genotype-alleles {
+  min-width: 0;
+  font-size: 11px;
+  width: 100%;
+  padding-left: 8px;
+}
+
+.parent-detail-container .genotype-group-label {
+  text-align: left;
+}
+
+.parent-detail-container .genotype-toggle {
+  margin-top: 0;
+}
+
 .clutch-results {
   margin-top: var(--spacing);
 }
@@ -1271,196 +1299,167 @@ header h1 {
 }
 
 .family-tree-container {
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: auto;
   padding: var(--spacing-sm);
   -webkit-overflow-scrolling: touch;
 }
 
-/* ---- Cascade Tree Layout ---- */
+/* ---- Classic Bottom-Up Pedigree Layout ---- */
 
-.cascade-tree {
-  padding-left: 0;
-}
-
-/* A group = one node + its children (recursive) */
-.cascade-group {
-  position: relative;
-}
-
-/* Row: horizontal connector + node content + toggle */
-.cascade-row {
+.pedigree-tree {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 0;
-  position: relative;
+  justify-content: center;
+  padding-bottom: 8px;
 }
 
-/* Horizontal branch connector (drawn via ::before on rows inside .cascade-children) */
-.cascade-children > .cascade-group > .cascade-row::before {
+/* A family unit: parents row (above) + connector + child (below) */
+.ped-family {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Parents row: two .ped-family subtrees side by side */
+.ped-parents {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  position: relative;
+  padding-bottom: 0;
+}
+
+/* Horizontal bar connecting the two parent branches */
+.ped-parents::after {
   content: '';
   position: absolute;
-  left: -14px;
-  top: 50%;
-  width: 14px;
+  bottom: 0;
+  left: 25%;
+  right: 25%;
   height: 0;
-  border-top: 2px solid var(--border);
+  border-bottom: 2px solid var(--border);
 }
 
-/* Vertical connector: left border on children container */
-.cascade-children {
-  margin-left: 11px;
-  padding-left: 14px;
-  border-left: 2px solid var(--border);
-}
-
-/* Last child group: cut the vertical line at the branch point */
-.cascade-children > .cascade-group.cascade-last {
-  border-left: 2px solid transparent;
-}
-
-/* For the last child, we need to position the vertical line to stop at the branch */
-.cascade-children > .cascade-group.cascade-last::before {
-  content: '';
-  position: absolute;
-  left: -2px;
-  top: 0;
-  bottom: 50%;
+/* Vertical connector from horizontal bar down to child */
+.ped-vline {
   width: 0;
+  height: 12px;
   border-left: 2px solid var(--border);
 }
 
-/* Collapsed state */
-.cascade-children.cascade-collapsed {
-  display: none;
+/* Vertical connector from each parent node down to the horizontal bar */
+.ped-parents > .ped-family > .ped-child::after {
+  content: '';
+  display: block;
+  width: 0;
+  height: 10px;
+  border-left: 2px solid var(--border);
+  margin: 0 auto;
 }
 
-/* ---- Cascade Node (dragon content) ---- */
-
-.cascade-node {
+/* Child wrapper: centers the node */
+.ped-child {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
+}
+
+/* ---- Pedigree Node ---- */
+
+.ped-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: border-color 0.15s, background 0.15s, box-shadow 0.3s;
-  flex: 1;
-  min-width: 0;
+  min-width: 64px;
+  max-width: 80px;
+  text-align: center;
 }
 
-.cascade-node:active {
+.ped-node:active {
   background: var(--bg-card-alt);
   border-color: var(--accent);
 }
 
-/* Compact sprite inside cascade nodes */
-.cascade-sprite {
-  width: 44px !important;
-  max-width: 44px !important;
+/* Compact sprite */
+.ped-sprite {
+  width: 40px !important;
+  max-width: 40px !important;
   height: auto;
   flex-shrink: 0;
 }
 
-.cascade-sprite canvas {
+.ped-sprite canvas {
   width: 100%;
   height: auto;
-  max-width: 44px;
+  max-width: 40px;
 }
 
-.cascade-node-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.cascade-node-name {
-  font-size: 12px;
+.ped-node-name {
+  font-size: 10px;
   font-weight: 600;
   color: var(--text-bright);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 100%;
 }
 
-.cascade-node-gen {
-  font-size: 10px;
+.ped-node-gen {
+  font-size: 8px;
   color: var(--accent);
   font-weight: 500;
 }
 
-/* Wild dragon: dashed green border */
-.cascade-node-wild {
+/* Wild dragon: dashed border */
+.ped-node-wild {
   border-style: dashed;
   border-width: 2px;
 }
 
 /* Unknown ancestor */
-.cascade-unknown {
+.ped-unknown {
   opacity: 0.4;
   cursor: default;
-  min-height: 36px;
+  min-height: 28px;
   justify-content: center;
 }
 
-.cascade-unknown:active {
+.ped-unknown:active {
   background: var(--bg-card);
   border-color: var(--border);
 }
 
-/* Reference node (duplicate ancestor — compact) */
-.cascade-ref {
+/* Reference node (duplicate ancestor) */
+.ped-ref {
   opacity: 0.65;
   border-style: dotted;
   border-width: 2px;
 }
 
-.cascade-ref:hover,
-.cascade-ref:active {
+.ped-ref:hover,
+.ped-ref:active {
   opacity: 1;
 }
 
-.cascade-ref-label {
-  font-size: 9px;
+.ped-ref-label {
+  font-size: 7px;
   color: var(--accent);
   opacity: 0.8;
 }
 
-/* Expand/collapse toggle button */
-.cascade-toggle {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  border: 1px solid var(--border);
-  background: var(--bg-card-alt);
-  color: var(--text-muted);
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  -webkit-tap-highlight-color: transparent;
-  transition: background 0.15s, border-color 0.15s;
-  line-height: 1;
-  padding: 0;
+/* Pulse highlight animation */
+.ped-highlight {
+  animation: ped-pulse 1.5s ease-out;
 }
 
-.cascade-toggle:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-/* Pulse highlight animation for "find first occurrence" */
-.cascade-highlight {
-  animation: cascade-pulse 1.5s ease-out;
-}
-
-@keyframes cascade-pulse {
+@keyframes ped-pulse {
   0% { box-shadow: 0 0 0 0 rgba(196, 162, 101, 0.7); }
   25% { box-shadow: 0 0 0 6px rgba(196, 162, 101, 0.5); }
   50% { box-shadow: 0 0 0 3px rgba(196, 162, 101, 0.3); }
@@ -1946,6 +1945,14 @@ header h1 {
   color: var(--accent);
 }
 
+/* Specific allele value matching quest target */
+.allele-quest-match {
+  color: var(--accent) !important;
+  font-weight: 800 !important;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 /* ---- Pinned Quest Widget ---- */
 
 .quest-widget {
@@ -1966,8 +1973,8 @@ header h1 {
   color: var(--btn-text);
   border: none;
   border-radius: 20px;
-  padding: 8px 16px;
-  font-size: 12px;
+  padding: 6px 12px;
+  font-size: 10px;
   font-weight: 700;
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(0,0,0,0.3);
@@ -1982,11 +1989,16 @@ header h1 {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 10px;
-  margin-top: 6px;
+  padding: 8px;
+  margin-top: 4px;
   box-shadow: 0 4px 16px rgba(0,0,0,0.3);
-  max-height: 260px;
+  max-height: 240px;
   overflow-y: auto;
+}
+
+.quest-widget-content .quest-difficulty {
+  font-size: 9px;
+  padding: 2px 6px;
 }
 
 .quest-widget.expanded .quest-widget-content {
@@ -1997,15 +2009,15 @@ header h1 {
   display: flex;
   justify-content: flex-start;
   align-items: center;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .quest-widget-req {
   display: flex;
   align-items: baseline;
-  gap: 6px;
-  padding: 3px 0;
-  font-size: 12px;
+  gap: 5px;
+  padding: 2px 0;
+  font-size: 10px;
   color: var(--text);
 }
 
@@ -2015,23 +2027,24 @@ header h1 {
 }
 
 .quest-widget-dot {
-  font-size: 9px;
+  font-size: 7px;
   color: var(--text-muted);
   flex-shrink: 0;
-  width: 14px;
+  width: 12px;
   text-align: center;
 }
 
 .quest-widget-dot.met {
   color: var(--success);
   font-weight: 700;
+  font-size: 9px;
 }
 
 .quest-widget-hint {
-  font-size: 10px;
+  font-size: 9px;
   color: var(--text-muted);
-  padding-left: 20px;
-  line-height: 1.4;
+  padding-left: 17px;
+  line-height: 1.3;
 }
 
 /* ============================================
@@ -2178,9 +2191,9 @@ header h1 {
     padding: var(--spacing-sm) var(--spacing);
   }
 
-  /* ---- Family tree cascade: compact for mobile ---- */
+  /* ---- Family tree pedigree: compact for mobile ---- */
   .family-tree-panel {
-    max-height: 90vh;
+    max-height: 92vh;
     padding: var(--spacing-sm);
   }
 
@@ -2188,47 +2201,39 @@ header h1 {
     padding: var(--spacing-xs);
   }
 
-  /* Tighter indent on mobile */
-  .cascade-children {
-    margin-left: 8px;
-    padding-left: 12px;
+  .ped-parents {
+    gap: 2px;
   }
 
-  .cascade-children > .cascade-group > .cascade-row::before {
-    left: -12px;
-    width: 12px;
+  .ped-node {
+    padding: 3px 4px;
+    min-width: 52px;
+    max-width: 68px;
   }
 
-  .cascade-node {
-    padding: 4px 8px;
-    gap: 6px;
+  .ped-sprite {
+    width: 32px !important;
+    max-width: 32px !important;
   }
 
-  .cascade-sprite {
-    width: 36px !important;
-    max-width: 36px !important;
+  .ped-sprite canvas {
+    max-width: 32px;
   }
 
-  .cascade-sprite canvas {
-    max-width: 36px;
-  }
-
-  .cascade-node-name {
-    font-size: 11px;
-  }
-
-  .cascade-node-gen {
+  .ped-node-name {
     font-size: 9px;
   }
 
-  .cascade-toggle {
-    width: 24px;
-    height: 24px;
-    font-size: 13px;
+  .ped-node-gen {
+    font-size: 7px;
   }
 
-  .cascade-ref-label {
-    font-size: 8px;
+  .ped-vline {
+    height: 8px;
+  }
+
+  .ped-parents > .ped-family > .ped-child::after {
+    height: 8px;
   }
 
   .tree-legend {
@@ -2313,33 +2318,27 @@ header h1 {
     font-size: 11px;
   }
 
-  /* Extra-small cascade tree tweaks */
-  .cascade-children {
-    margin-left: 6px;
-    padding-left: 10px;
+  /* Extra-small pedigree tree tweaks */
+  .ped-node {
+    min-width: 44px;
+    max-width: 58px;
+    padding: 2px 3px;
   }
 
-  .cascade-children > .cascade-group > .cascade-row::before {
-    left: -10px;
-    width: 10px;
+  .ped-sprite {
+    width: 26px !important;
+    max-width: 26px !important;
   }
 
-  .cascade-sprite {
-    width: 30px !important;
-    max-width: 30px !important;
+  .ped-sprite canvas {
+    max-width: 26px;
   }
 
-  .cascade-sprite canvas {
-    max-width: 30px;
+  .ped-node-name {
+    font-size: 8px;
   }
 
-  .cascade-node-name {
-    font-size: 10px;
-  }
-
-  .cascade-toggle {
-    width: 22px;
-    height: 22px;
-    font-size: 12px;
+  .ped-node-gen {
+    font-size: 6px;
   }
 }

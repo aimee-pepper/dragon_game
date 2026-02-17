@@ -12,12 +12,14 @@ function el(tag, className, text) {
 }
 
 // Render a dragon as a card DOM element
-// Options: { compact, showGenotype, onUseAsParentA, onUseAsParentB, parentNames, onSaveToStables, onViewLineage, highlightGenes }
+// Options: { compact, showGenotype, onUseAsParentA, onUseAsParentB, parentNames, onSaveToStables, onViewLineage, highlightGenes, desiredAlleles, hideSprite }
 // parentNames: { A: 'DragonName', B: 'DragonName' } — used for color-coding allele origins
 // onViewLineage: (dragon) => {} — callback to open family tree popup
 // highlightGenes: Set<string> — gene names to highlight for quest tracking
+// desiredAlleles: Map<geneName, Set<alleleLabel>> — specific allele labels to bold
+// hideSprite: boolean — skip sprite rendering (used when sprite already shown above)
 export function renderDragonCard(dragon, options = {}) {
-  const { compact = false, showGenotype = true, onUseAsParentA, onUseAsParentB, parentNames, onSaveToStables, onViewLineage, highlightGenes } = options;
+  const { compact = false, showGenotype = true, onUseAsParentA, onUseAsParentB, parentNames, onSaveToStables, onViewLineage, highlightGenes, desiredAlleles, hideSprite } = options;
   const p = dragon.phenotype;
 
   const card = el('div', `dragon-card${compact ? ' compact' : ''}`);
@@ -42,8 +44,10 @@ export function renderDragonCard(dragon, options = {}) {
   // --- Dragon sprite + color/finish info ---
   const visual = el('div', 'card-visual');
 
-  const sprite = renderDragonSprite(p, compact);
-  visual.appendChild(sprite);
+  if (!hideSprite) {
+    const sprite = renderDragonSprite(p, compact);
+    visual.appendChild(sprite);
+  }
 
   const info = el('div', 'visual-info');
 
@@ -192,7 +196,7 @@ export function renderDragonCard(dragon, options = {}) {
 
   // --- Genotype toggle ---
   if (showGenotype && !compact) {
-    card.appendChild(renderGenotypeSection(dragon, parentNames, highlightGenes));
+    card.appendChild(renderGenotypeSection(dragon, parentNames, highlightGenes, desiredAlleles));
   }
 
   // --- View Lineage button ---
@@ -243,7 +247,7 @@ function formatTail(traits) {
   return `${shape}, ${length}`;
 }
 
-function renderGenotypeSection(dragon, parentNames, highlightGenes) {
+export function renderGenotypeSection(dragon, parentNames, highlightGenes, desiredAlleles) {
   const wrapper = el('div', 'genotype-toggle');
 
   const toggleBtn = el('button', 'genotype-toggle-btn', 'Show Genotype');
@@ -344,6 +348,10 @@ function renderGenotypeSection(dragon, parentNames, highlightGenes) {
       return String(val);
     }
 
+    // Check if this gene has desired allele targets from the quest
+    const desiredSet = desiredAlleles && desiredAlleles.get(geneName);
+    const highlightEnabled = desiredSet && getSetting('quest-genotype-highlight');
+
     // Alleles with labels: "(Knobbed, None)"
     const allelesEl = el('span', 'genotype-alleles');
 
@@ -352,19 +360,35 @@ function renderGenotypeSection(dragon, parentNames, highlightGenes) {
       const origins = dragon.alleleOrigins[geneName];
       allelesEl.textContent = '(';
 
+      const labelA = getAlleleLabel(alleles[0]);
       const alleleA = el('span', origins[0] === 'A' ? 'allele-from-a' : 'allele-from-b');
-      alleleA.textContent = getAlleleLabel(alleles[0]);
+      alleleA.textContent = labelA;
+      if (highlightEnabled && desiredSet.has(labelA)) alleleA.classList.add('allele-quest-match');
       allelesEl.appendChild(alleleA);
 
       allelesEl.appendChild(document.createTextNode(', '));
 
+      const labelB = getAlleleLabel(alleles[1]);
       const alleleB = el('span', origins[1] === 'A' ? 'allele-from-a' : 'allele-from-b');
-      alleleB.textContent = getAlleleLabel(alleles[1]);
+      alleleB.textContent = labelB;
+      if (highlightEnabled && desiredSet.has(labelB)) alleleB.classList.add('allele-quest-match');
       allelesEl.appendChild(alleleB);
 
       allelesEl.appendChild(document.createTextNode(')'));
     } else {
-      allelesEl.textContent = `(${getAlleleLabel(alleles[0])}, ${getAlleleLabel(alleles[1])})`;
+      const labelA = getAlleleLabel(alleles[0]);
+      const labelB = getAlleleLabel(alleles[1]);
+      if (highlightEnabled && (desiredSet.has(labelA) || desiredSet.has(labelB))) {
+        allelesEl.textContent = '(';
+        const spanA = el('span', desiredSet.has(labelA) ? 'allele-quest-match' : '', labelA);
+        allelesEl.appendChild(spanA);
+        allelesEl.appendChild(document.createTextNode(', '));
+        const spanB = el('span', desiredSet.has(labelB) ? 'allele-quest-match' : '', labelB);
+        allelesEl.appendChild(spanB);
+        allelesEl.appendChild(document.createTextNode(')'));
+      } else {
+        allelesEl.textContent = `(${labelA}, ${labelB})`;
+      }
     }
 
     row.appendChild(geneEl);

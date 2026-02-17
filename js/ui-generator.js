@@ -5,7 +5,7 @@ import { addToStables } from './ui-stables.js';
 import { openFamilyTree } from './ui-family-tree.js';
 import { setParentExternal } from './ui-breeder.js';
 import { applyQuestHalo, onHighlightChange, getHighlightedQuest } from './quest-highlight.js';
-import { getGenesForQuest } from './quest-gene-map.js';
+import { getGenesForQuest, getDesiredAllelesForQuest } from './quest-gene-map.js';
 
 let dragonRegistry = null; // set by init
 let dragonListContainer = null;
@@ -72,6 +72,7 @@ function generateOne(listContainer) {
 
   const quest = getHighlightedQuest();
   const highlightGenes = quest ? getGenesForQuest(quest) : null;
+  const desiredAlleles = quest ? getDesiredAllelesForQuest(quest) : null;
 
   const card = renderDragonCard(dragon, {
     onSaveToStables: (d) => addToStables(d),
@@ -79,6 +80,7 @@ function generateOne(listContainer) {
     onUseAsParentA: (d) => { setParentExternal('A', d); showParentSetToast('A', d); },
     onUseAsParentB: (d) => { setParentExternal('B', d); showParentSetToast('B', d); },
     highlightGenes,
+    desiredAlleles,
   });
   card.dataset.dragonId = dragon.id;
   applyQuestHalo(card, dragon);

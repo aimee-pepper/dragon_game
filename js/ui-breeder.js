@@ -1,11 +1,11 @@
 // Breed tab: parent selection + breeding + offspring display
 import { Dragon } from './dragon.js';
-import { renderDragonCard, renderPickerItem } from './ui-card.js';
+import { renderDragonCard, renderPickerItem, renderGenotypeSection } from './ui-card.js';
 import { renderDragonSprite } from './ui-dragon-sprite.js';
 import { addToStables, getStabledDragons } from './ui-stables.js';
 import { openFamilyTree } from './ui-family-tree.js';
 import { applyQuestHalo, onHighlightChange, getHighlightedQuest } from './quest-highlight.js';
-import { getGenesForQuest } from './quest-gene-map.js';
+import { getGenesForQuest, getDesiredAllelesForQuest } from './quest-gene-map.js';
 
 let dragonRegistry = null;
 let parentA = null;
@@ -117,23 +117,31 @@ function renderParentSummary(container, which, dragon) {
   const colorEl = el('div', 'parent-summary-color', colorLabel);
   wrapper.appendChild(colorEl);
 
-  // Info toggle caret button
-  const caretBtn = el('button', 'parent-caret-btn', '▸ Info');
+  // Genotype toggle caret button
+  const caretBtn = el('button', 'parent-caret-btn', '▸ Genotype');
   let expanded = false;
   const detailContainer = el('div', 'parent-detail-container');
 
   caretBtn.addEventListener('click', () => {
     expanded = !expanded;
     if (expanded) {
-      caretBtn.textContent = '▾ Info';
+      caretBtn.textContent = '▾ Genotype';
       detailContainer.classList.add('open');
-      // Render full card inside detail container if not already
+      // Render genotype section (no card chrome or sprite)
       if (!detailContainer.hasChildNodes()) {
-        const card = renderDragonCard(dragon, { compact: false, showGenotype: true, onViewLineage: (d) => openFamilyTree(d, dragonRegistry) });
-        detailContainer.appendChild(card);
+        const q = getHighlightedQuest();
+        const hGenes = q ? getGenesForQuest(q) : null;
+        const dAlleles = q ? getDesiredAllelesForQuest(q) : null;
+        const genoSection = renderGenotypeSection(dragon, null, hGenes, dAlleles);
+        // Auto-open the genotype content so user doesn't have to toggle twice
+        const innerContent = genoSection.querySelector('.genotype-content');
+        if (innerContent) innerContent.classList.add('open');
+        const innerBtn = genoSection.querySelector('.genotype-toggle-btn');
+        if (innerBtn) innerBtn.style.display = 'none';
+        detailContainer.appendChild(genoSection);
       }
     } else {
-      caretBtn.textContent = '▸ Info';
+      caretBtn.textContent = '▸ Genotype';
       detailContainer.classList.remove('open');
     }
   });
@@ -208,6 +216,7 @@ function doBreed() {
 
   const quest = getHighlightedQuest();
   const highlightGenes = quest ? getGenesForQuest(quest) : null;
+  const desiredAlleles = quest ? getDesiredAllelesForQuest(quest) : null;
 
   for (const child of offspring) {
     dragonRegistry.add(child);
@@ -219,6 +228,7 @@ function doBreed() {
       onViewLineage: (d) => openFamilyTree(d, dragonRegistry),
       parentNames,
       highlightGenes,
+      desiredAlleles,
     });
     card.dataset.dragonId = child.id;
     applyQuestHalo(card, child);

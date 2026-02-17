@@ -2,7 +2,7 @@
 import { renderDragonCard } from './ui-card.js';
 import { openFamilyTree } from './ui-family-tree.js';
 import { applyQuestHalo, onHighlightChange, getHighlightedQuest } from './quest-highlight.js';
-import { getGenesForQuest } from './quest-gene-map.js';
+import { getGenesForQuest, getDesiredAllelesForQuest } from './quest-gene-map.js';
 
 let dragonRegistry = null;
 let stablesList = null;
@@ -86,6 +86,7 @@ function refreshStablesList() {
 
   const quest = getHighlightedQuest();
   const highlightGenes = quest ? getGenesForQuest(quest) : null;
+  const desiredAlleles = quest ? getDesiredAllelesForQuest(quest) : null;
 
   for (const dragon of dragons) {
     const card = renderDragonCard(dragon, {
@@ -94,6 +95,7 @@ function refreshStablesList() {
       onUseAsParentB: null,
       onViewLineage: (d) => openFamilyTree(d, dragonRegistry),
       highlightGenes,
+      desiredAlleles,
     });
     card.dataset.dragonId = dragon.id;
     applyQuestHalo(card, dragon);

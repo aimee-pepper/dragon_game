@@ -2,6 +2,7 @@
 import {
   COLOR_NAMES,
   FINISH_NAMES,
+  FINISH_SPECIAL_NAMES,
   ELEMENT_NAMES,
   SPECIALTY_COMBOS,
   ELEMENT_MODIFIERS,
@@ -190,8 +191,14 @@ function makeElementReq() {
   };
 }
 
+// Named finishes (iconic single-word names) are more interesting quest targets
+const NAMED_FINISHES = ALL_FINISHES.filter(f => FINISH_SPECIAL_NAMES.has(f));
+
 function makeFinishReq() {
-  const finish = pick(ALL_FINISHES);
+  // 80% chance to pick a named finish, 20% any finish
+  const finish = (Math.random() < 0.8 && NAMED_FINISHES.length > 0)
+    ? pick(NAMED_FINISHES)
+    : pick(ALL_FINISHES);
   const key = FINISH_KEY_BY_NAME[finish];
   const hint = key ? tierKeyToHint(key, ['O', 'Sh', 'Sc']) : null;
   return {
