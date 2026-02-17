@@ -966,17 +966,17 @@ header .subtitle {
 }
 
 .quest-req-text {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--text);
 }
 
 .quest-req-hint {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-muted);
 }
 
 .quest-req-axis-row {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   width: 100%;
   padding-left: 1.4em;
