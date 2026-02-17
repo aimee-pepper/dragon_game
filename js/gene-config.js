@@ -150,12 +150,10 @@ export const TRIANGLE_DEFS = {
   finish: {
     axes: ['finish_opacity', 'finish_shine', 'finish_schiller'],
     label: 'Finish',
-    recessiveExtremes: true, // H and L are recessive — heterozygous alleles pulled toward center
   },
   breathElement: {
     axes: ['breath_fire', 'breath_ice', 'breath_lightning'],
     label: 'Breath Element',
-    recessiveExtremes: true, // H and L are recessive — heterozygous alleles pulled toward center
   },
 };
 

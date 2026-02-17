@@ -292,6 +292,46 @@ const COMBO_CATEGORIES = [
   'Gemstone', 'Opal', 'Moonstone', 'Pearl', 'Metal', 'Stone', 'Ghost',
 ];
 
+const TIER_LABELS = ['None', 'Low', 'Mid', 'High'];
+
+// Convert a tier key like "1-3-0" into colored axis spans
+function renderTierAxes(container, tierKey, axes) {
+  const tiers = tierKey.split('-').map(Number);
+  tiers.forEach((t, i) => {
+    container.appendChild(el('span', axes[i].cls, `${axes[i].short}: ${TIER_LABELS[t]}`));
+    if (i < tiers.length - 1) container.appendChild(document.createTextNode(' · '));
+  });
+}
+
+const COLOR_COMBO_AXES = [
+  { short: 'C', cls: 'cmy-c' },
+  { short: 'M', cls: 'cmy-m' },
+  { short: 'Y', cls: 'cmy-y' },
+];
+
+const FINISH_COMBO_AXES = [
+  { short: 'O', cls: 'finish-o' },
+  { short: 'Sh', cls: 'finish-s' },
+  { short: 'Sc', cls: 'finish-sc' },
+];
+
+const ELEMENT_COMBO_AXES = [
+  { short: 'F', cls: 'breath-f' },
+  { short: 'I', cls: 'breath-i' },
+  { short: 'L', cls: 'breath-l' },
+];
+
+// Map H/L keys to element base names
+const ELEMENT_HL_NAMES = {
+  'L-L-L': 'Void', 'H-L-L': 'Fire', 'L-H-L': 'Ice', 'L-L-H': 'Lightning',
+  'H-H-L': 'Steam', 'H-L-H': 'Solar', 'L-H-H': 'Aurora', 'H-H-H': 'Plasma',
+};
+
+// Convert H/L key to numeric tiers for axis display (H→3, L→0)
+function hlToTierKey(hlKey) {
+  return hlKey.split('-').map(v => v === 'H' ? '3' : '0').join('-');
+}
+
 function renderCombosPane() {
   const pane = el('div', '');
   pane.appendChild(el('div', 'almanac-pane-header', 'Specialty Combos'));
@@ -308,7 +348,7 @@ function renderCombosPane() {
     const [colorKey, finishKey] = key.split('|');
     const colorName = COLOR_NAMES[colorKey] || '???';
     const finishName = FINISH_NAMES[finishKey] || '???';
-    grouped[cat].push({ name: combo.name, colorName, finishName });
+    grouped[cat].push({ name: combo.name, colorName, finishName, colorKey, finishKey });
   }
 
   // Render each category
@@ -320,15 +360,33 @@ function renderCombosPane() {
 
     const list = el('div', 'almanac-combo-list');
     for (const entry of entries) {
-      const row = el('div', 'almanac-combo-row');
+      const row = el('div', 'almanac-combo-entry');
 
-      const nameEl = el('span', 'almanac-combo-name', entry.name);
-      row.appendChild(nameEl);
+      // Specialty name
+      row.appendChild(el('div', 'almanac-combo-name', entry.name));
 
-      const recipeEl = el('span', 'almanac-combo-recipe');
-      recipeEl.textContent = `${entry.colorName} + ${entry.finishName}`;
-      row.appendChild(recipeEl);
+      // Recipe: Color name (axis breakdown) + Finish name (axis breakdown)
+      const recipe = el('div', 'almanac-combo-recipe');
 
+      // Color part
+      const colorPart = el('span', 'almanac-combo-part');
+      colorPart.appendChild(el('span', 'almanac-combo-part-name', entry.colorName));
+      const colorAxes = el('span', 'almanac-combo-axes');
+      renderTierAxes(colorAxes, entry.colorKey, COLOR_COMBO_AXES);
+      colorPart.appendChild(colorAxes);
+      recipe.appendChild(colorPart);
+
+      recipe.appendChild(el('span', 'almanac-combo-plus', '+'));
+
+      // Finish part
+      const finishPart = el('span', 'almanac-combo-part');
+      finishPart.appendChild(el('span', 'almanac-combo-part-name', entry.finishName));
+      const finishAxes = el('span', 'almanac-combo-axes');
+      renderTierAxes(finishAxes, entry.finishKey, FINISH_COMBO_AXES);
+      finishPart.appendChild(finishAxes);
+      recipe.appendChild(finishPart);
+
+      row.appendChild(recipe);
       list.appendChild(row);
     }
     pane.appendChild(list);
@@ -341,27 +399,39 @@ function renderCombosPane() {
   modIntro.textContent = 'Prefix applied to color name when finish + element match (e.g. "Molten Red").';
   pane.appendChild(modIntro);
 
-  // Map H/L keys to element base names
-  const ELEMENT_HL_NAMES = {
-    'L-L-L': 'Void', 'H-L-L': 'Fire', 'L-H-L': 'Ice', 'L-L-H': 'Lightning',
-    'H-H-L': 'Steam', 'H-L-H': 'Solar', 'L-H-H': 'Aurora', 'H-H-H': 'Plasma',
-  };
-
   const modList = el('div', 'almanac-combo-list');
   for (const [key, modifier] of Object.entries(ELEMENT_MODIFIERS)) {
     const [finishKey, elementKey] = key.split('|');
     const finishName = FINISH_NAMES[finishKey] || '???';
     const elementName = ELEMENT_HL_NAMES[elementKey] || '???';
 
-    const row = el('div', 'almanac-combo-row');
+    const row = el('div', 'almanac-combo-entry');
 
-    const nameEl = el('span', 'almanac-combo-name', modifier);
-    row.appendChild(nameEl);
+    // Modifier name
+    row.appendChild(el('div', 'almanac-combo-name', modifier));
 
-    const recipeEl = el('span', 'almanac-combo-recipe');
-    recipeEl.textContent = `${finishName} + ${elementName}`;
-    row.appendChild(recipeEl);
+    // Recipe: Finish name (axis breakdown) + Element name (axis breakdown)
+    const recipe = el('div', 'almanac-combo-recipe');
 
+    // Finish part
+    const finishPart = el('span', 'almanac-combo-part');
+    finishPart.appendChild(el('span', 'almanac-combo-part-name', finishName));
+    const finishAxes = el('span', 'almanac-combo-axes');
+    renderTierAxes(finishAxes, finishKey, FINISH_COMBO_AXES);
+    finishPart.appendChild(finishAxes);
+    recipe.appendChild(finishPart);
+
+    recipe.appendChild(el('span', 'almanac-combo-plus', '+'));
+
+    // Element part
+    const elemPart = el('span', 'almanac-combo-part');
+    elemPart.appendChild(el('span', 'almanac-combo-part-name', elementName));
+    const elemAxes = el('span', 'almanac-combo-axes');
+    renderTierAxes(elemAxes, hlToTierKey(elementKey), ELEMENT_COMBO_AXES);
+    elemPart.appendChild(elemAxes);
+    recipe.appendChild(elemPart);
+
+    row.appendChild(recipe);
     modList.appendChild(row);
   }
   pane.appendChild(modList);

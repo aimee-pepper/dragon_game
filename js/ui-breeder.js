@@ -1,6 +1,7 @@
 // Breed tab: parent selection + breeding + offspring display
 import { Dragon } from './dragon.js';
 import { renderDragonCard, renderPickerItem } from './ui-card.js';
+import { renderDragonSprite } from './ui-dragon-sprite.js';
 import { addToStables, getStabledDragons } from './ui-stables.js';
 import { openFamilyTree } from './ui-family-tree.js';
 
@@ -22,7 +23,7 @@ function el(tag, className, text) {
 export function initBreedTab(container, registry) {
   dragonRegistry = registry;
 
-  // Parent slots
+  // Parent slots — always side by side
   const slotsRow = el('div', 'parent-slots');
 
   // Parent A slot
@@ -93,49 +94,78 @@ function renderEmptySlot(container, which) {
   container.appendChild(empty);
 }
 
+function renderParentSummary(container, which, dragon) {
+  container.innerHTML = '';
+  const p = dragon.phenotype;
+  const wrapper = el('div', 'parent-summary');
+
+  // Compact sprite
+  const sprite = renderDragonSprite(p, true);
+  wrapper.appendChild(sprite);
+
+  // Name + color label
+  const colorLabel = p.color.specialtyName ||
+    (p.color.modifierPrefix ? `${p.color.modifierPrefix} ${p.color.displayName}` : p.color.displayName);
+
+  const nameEl = el('div', 'parent-summary-name', dragon.name);
+  wrapper.appendChild(nameEl);
+  const colorEl = el('div', 'parent-summary-color', colorLabel);
+  wrapper.appendChild(colorEl);
+
+  // Info toggle caret button
+  const caretBtn = el('button', 'parent-caret-btn', '▸ Info');
+  let expanded = false;
+  const detailContainer = el('div', 'parent-detail-container');
+
+  caretBtn.addEventListener('click', () => {
+    expanded = !expanded;
+    if (expanded) {
+      caretBtn.textContent = '▾ Info';
+      detailContainer.classList.add('open');
+      // Render full card inside detail container if not already
+      if (!detailContainer.hasChildNodes()) {
+        const card = renderDragonCard(dragon, { compact: false, showGenotype: true, onViewLineage: (d) => openFamilyTree(d, dragonRegistry) });
+        detailContainer.appendChild(card);
+      }
+    } else {
+      caretBtn.textContent = '▸ Info';
+      detailContainer.classList.remove('open');
+    }
+  });
+  wrapper.appendChild(caretBtn);
+
+  // Action buttons: change + clear
+  const actions = el('div', 'btn-group parent-summary-actions');
+  const changeBtn = el('button', 'btn btn-secondary btn-small', 'Change');
+  changeBtn.addEventListener('click', () => openPicker(which));
+  actions.appendChild(changeBtn);
+  const clearBtn = el('button', 'btn btn-secondary btn-small', 'Clear');
+  clearBtn.addEventListener('click', () => {
+    if (which === 'A') {
+      parentA = null;
+      renderEmptySlot(parentAContainer, 'A');
+    } else {
+      parentB = null;
+      renderEmptySlot(parentBContainer, 'B');
+    }
+    updateBreedButton();
+  });
+  actions.appendChild(clearBtn);
+  wrapper.appendChild(actions);
+
+  container.appendChild(wrapper);
+
+  // Detail container goes after the wrapper (full width within the slot)
+  container.appendChild(detailContainer);
+}
+
 function setParent(which, dragon) {
   if (which === 'A') {
     parentA = dragon;
-    parentAContainer.innerHTML = '';
-    // Show genotype on parent cards so players can study genetics
-    const card = renderDragonCard(dragon, { compact: false, showGenotype: true, onViewLineage: (d) => openFamilyTree(d, dragonRegistry) });
-
-    // Add change/clear buttons
-    const actions = el('div', 'btn-group');
-    actions.style.marginTop = '6px';
-    const changeBtn = el('button', 'btn btn-secondary btn-small', 'Change');
-    changeBtn.addEventListener('click', () => openPicker('A'));
-    actions.appendChild(changeBtn);
-    const clearBtn = el('button', 'btn btn-secondary btn-small', 'Clear');
-    clearBtn.addEventListener('click', () => {
-      parentA = null;
-      renderEmptySlot(parentAContainer, 'A');
-      updateBreedButton();
-    });
-    actions.appendChild(clearBtn);
-    card.appendChild(actions);
-
-    parentAContainer.appendChild(card);
+    renderParentSummary(parentAContainer, 'A', dragon);
   } else {
     parentB = dragon;
-    parentBContainer.innerHTML = '';
-    const card = renderDragonCard(dragon, { compact: false, showGenotype: true, onViewLineage: (d) => openFamilyTree(d, dragonRegistry) });
-
-    const actions = el('div', 'btn-group');
-    actions.style.marginTop = '6px';
-    const changeBtn = el('button', 'btn btn-secondary btn-small', 'Change');
-    changeBtn.addEventListener('click', () => openPicker('B'));
-    actions.appendChild(changeBtn);
-    const clearBtn = el('button', 'btn btn-secondary btn-small', 'Clear');
-    clearBtn.addEventListener('click', () => {
-      parentB = null;
-      renderEmptySlot(parentBContainer, 'B');
-      updateBreedButton();
-    });
-    actions.appendChild(clearBtn);
-    card.appendChild(actions);
-
-    parentBContainer.appendChild(card);
+    renderParentSummary(parentBContainer, 'B', dragon);
   }
   updateBreedButton();
 }

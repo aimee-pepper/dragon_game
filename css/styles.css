@@ -307,7 +307,7 @@ header .subtitle {
 
 .finish-badge {
   display: inline-block;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   padding: 3px 8px;
   border-radius: 4px;
@@ -533,6 +533,85 @@ header .subtitle {
   text-align: center;
 }
 
+/* ---- Parent Summary (compact collapsed view) ---- */
+
+.parent-summary {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.parent-summary .sprite-scale-wrapper {
+  max-width: 80px;
+}
+
+.parent-summary-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-bright);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.parent-summary-color {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.parent-caret-btn {
+  background: var(--accent-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  -webkit-tap-highlight-color: transparent;
+  width: 100%;
+  text-align: center;
+  transition: background 0.15s;
+  margin-top: 2px;
+}
+
+.parent-caret-btn:hover {
+  background: var(--accent-secondary);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.parent-summary-actions {
+  margin-top: 4px;
+  margin-bottom: 0;
+}
+
+.parent-summary-actions .btn {
+  padding: 6px 8px;
+  font-size: 11px;
+  min-height: 32px;
+}
+
+/* Parent detail container (expanded card) */
+.parent-detail-container {
+  display: none;
+  margin-top: var(--spacing-sm);
+}
+
+.parent-detail-container.open {
+  display: block;
+}
+
 .clutch-results {
   margin-top: var(--spacing);
 }
@@ -741,14 +820,7 @@ header .subtitle {
 }
 
 /* ---- Parent Slot Layout for Breed Tab ---- */
-
-.parent-slots {
-  flex-direction: column;
-}
-
-.parent-slot .dragon-card {
-  font-size: 14px;
-}
+/* Parents always side-by-side; detail expands below */
 
 /* ---- CMY Breakdown Display ---- */
 
@@ -1692,30 +1764,49 @@ header .subtitle {
   margin-bottom: 16px;
 }
 
-.almanac-combo-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--border);
-  gap: 8px;
-}
-
-.almanac-combo-row:last-child {
-  border-bottom: none;
+.almanac-combo-entry {
+  padding: 8px 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--spacing-xs);
 }
 
 .almanac-combo-name {
   font-weight: 700;
   color: var(--accent);
-  font-size: 12px;
-  white-space: nowrap;
+  font-size: 13px;
+  margin-bottom: 3px;
 }
 
 .almanac-combo-recipe {
   font-size: 11px;
   color: var(--text-muted);
-  text-align: right;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 4px;
+}
+
+.almanac-combo-part {
+  display: inline;
+}
+
+.almanac-combo-part-name {
+  font-weight: 600;
+  color: var(--text);
+  margin-right: 3px;
+}
+
+.almanac-combo-axes {
+  font-size: 10px;
+  opacity: 0.8;
+}
+
+.almanac-combo-plus {
+  color: var(--text-muted);
+  margin: 0 2px;
+  opacity: 0.6;
 }
 
 /* ============================================
@@ -1818,9 +1909,15 @@ header .subtitle {
     gap: 6px;
   }
 
-  /* Breed tab: parent slots stack vertically (already done) */
-  .parent-slots {
-    flex-direction: column;
+  /* Breed tab: parents stay side-by-side, with compact summaries */
+  .parent-summary-name {
+    font-size: 12px;
+  }
+
+  .parent-summary-actions .btn {
+    padding: 5px 6px;
+    font-size: 10px;
+    min-height: 28px;
   }
 
   /* Picker panel: full height on mobile */
