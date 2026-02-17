@@ -1,6 +1,7 @@
 // Dragon card UI component
 import { GENE_DEFS, TRIANGLE_DEFS, DARK_ENERGY_PHENOTYPE } from './gene-config.js';
 import { renderDragonSprite } from './ui-dragon-sprite.js';
+import { getSetting } from './settings.js';
 
 // Create a DOM element helper
 function el(tag, className, text) {
@@ -11,11 +12,12 @@ function el(tag, className, text) {
 }
 
 // Render a dragon as a card DOM element
-// Options: { compact, showGenotype, onUseAsParentA, onUseAsParentB, parentNames, onSaveToStables, onViewLineage }
+// Options: { compact, showGenotype, onUseAsParentA, onUseAsParentB, parentNames, onSaveToStables, onViewLineage, highlightGenes }
 // parentNames: { A: 'DragonName', B: 'DragonName' } — used for color-coding allele origins
 // onViewLineage: (dragon) => {} — callback to open family tree popup
+// highlightGenes: Set<string> — gene names to highlight for quest tracking
 export function renderDragonCard(dragon, options = {}) {
-  const { compact = false, showGenotype = true, onUseAsParentA, onUseAsParentB, parentNames, onSaveToStables, onViewLineage } = options;
+  const { compact = false, showGenotype = true, onUseAsParentA, onUseAsParentB, parentNames, onSaveToStables, onViewLineage, highlightGenes } = options;
   const p = dragon.phenotype;
 
   const card = el('div', `dragon-card${compact ? ' compact' : ''}`);
@@ -190,7 +192,7 @@ export function renderDragonCard(dragon, options = {}) {
 
   // --- Genotype toggle ---
   if (showGenotype && !compact) {
-    card.appendChild(renderGenotypeSection(dragon, parentNames));
+    card.appendChild(renderGenotypeSection(dragon, parentNames, highlightGenes));
   }
 
   // --- View Lineage button ---
@@ -241,7 +243,7 @@ function formatTail(traits) {
   return `${shape}, ${length}`;
 }
 
-function renderGenotypeSection(dragon, parentNames) {
+function renderGenotypeSection(dragon, parentNames, highlightGenes) {
   const wrapper = el('div', 'genotype-toggle');
 
   const toggleBtn = el('button', 'genotype-toggle-btn', 'Show Genotype');
@@ -297,6 +299,11 @@ function renderGenotypeSection(dragon, parentNames) {
     if (geneName === 'color_cyan') row.classList.add('genotype-cmy-c');
     else if (geneName === 'color_magenta') row.classList.add('genotype-cmy-m');
     else if (geneName === 'color_yellow') row.classList.add('genotype-cmy-y');
+
+    // Quest genotype highlighting
+    if (highlightGenes && highlightGenes.has(geneName) && getSetting('quest-genotype-highlight')) {
+      row.classList.add('genotype-quest-highlight');
+    }
 
     const def = GENE_DEFS[geneName];
     const label = def?.label || geneName;

@@ -1,9 +1,12 @@
-// App initialization, tab switching, theme toggle, and shared dragon registry
+// App initialization, tab switching, settings, and shared dragon registry
 import { initGenerateTab } from './ui-generator.js';
 import { initBreedTab } from './ui-breeder.js';
 import { initStablesTab } from './ui-stables.js';
 import { initQuestsTab } from './ui-quests.js';
 import { initAlmanacTab } from './ui-almanac.js';
+import { initOptionsTab } from './ui-options.js';
+import { initSettings, getSetting, onSettingChange } from './settings.js';
+import { initQuestWidget } from './ui-quest-widget.js';
 
 // Shared dragon registry — all dragons accessible across tabs
 class DragonRegistry {
@@ -46,34 +49,32 @@ function initTabs() {
   });
 }
 
-// Theme toggle — persists in localStorage
-function initThemeToggle() {
-  const btn = document.getElementById('theme-toggle');
-  const saved = localStorage.getItem('dragon-game-theme');
-
-  if (saved === 'light') {
+// Apply theme from settings
+function applyTheme(theme) {
+  if (theme === 'light') {
     document.body.classList.add('light-mode');
-    btn.textContent = '\u263E'; // ☾
+  } else {
+    document.body.classList.remove('light-mode');
   }
-
-  btn.addEventListener('click', () => {
-    const isLight = document.body.classList.toggle('light-mode');
-    btn.textContent = isLight ? '\u263E' : '\u2600'; // ☾ or ☀
-    localStorage.setItem('dragon-game-theme', isLight ? 'light' : 'dark');
-  });
 }
 
 // Boot
 function init() {
   const registry = new DragonRegistry();
 
-  initThemeToggle();
+  // Settings first — everything else may depend on them
+  initSettings();
+  applyTheme(getSetting('theme'));
+  onSettingChange('theme', applyTheme);
+
   initTabs();
   initGenerateTab(document.getElementById('tab-generate'), registry);
   initBreedTab(document.getElementById('tab-breed'), registry);
   initStablesTab(document.getElementById('tab-stables'), registry);
   initQuestsTab(document.getElementById('tab-quests'), registry);
   initAlmanacTab(document.getElementById('tab-almanac'));
+  initOptionsTab(document.getElementById('tab-options'));
+  initQuestWidget();
 }
 
 document.addEventListener('DOMContentLoaded', init);

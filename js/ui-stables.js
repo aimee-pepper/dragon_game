@@ -1,6 +1,8 @@
 // Stables tab: persistent dragon storage
 import { renderDragonCard } from './ui-card.js';
 import { openFamilyTree } from './ui-family-tree.js';
+import { applyQuestHalo, onHighlightChange, getHighlightedQuest } from './quest-highlight.js';
+import { getGenesForQuest } from './quest-gene-map.js';
 
 let dragonRegistry = null;
 let stablesList = null;
@@ -38,6 +40,9 @@ export function initStablesTab(container, registry) {
   container.appendChild(stablesList);
 
   refreshStablesList();
+
+  // When highlighted quest changes, re-render stables list for halos
+  onHighlightChange(() => refreshStablesList());
 }
 
 // Add a dragon to the stables
@@ -79,13 +84,19 @@ function refreshStablesList() {
     return;
   }
 
+  const quest = getHighlightedQuest();
+  const highlightGenes = quest ? getGenesForQuest(quest) : null;
+
   for (const dragon of dragons) {
     const card = renderDragonCard(dragon, {
       showGenotype: true,
       onUseAsParentA: null,
       onUseAsParentB: null,
       onViewLineage: (d) => openFamilyTree(d, dragonRegistry),
+      highlightGenes,
     });
+    card.dataset.dragonId = dragon.id;
+    applyQuestHalo(card, dragon);
 
     // Add release button
     const actions = el('div', 'btn-group');

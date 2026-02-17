@@ -4,8 +4,11 @@ import { renderDragonCard } from './ui-card.js';
 import { addToStables } from './ui-stables.js';
 import { openFamilyTree } from './ui-family-tree.js';
 import { setParentExternal } from './ui-breeder.js';
+import { applyQuestHalo, onHighlightChange, getHighlightedQuest } from './quest-highlight.js';
+import { getGenesForQuest } from './quest-gene-map.js';
 
 let dragonRegistry = null; // set by init
+let dragonListContainer = null;
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -44,7 +47,11 @@ export function initGenerateTab(container, registry) {
 
   // Dragon list
   const list = el('div', 'dragon-list');
+  dragonListContainer = list;
   container.appendChild(list);
+
+  // When highlighted quest changes, refresh halos on existing cards
+  onHighlightChange(() => refreshHalos());
 }
 
 function showParentSetToast(slot, dragon) {
@@ -63,12 +70,27 @@ function generateOne(listContainer) {
   const dragon = Dragon.createRandom();
   dragonRegistry.add(dragon);
 
+  const quest = getHighlightedQuest();
+  const highlightGenes = quest ? getGenesForQuest(quest) : null;
+
   const card = renderDragonCard(dragon, {
     onSaveToStables: (d) => addToStables(d),
     onViewLineage: (d) => openFamilyTree(d, dragonRegistry),
     onUseAsParentA: (d) => { setParentExternal('A', d); showParentSetToast('A', d); },
     onUseAsParentB: (d) => { setParentExternal('B', d); showParentSetToast('B', d); },
+    highlightGenes,
   });
+  card.dataset.dragonId = dragon.id;
+  applyQuestHalo(card, dragon);
   // Insert at top of list
   listContainer.insertBefore(card, listContainer.firstChild);
+}
+
+function refreshHalos() {
+  if (!dragonListContainer) return;
+  const cards = dragonListContainer.querySelectorAll('.dragon-card[data-dragon-id]');
+  for (const card of cards) {
+    const dragon = dragonRegistry.get(Number(card.dataset.dragonId));
+    if (dragon) applyQuestHalo(card, dragon);
+  }
 }

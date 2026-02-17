@@ -10,6 +10,7 @@ import {
   getRequirementStatus,
   checkDragonMeetsQuest,
 } from './quest-engine.js';
+import { getHighlightedQuest, setHighlightedQuest } from './quest-highlight.js';
 
 let questContainer = null;
 let dragonRegistry = null;
@@ -112,6 +113,26 @@ function renderAxisBreakdown(axisString, systemType) {
 
 function renderQuestCard(quest) {
   const card = el('div', `quest-card quest-${quest.difficulty}`);
+
+  // Highlight if this quest is the currently highlighted one
+  const highlighted = getHighlightedQuest();
+  if (highlighted && highlighted.id === quest.id) {
+    card.classList.add('quest-highlighted');
+  }
+
+  // Tap card to toggle highlight (but not when tapping submit button)
+  card.addEventListener('click', (e) => {
+    // Don't toggle if user tapped the submit button
+    if (e.target.closest('.quest-submit-btn')) return;
+
+    const current = getHighlightedQuest();
+    if (current && current.id === quest.id) {
+      setHighlightedQuest(null);
+    } else {
+      setHighlightedQuest(quest);
+    }
+    renderQuests(); // re-render to update highlight styling
+  });
 
   // Header row: title + difficulty badge
   const header = el('div', 'quest-card-header');
@@ -238,6 +259,11 @@ function openQuestPicker(quest) {
       const result = submitDragonToQuest(selected, quest.id);
       if (result.success) {
         showQuestMessage(result.message, 'success');
+        // Clear highlight if this was the highlighted quest
+        const hl = getHighlightedQuest();
+        if (hl && hl.id === quest.id) {
+          setHighlightedQuest(null);
+        }
       } else {
         showQuestMessage(result.message, 'error');
       }

@@ -4,6 +4,8 @@ import { renderDragonCard, renderPickerItem } from './ui-card.js';
 import { renderDragonSprite } from './ui-dragon-sprite.js';
 import { addToStables, getStabledDragons } from './ui-stables.js';
 import { openFamilyTree } from './ui-family-tree.js';
+import { applyQuestHalo, onHighlightChange, getHighlightedQuest } from './quest-highlight.js';
+import { getGenesForQuest } from './quest-gene-map.js';
 
 let dragonRegistry = null;
 let parentA = null;
@@ -68,6 +70,9 @@ export function initBreedTab(container, registry) {
   // Clutch results area
   clutchContainer = el('div', 'clutch-results');
   container.appendChild(clutchContainer);
+
+  // When highlighted quest changes, refresh halos on offspring cards
+  onHighlightChange(() => refreshClutchHalos());
 }
 
 function renderEmptySlot(container, which) {
@@ -201,6 +206,9 @@ function doBreed() {
   const header = el('div', 'clutch-header', `Clutch: ${offspring.length} offspring`);
   clutchContainer.appendChild(header);
 
+  const quest = getHighlightedQuest();
+  const highlightGenes = quest ? getGenesForQuest(quest) : null;
+
   for (const child of offspring) {
     dragonRegistry.add(child);
 
@@ -210,7 +218,10 @@ function doBreed() {
       onSaveToStables: (d) => addToStables(d),
       onViewLineage: (d) => openFamilyTree(d, dragonRegistry),
       parentNames,
+      highlightGenes,
     });
+    card.dataset.dragonId = child.id;
+    applyQuestHalo(card, child);
 
     // Show mutation count if any
     if (child.mutations.length > 0) {
@@ -221,6 +232,15 @@ function doBreed() {
     }
 
     clutchContainer.appendChild(card);
+  }
+}
+
+function refreshClutchHalos() {
+  if (!clutchContainer) return;
+  const cards = clutchContainer.querySelectorAll('.dragon-card[data-dragon-id]');
+  for (const card of cards) {
+    const dragon = dragonRegistry.get(Number(card.dataset.dragonId));
+    if (dragon) applyQuestHalo(card, dragon);
   }
 }
 
