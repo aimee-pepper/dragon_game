@@ -85,6 +85,31 @@ function getDifficultyLabel(difficulty) {
   }
 }
 
+// Helper: render colored axis text into a container (e.g. "C: None · M: High · Y: Low")
+function renderColoredAxes(container, axisString, systemType) {
+  const parts = axisString.split(' · ');
+  parts.forEach((part, i) => {
+    const axisPrefix = part.split(':')[0].trim();
+    let axisClass = '';
+    if (systemType === 'color') {
+      axisClass = axisPrefix === 'C' ? 'cmy-c' : axisPrefix === 'M' ? 'cmy-m' : 'cmy-y';
+    } else if (systemType === 'element') {
+      axisClass = axisPrefix === 'F' ? 'breath-f' : axisPrefix === 'I' ? 'breath-i' : 'breath-l';
+    } else if (systemType === 'finish') {
+      axisClass = axisPrefix === 'O' ? 'finish-o' : axisPrefix === 'Sh' ? 'finish-s' : 'finish-sc';
+    }
+    container.appendChild(el('span', axisClass, part));
+    if (i < parts.length - 1) container.appendChild(document.createTextNode(' · '));
+  });
+}
+
+// Helper: render a full axis breakdown line for compound hints (specialty/modifier)
+function renderAxisBreakdown(axisString, systemType) {
+  const row = el('div', 'quest-req-axis-row');
+  renderColoredAxes(row, axisString, systemType);
+  return row;
+}
+
 function renderQuestCard(quest) {
   const card = el('div', `quest-card quest-${quest.difficulty}`);
 
@@ -106,35 +131,37 @@ function renderQuestCard(quest) {
     reqItem.appendChild(el('span', 'quest-req-dot', '●'));
     const reqText = el('span', 'quest-req-text', req.label);
     reqItem.appendChild(reqText);
-    // Show recipe hint for triangle-system requirements (color, finish, element, specialty)
+    // Show recipe hint for triangle-system requirements (color, finish, element, specialty, modifier)
     if (req.hint) {
       const hint = el('span', 'quest-req-hint');
       hint.appendChild(document.createTextNode(' ('));
 
-      if (req.hintType === 'specialty') {
-        // Specialty hints are "ColorName + FinishName" — no axis coloring
-        hint.appendChild(document.createTextNode(req.hint));
-      } else {
-        // Axis-based hints: "C: None · M: High · Y: Low" etc.
-        const parts = req.hint.split(' · ');
-        parts.forEach((part, i) => {
-          // Extract the axis prefix (e.g. "C", "M", "F", "O", "Sh", "Sc")
-          const axisPrefix = part.split(':')[0].trim();
-          let axisClass = '';
-          if (req.hintType === 'color') {
-            axisClass = axisPrefix === 'C' ? 'cmy-c' : axisPrefix === 'M' ? 'cmy-m' : 'cmy-y';
-          } else if (req.hintType === 'element') {
-            axisClass = axisPrefix === 'F' ? 'breath-f' : axisPrefix === 'I' ? 'breath-i' : 'breath-l';
-          } else if (req.hintType === 'finish') {
-            axisClass = axisPrefix === 'O' ? 'finish-o' : axisPrefix === 'Sh' ? 'finish-s' : 'finish-sc';
-          }
-          hint.appendChild(el('span', axisClass, part));
-          if (i < parts.length - 1) hint.appendChild(document.createTextNode(' · '));
-        });
-      }
+      // Top-level hint text (name summary)
+      hint.appendChild(document.createTextNode(req.hint));
 
-      hint.appendChild(document.createTextNode(')'));
-      reqItem.appendChild(hint);
+      if (req.hintType === 'specialty' && req.hintColor && req.hintFinish) {
+        // Specialty: show color axes + finish axes on separate lines
+        hint.appendChild(document.createTextNode(')'));
+        reqItem.appendChild(hint);
+        reqItem.appendChild(renderAxisBreakdown(req.hintColor, 'color'));
+        reqItem.appendChild(renderAxisBreakdown(req.hintFinish, 'finish'));
+      } else if (req.hintType === 'modifier' && req.hintFinish && req.hintElement) {
+        // Modifier: show finish axes + element axes on separate lines
+        hint.appendChild(document.createTextNode(')'));
+        reqItem.appendChild(hint);
+        reqItem.appendChild(renderAxisBreakdown(req.hintFinish, 'finish'));
+        reqItem.appendChild(renderAxisBreakdown(req.hintElement, 'element'));
+      } else if (req.hintType === 'color' || req.hintType === 'element' || req.hintType === 'finish') {
+        // Single-system axis hint inline
+        hint.innerHTML = ''; // reset — we'll rebuild with colored axes
+        hint.appendChild(document.createTextNode(' ('));
+        renderColoredAxes(hint, req.hint, req.hintType);
+        hint.appendChild(document.createTextNode(')'));
+        reqItem.appendChild(hint);
+      } else {
+        hint.appendChild(document.createTextNode(')'));
+        reqItem.appendChild(hint);
+      }
     }
     reqList.appendChild(reqItem);
   }

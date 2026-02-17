@@ -150,6 +150,7 @@ export const TRIANGLE_DEFS = {
   finish: {
     axes: ['finish_opacity', 'finish_shine', 'finish_schiller'],
     label: 'Finish',
+    recessiveExtremes: true, // H and L are recessive — heterozygous alleles pulled toward center
   },
   breathElement: {
     axes: ['breath_fire', 'breath_ice', 'breath_lightning'],
@@ -653,10 +654,10 @@ export const TRIANGLE_TIER_WEIGHTS = {
     3: 0.06,   // Plasma — rarest
   },
   finish: {
-    0: 0.03,   // Seaglass — rarest (3%)
-    1: 0.12,   // Velvet/Glass/Opalescent — uncommon (12% split 3 ways ≈ 4% each)
-    2: 0.35,   // Mirror/Gemstone/Iridescent — common (35% split 3 ways ≈ 12% each)
-    3: 0.50,   // Mother of Pearl — most common, "standard dragon" (50%)
+    0: 0.04,   // Seaglass/Phantom — rarest (4%)
+    1: 0.55,   // Velvet/Glass/Opalescent — most common (55% split 3 ways ≈ 18% each)
+    2: 0.35,   // Mirror/Crystal/Iridescent — uncommon (35% split 3 ways ≈ 12% each)
+    3: 0.06,   // Mother of Pearl — rarest (6%)
   },
 };
 

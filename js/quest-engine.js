@@ -43,22 +43,51 @@ for (const [key, name] of Object.entries(ELEMENT_NAMES)) {
   ELEMENT_KEY_BY_NAME[name] = key;
 }
 
-// Build reverse lookup: specialty name → { colorName, finishName }
+// Build reverse lookup: specialty name → { colorName, finishName, colorKey, finishKey }
 const SPECIALTY_RECIPES = {};
 for (const [key, combo] of Object.entries(SPECIALTY_COMBOS)) {
   const [colorKey, finishKey] = key.split('|');
   SPECIALTY_RECIPES[combo.name] = {
     colorName: COLOR_NAMES[colorKey] || '???',
     finishName: FINISH_NAMES[finishKey] || '???',
+    colorKey,
+    finishKey,
   };
 }
 
 // Tier labels for generating hints from keys
 const TIER_LABELS = ['None', 'Low', 'Mid', 'High'];
+const HL_LABELS = { 'H': 'High', 'L': 'Low' };
 
 function tierKeyToHint(key, axes) {
   const tiers = key.split('-').map(Number);
   return tiers.map((t, i) => `${axes[i]}: ${TIER_LABELS[t]}`).join(' · ');
+}
+
+// Convert H/L key to hint (for element keys in ELEMENT_MODIFIERS)
+function hlKeyToHint(key, axes) {
+  const parts = key.split('-');
+  return parts.map((p, i) => `${axes[i]}: ${HL_LABELS[p] || p}`).join(' · ');
+}
+
+// Convert H/L key to numeric key for ELEMENT_NAMES lookup (H→3, L→0)
+function hlKeyToNumeric(hlKey) {
+  return hlKey.split('-').map(p => p === 'H' ? '3' : '0').join('-');
+}
+
+// Build reverse lookup: modifier name → { finishName, elementName, finishKey, elementHLKey }
+// A modifier can come from multiple combos — just pick the first one for the hint
+const MODIFIER_RECIPES = {};
+for (const [key, modifier] of Object.entries(ELEMENT_MODIFIERS)) {
+  if (MODIFIER_RECIPES[modifier]) continue; // already have a recipe for this modifier
+  const [finishKey, elementHLKey] = key.split('|');
+  const elementNumericKey = hlKeyToNumeric(elementHLKey);
+  MODIFIER_RECIPES[modifier] = {
+    finishName: FINISH_NAMES[finishKey] || '???',
+    elementName: ELEMENT_NAMES[elementNumericKey] || '???',
+    finishKey,
+    elementHLKey,
+  };
 }
 
 const SIZE_TARGETS = [
@@ -178,24 +207,47 @@ function makeFinishReq() {
 function makeSpecialtyReq() {
   const name = pick(ALL_SPECIALTY_NAMES);
   const recipe = SPECIALTY_RECIPES[name];
+  // Build compound hint: "ColorName + FinishName" with axis breakdowns
+  let hint = null;
+  let hintColor = null;
+  let hintFinish = null;
+  if (recipe) {
+    hint = `${recipe.colorName} + ${recipe.finishName}`;
+    hintColor = tierKeyToHint(recipe.colorKey, ['C', 'M', 'Y']);
+    hintFinish = tierKeyToHint(recipe.finishKey, ['O', 'Sh', 'Sc']);
+  }
   return {
     path: 'color.specialtyName',
     match: 'exact',
     value: name,
     label: `"${name}" specialty`,
-    hint: recipe ? `${recipe.colorName} + ${recipe.finishName}` : null,
+    hint,
+    hintColor,
+    hintFinish,
     hintType: 'specialty',
   };
 }
 
 function makeModifierReq() {
   const modifier = pick(ALL_MODIFIER_PREFIXES);
+  const recipe = MODIFIER_RECIPES[modifier];
+  // Build compound hint: "FinishName + ElementName (O: X · Sh: X · Sc: X | F: X · I: X · L: X)"
+  let hint = null;
+  let hintFinish = null;
+  let hintElement = null;
+  if (recipe) {
+    hint = `${recipe.finishName} + ${recipe.elementName}`;
+    hintFinish = tierKeyToHint(recipe.finishKey, ['O', 'Sh', 'Sc']);
+    hintElement = hlKeyToHint(recipe.elementHLKey, ['F', 'I', 'L']);
+  }
   return {
     path: 'color.modifierPrefix',
     match: 'exact',
     value: modifier,
     label: `${modifier} modifier`,
-    hint: null,
+    hint,
+    hintFinish,
+    hintElement,
     hintType: 'modifier',
   };
 }
