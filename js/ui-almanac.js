@@ -3,6 +3,7 @@ import {
   COLOR_PHENOTYPES,
   FINISH_PHENOTYPES,
   BREATH_ELEMENT_PHENOTYPES,
+  DARK_ENERGY_PHENOTYPE,
   cmyToRGB,
   rgbToHex,
 } from './gene-config.js';
@@ -201,6 +202,30 @@ function renderElementPane() {
     visual.appendChild(dot);
     return visual;
   }));
+
+  // Rare variants section
+  pane.appendChild(el('div', 'almanac-tier-label almanac-rare-label', 'Rare Variants'));
+
+  const rareEntry = el('div', 'almanac-entry');
+
+  // Purple dot visual
+  const visual = el('div', 'almanac-entry-visual');
+  const dot = el('div', 'almanac-dot');
+  dot.style.background = DARK_ENERGY_PHENOTYPE.displayColor;
+  visual.appendChild(dot);
+  rareEntry.appendChild(visual);
+
+  // Info
+  const info = el('div', 'almanac-entry-info');
+  info.appendChild(el('div', 'almanac-entry-name', DARK_ENERGY_PHENOTYPE.name));
+  const formula = el('div', 'almanac-entry-formula');
+  formula.textContent = 'Null (L-L-L) — 5% chance';
+  info.appendChild(formula);
+  info.appendChild(el('div', 'almanac-entry-desc', DARK_ENERGY_PHENOTYPE.desc));
+  rareEntry.appendChild(info);
+
+  pane.appendChild(rareEntry);
+
   return pane;
 }
 

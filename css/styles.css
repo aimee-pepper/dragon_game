@@ -1353,6 +1353,81 @@ header .subtitle {
   max-height: 80vh;
 }
 
+/* ---- Generation border colors ---- */
+.tree-gen-0 { border-color: #44aa99; }
+.tree-gen-1 { border-color: var(--accent); }
+.tree-gen-2 { border-color: #7a8fcc; }
+.tree-gen-3 { border-color: #cc7acc; }
+.tree-gen-4 { border-color: #cc8855; }
+.tree-gen-5 { border-color: #cc5555; }
+
+/* Wild dragon: dashed green border */
+.tree-node-wild {
+  border-style: dashed;
+  border-width: 2px;
+}
+
+/* Reference node (duplicate ancestor — compact) */
+.tree-node-ref {
+  transform: scale(0.75);
+  opacity: 0.7;
+  border-style: dotted;
+  border-width: 2px;
+}
+
+.tree-node-ref:hover,
+.tree-node-ref:active {
+  opacity: 1;
+}
+
+.tree-ref-label {
+  font-size: 8px;
+  color: var(--accent);
+  opacity: 0.8;
+}
+
+/* SVG overlay for duplicate connector lines */
+.tree-svg-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Generation legend */
+.tree-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.tree-legend-title {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.tree-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.tree-legend-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 2px solid currentColor;
+  border-radius: 3px;
+  background: var(--bg-card);
+}
+
+.tree-legend-dot.tree-gen-0 { border-style: dashed; }
+
 /* Clickable dragon name in completed quests */
 .quest-completed-name-link {
   color: var(--accent);
@@ -1698,8 +1773,17 @@ header .subtitle {
     min-height: 40px;
   }
 
-  .tree-node-more {
+  .tree-node-ref {
+    transform: scale(0.65);
+  }
+
+  .tree-ref-label {
     font-size: 7px;
+  }
+
+  .tree-legend {
+    font-size: 9px;
+    gap: 6px;
   }
 
   /* ---- Almanac: mobile single-pane toggle ---- */

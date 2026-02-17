@@ -15,6 +15,9 @@ import {
   getBreathLevelName,
   getBreathDisplayName,
   getBreathDescription,
+  RECESSIVE_PULL_STRENGTH,
+  DARK_ENERGY_CHANCE,
+  DARK_ENERGY_PHENOTYPE,
 } from './gene-config.js';
 
 // Resolve a linear trait: average both alleles, round to nearest valid value
@@ -44,6 +47,17 @@ function resolveTriangleAxis(allelePair) {
   return (allelePair[0] + allelePair[1]) / 2;
 }
 
+// Recessive axis resolver: pulls heterozygous extremes toward center
+// Homozygous extremes ([0,0] or [3,3]) express normally (spread=0)
+// Heterozygous pairs get pulled toward 1.5, making H/L harder to achieve
+function resolveTriangleAxisRecessive(allelePair) {
+  const avg = (allelePair[0] + allelePair[1]) / 2;
+  const spread = Math.abs(allelePair[0] - allelePair[1]);
+  const center = 1.5;
+  // Pull toward center proportional to spread and pull strength
+  return avg + (center - avg) * (spread / 3) * RECESSIVE_PULL_STRENGTH;
+}
+
 // Get the phenotype lookup map for a triangle system
 function getTriangleLookup(systemName) {
   switch (systemName) {
@@ -57,7 +71,8 @@ function getTriangleLookup(systemName) {
 // Resolve a full triangle system (3 axes → named phenotype)
 function resolveTriangle(genotype, systemName) {
   const def = TRIANGLE_DEFS[systemName];
-  const levels = def.axes.map(axis => resolveTriangleAxis(genotype[axis]));
+  const resolveAxis = def.recessiveExtremes ? resolveTriangleAxisRecessive : resolveTriangleAxis;
+  const levels = def.axes.map(axis => resolveAxis(genotype[axis]));
   const key = levels.map(l => classifyTriangleLevel(l)).join('-');
   const lookup = getTriangleLookup(systemName);
   const phenotype = lookup[key] || { name: 'Unknown' };
@@ -130,7 +145,19 @@ function resolveBreathElement(genotype) {
 
   const desc = getBreathDescription(fireLevel, iceLevel, lightningLevel);
 
-  return { ...base, displayName, breathBreakdown, desc };
+  // Dark Energy: rare variant of Null breath (5% chance)
+  let isDarkEnergy = false;
+  if (base.key === 'L-L-L' && Math.random() < DARK_ENERGY_CHANCE) {
+    isDarkEnergy = true;
+  }
+
+  return {
+    ...base,
+    displayName: isDarkEnergy ? DARK_ENERGY_PHENOTYPE.name : displayName,
+    isDarkEnergy,
+    breathBreakdown,
+    desc: isDarkEnergy ? DARK_ENERGY_PHENOTYPE.desc : desc,
+  };
 }
 
 // Resolve the full phenotype for a genotype

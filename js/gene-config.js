@@ -154,6 +154,7 @@ export const TRIANGLE_DEFS = {
   breathElement: {
     axes: ['breath_fire', 'breath_ice', 'breath_lightning'],
     label: 'Breath Element',
+    recessiveExtremes: true, // H and L are recessive — heterozygous alleles pulled toward center
   },
 };
 
@@ -509,3 +510,17 @@ export const HIGH_ALLELE_WEIGHTS = [0.02, 0.06, 0.22, 0.70];   // ~98% chance pa
 export const MUTATION_RATE = 0.005; // 0.5% per allele per breeding event
 export const CLUTCH_SIZE_MIN = 2;
 export const CLUTCH_SIZE_MAX = 4;
+
+// ============================================================
+// RECESSIVE EXTREMES — makes all-high/all-low triangle outcomes
+// harder to achieve unless alleles are homozygous
+// ============================================================
+
+export const RECESSIVE_PULL_STRENGTH = 0.5; // How much heterozygous extremes get pulled to center
+export const DARK_ENERGY_CHANCE = 0.05;     // 5% chance Null breath becomes Dark Energy
+
+export const DARK_ENERGY_PHENOTYPE = {
+  name: 'Dark Energy',
+  displayColor: '#8800cc',
+  desc: 'Rare antimatter breath — born from the void',
+};

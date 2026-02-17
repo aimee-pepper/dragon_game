@@ -1,5 +1,5 @@
 // Dragon card UI component
-import { GENE_DEFS, TRIANGLE_DEFS } from './gene-config.js';
+import { GENE_DEFS, TRIANGLE_DEFS, DARK_ENERGY_PHENOTYPE } from './gene-config.js';
 import { renderDragonSprite } from './ui-dragon-sprite.js';
 
 // Create a DOM element helper
@@ -79,7 +79,9 @@ export function renderDragonCard(dragon, options = {}) {
   // --- Breath element row ---
   const breathRow = el('div', 'breath-row');
   const breathDot = el('div', 'breath-dot');
-  breathDot.style.backgroundColor = p.breathElement.displayColor || '#666';
+  breathDot.style.backgroundColor = p.breathElement.isDarkEnergy
+    ? DARK_ENERGY_PHENOTYPE.displayColor
+    : (p.breathElement.displayColor || '#666');
   breathRow.appendChild(breathDot);
 
   const breathInfo = el('div');
