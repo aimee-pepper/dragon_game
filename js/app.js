@@ -2,11 +2,13 @@
 import { initGenerateTab } from './ui-generator.js';
 import { initBreedTab } from './ui-breeder.js';
 import { initStablesTab } from './ui-stables.js';
+import { onStablesChange } from './ui-stables.js';
 import { initQuestsTab } from './ui-quests.js';
 import { initAlmanacTab } from './ui-almanac.js';
 import { initOptionsTab } from './ui-options.js';
 import { initSettings, getSetting, onSettingChange } from './settings.js';
 import { initQuestWidget } from './ui-quest-widget.js';
+import { loadGame, saveGame, triggerSave } from './save-manager.js';
 
 // Shared dragon registry — all dragons accessible across tabs
 class DragonRegistry {
@@ -67,14 +69,27 @@ function init() {
   applyTheme(getSetting('theme'));
   onSettingChange('theme', applyTheme);
 
+  // Load saved game state (restores dragons, stables, quests, stats, ID counters)
+  const hadSave = loadGame(registry);
+  if (hadSave) {
+    console.log('Restored game from save');
+  }
+
   initTabs();
   initGenerateTab(document.getElementById('tab-generate'), registry);
   initBreedTab(document.getElementById('tab-breed'), registry);
   initStablesTab(document.getElementById('tab-stables'), registry);
   initQuestsTab(document.getElementById('tab-quests'), registry);
-  initAlmanacTab(document.getElementById('tab-almanac'));
+  initAlmanacTab(document.getElementById('tab-almanac'), registry);
   initOptionsTab(document.getElementById('tab-options'));
   initQuestWidget();
+
+  // Wire auto-save: save whenever stables change (covers add/remove/release-all)
+  // Quest completion and refresh already call triggerSave() directly
+  onStablesChange(() => triggerSave());
+
+  // Initial save to persist the registry reference
+  saveGame(registry);
 }
 
 document.addEventListener('DOMContentLoaded', init);

@@ -3,6 +3,7 @@ import { renderDragonCard } from './ui-card.js';
 import { openFamilyTree } from './ui-family-tree.js';
 import { applyQuestHalo, onHighlightChange, getHighlightedQuest } from './quest-highlight.js';
 import { getGenesForQuest, getDesiredAllelesForQuest } from './quest-gene-map.js';
+import { incrementStat, triggerSave } from './save-manager.js';
 
 let dragonRegistry = null;
 let stablesList = null;
@@ -60,6 +61,8 @@ export function initStablesTab(container, registry) {
 // Add a dragon to the stables
 export function addToStables(dragon) {
   stabledDragons.set(dragon.id, dragon);
+  incrementStat('totalStabled');
+  triggerSave();
   refreshStablesList();
   notifyStablesChange();
 }
@@ -67,6 +70,8 @@ export function addToStables(dragon) {
 // Remove a dragon from the stables
 export function removeFromStables(dragonId) {
   stabledDragons.delete(dragonId);
+  incrementStat('totalReleased');
+  triggerSave();
   refreshStablesList();
   notifyStablesChange();
 }
@@ -79,6 +84,17 @@ export function isStabled(dragonId) {
 // Get all stabled dragons
 export function getStabledDragons() {
   return Array.from(stabledDragons.values());
+}
+
+// Bulk-restore stabled dragons from save data (no per-dragon notifications)
+export function restoreStabledDragons(dragons) {
+  stabledDragons.clear();
+  for (const dragon of dragons) {
+    stabledDragons.set(dragon.id, dragon);
+  }
+  // Single refresh after bulk load
+  refreshStablesList();
+  notifyStablesChange();
 }
 
 function refreshStablesList() {

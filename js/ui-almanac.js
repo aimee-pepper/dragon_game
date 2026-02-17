@@ -1,4 +1,6 @@
-// Almanac tab: reference guide showing all triangle-system phenotype names and recipes
+// Almanac tab: two-tier navigation — Encyclopedia + Achievements
+// Encyclopedia: Colors, Finishes, Elements, Combos, Traits
+// Achievements: Trophy Wall, Stats Dashboard
 import {
   COLOR_PHENOTYPES,
   FINISH_PHENOTYPES,
@@ -12,13 +14,20 @@ import {
   COLOR_SPECIAL_NAMES,
   SPECIALTY_COMBOS,
   ELEMENT_MODIFIERS,
+  GENE_DEFS,
   cmyToRGB,
   rgbToHex,
   classifyLevel,
 } from './gene-config.js';
+import { getCompletedQuests } from './quest-engine.js';
+import { renderDragonCard } from './ui-card.js';
+import { openFamilyTree } from './ui-family-tree.js';
+import { getStats } from './save-manager.js';
 
 let containerEl = null;
-let activePane = 'colors';
+let dragonRegistry = null;
+let activeTopTab = 'encyclopedia';
+let activeEncPane = 'colors';
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -47,7 +56,8 @@ const ELEMENT_AXES = [
 
 const LEVEL_LABELS = ['None', 'Low', 'Med', 'High'];
 
-export function initAlmanacTab(container) {
+export function initAlmanacTab(container, registry) {
+  dragonRegistry = registry || null;
   containerEl = el('div', 'almanac-wrapper');
   container.appendChild(containerEl);
   render();
@@ -56,19 +66,49 @@ export function initAlmanacTab(container) {
 function render() {
   containerEl.innerHTML = '';
 
-  // Sub-navigation buttons (visible on mobile, hidden on desktop via CSS)
+  // ── Top-level navigation: Encyclopedia / Achievements ──
+  const topNav = el('div', 'almanac-top-nav');
+  const topTabs = [
+    { key: 'encyclopedia', label: 'Encyclopedia' },
+    { key: 'achievements', label: 'Achievements' },
+  ];
+  topTabs.forEach(tab => {
+    const btn = el('button', 'almanac-top-btn' + (tab.key === activeTopTab ? ' active' : ''), tab.label);
+    btn.addEventListener('click', () => {
+      activeTopTab = tab.key;
+      render();
+    });
+    topNav.appendChild(btn);
+  });
+  containerEl.appendChild(topNav);
+
+  // ── Render active top-level section ──
+  if (activeTopTab === 'encyclopedia') {
+    renderEncyclopedia();
+  } else {
+    renderAchievements();
+  }
+}
+
+// ══════════════════════════════════════════════════════
+// ENCYCLOPEDIA SECTION
+// ══════════════════════════════════════════════════════
+
+function renderEncyclopedia() {
+  // Sub-navigation
   const nav = el('div', 'almanac-nav');
-  const panes = ['colors', 'finishes', 'elements', 'combos'];
-  const paneLabels = ['Colors', 'Finishes', 'Elements', 'Combos'];
+  const panes = ['colors', 'finishes', 'elements', 'combos', 'traits'];
+  const paneLabels = ['Colors', 'Finishes', 'Elements', 'Combos', 'Traits'];
+
+  let panesContainer; // forward reference for click handler
+
   panes.forEach((pane, i) => {
-    const btn = el('button', 'almanac-pane-btn' + (pane === activePane ? ' active' : ''), paneLabels[i]);
+    const btn = el('button', 'almanac-pane-btn' + (pane === activeEncPane ? ' active' : ''), paneLabels[i]);
     btn.dataset.pane = pane;
     btn.addEventListener('click', () => {
-      activePane = pane;
-      // Update button active states
+      activeEncPane = pane;
       nav.querySelectorAll('.almanac-pane-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      // Update pane visibility
       panesContainer.querySelectorAll('.almanac-pane').forEach(p => {
         p.classList.toggle('active', p.dataset.pane === pane);
       });
@@ -77,49 +117,234 @@ function render() {
   });
   containerEl.appendChild(nav);
 
-  // Panes container
-  const panesContainer = el('div', 'almanac-panes');
+  panesContainer = el('div', 'almanac-panes');
 
+  // Colors pane
   const colorPane = renderColorPane();
   colorPane.dataset.pane = 'colors';
   colorPane.classList.add('almanac-pane');
-  if (activePane === 'colors') colorPane.classList.add('active');
+  if (activeEncPane === 'colors') colorPane.classList.add('active');
   panesContainer.appendChild(colorPane);
 
+  // Finishes pane
   const finishPane = renderFinishPane();
   finishPane.dataset.pane = 'finishes';
   finishPane.classList.add('almanac-pane');
-  if (activePane === 'finishes') finishPane.classList.add('active');
+  if (activeEncPane === 'finishes') finishPane.classList.add('active');
   panesContainer.appendChild(finishPane);
 
+  // Elements pane
   const elementPane = renderElementPane();
   elementPane.dataset.pane = 'elements';
   elementPane.classList.add('almanac-pane');
-  if (activePane === 'elements') elementPane.classList.add('active');
+  if (activeEncPane === 'elements') elementPane.classList.add('active');
   panesContainer.appendChild(elementPane);
 
+  // Combos pane
   const combosPane = renderCombosPane();
   combosPane.dataset.pane = 'combos';
   combosPane.classList.add('almanac-pane');
-  if (activePane === 'combos') combosPane.classList.add('active');
+  if (activeEncPane === 'combos') combosPane.classList.add('active');
   panesContainer.appendChild(combosPane);
+
+  // Traits pane
+  const traitsPane = renderTraitsPane();
+  traitsPane.dataset.pane = 'traits';
+  traitsPane.classList.add('almanac-pane');
+  if (activeEncPane === 'traits') traitsPane.classList.add('active');
+  panesContainer.appendChild(traitsPane);
 
   containerEl.appendChild(panesContainer);
 }
 
+// ══════════════════════════════════════════════════════
+// ACHIEVEMENTS SECTION
+// ══════════════════════════════════════════════════════
+
+function renderAchievements() {
+  const wrapper = el('div', 'achievements-wrapper');
+
+  // ── Trophy Wall ──
+  wrapper.appendChild(el('div', 'almanac-pane-header', 'Quest Trophy Wall'));
+
+  const completed = getCompletedQuests();
+  if (completed.length === 0) {
+    const empty = el('div', 'achievements-empty');
+    empty.textContent = 'No completed quests yet. Complete quests to see your trophies here!';
+    wrapper.appendChild(empty);
+  } else {
+    const trophyList = el('div', 'trophy-wall');
+    for (const quest of completed) {
+      trophyList.appendChild(renderTrophyCard(quest));
+    }
+    wrapper.appendChild(trophyList);
+  }
+
+  // ── Stats Dashboard ──
+  wrapper.appendChild(el('div', 'almanac-pane-header stats-header', 'Stats'));
+
+  const stats = getStats();
+  const statsGrid = el('div', 'stats-dashboard');
+
+  const statEntries = [
+    { label: 'Dragons Captured', value: stats.totalGenerated, icon: '🐉' },
+    { label: 'Dragons Bred', value: stats.totalBred, icon: '🥚' },
+    { label: 'Quests Completed', value: stats.totalQuestsCompleted, icon: '✓' },
+    { label: 'Dragons Stabled', value: stats.totalStabled, icon: '🏠' },
+    { label: 'Dragons Released', value: stats.totalReleased, icon: '🌿' },
+  ];
+
+  for (const stat of statEntries) {
+    const card = el('div', 'stat-card');
+    card.appendChild(el('div', 'stat-icon', stat.icon));
+    card.appendChild(el('div', 'stat-value', String(stat.value)));
+    card.appendChild(el('div', 'stat-label', stat.label));
+    statsGrid.appendChild(card);
+  }
+
+  wrapper.appendChild(statsGrid);
+  containerEl.appendChild(wrapper);
+}
+
+function renderTrophyCard(quest) {
+  const card = el('div', 'trophy-card');
+
+  // Quest info header
+  const header = el('div', 'trophy-header');
+  const badge = el('span', `quest-difficulty quest-difficulty-${quest.difficulty}`, getDifficultyLabel(quest.difficulty));
+  header.appendChild(badge);
+  header.appendChild(el('span', 'trophy-quest-title', quest.title));
+  card.appendChild(header);
+
+  // Completed by info
+  if (quest.completedBy) {
+    const completedInfo = el('div', 'trophy-completed-by');
+    completedInfo.appendChild(el('span', 'trophy-check', '✓'));
+
+    const genText = quest.completedByGeneration > 0
+      ? ` (Gen ${quest.completedByGeneration})`
+      : ' (Wild)';
+
+    const nameSpan = el('span', 'trophy-dragon-name', quest.completedBy + genText);
+
+    // Make clickable to view lineage if dragon is in registry
+    if (quest.completedById && dragonRegistry) {
+      const dragon = dragonRegistry.get(quest.completedById);
+      if (dragon) {
+        nameSpan.classList.add('trophy-name-link');
+        nameSpan.addEventListener('click', () => {
+          openFamilyTree(dragon, dragonRegistry);
+        });
+      }
+    }
+
+    completedInfo.appendChild(nameSpan);
+    card.appendChild(completedInfo);
+  }
+
+  // Dragon card preview (if dragon is still in registry)
+  if (quest.completedById && dragonRegistry) {
+    const dragon = dragonRegistry.get(quest.completedById);
+    if (dragon) {
+      const dragonCard = renderDragonCard(dragon, {
+        showGenotype: false,
+        hideSprite: false,
+        onViewLineage: (d) => openFamilyTree(d, dragonRegistry),
+      });
+      dragonCard.classList.add('trophy-dragon-card');
+      card.appendChild(dragonCard);
+    }
+  }
+
+  return card;
+}
+
+function getDifficultyLabel(d) {
+  const map = { easy: 'Easy', medium: 'Medium', hard: 'Hard', 'extra-hard': 'Extra Hard' };
+  return map[d] || d;
+}
+
+// ══════════════════════════════════════════════════════
+// TRAITS PANE
+// ══════════════════════════════════════════════════════
+
+// Grouped trait categories for display
+const TRAIT_GROUPS = [
+  {
+    label: 'Body',
+    genes: ['body_size', 'body_type', 'body_scales'],
+  },
+  {
+    label: 'Frame',
+    genes: ['frame_wings', 'frame_limbs', 'frame_bones'],
+  },
+  {
+    label: 'Breath',
+    genes: ['breath_shape', 'breath_range'],
+  },
+  {
+    label: 'Horns',
+    genes: ['horn_style', 'horn_direction'],
+  },
+  {
+    label: 'Spines',
+    genes: ['spine_style', 'spine_height'],
+  },
+  {
+    label: 'Tail',
+    genes: ['tail_shape', 'tail_length'],
+  },
+];
+
+function renderTraitsPane() {
+  const pane = el('div', '');
+  pane.appendChild(el('div', 'almanac-pane-header', 'Traits'));
+
+  const intro = el('div', 'almanac-combo-intro');
+  intro.textContent = 'All possible trait values for each body feature. Traits not covered by Colors, Finishes, Elements, or Combos.';
+  pane.appendChild(intro);
+
+  for (const group of TRAIT_GROUPS) {
+    pane.appendChild(el('div', 'almanac-tier-label', group.label));
+
+    const list = el('div', 'traits-group');
+    for (const geneName of group.genes) {
+      const def = GENE_DEFS[geneName];
+      if (!def || !def.phenotypeMap) continue;
+
+      const row = el('div', 'trait-row');
+      row.appendChild(el('div', 'trait-gene-label', def.label));
+
+      const valuesRow = el('div', 'trait-values');
+      const sortedKeys = Object.keys(def.phenotypeMap).sort((a, b) => Number(a) - Number(b));
+      for (const key of sortedKeys) {
+        const name = def.phenotypeMap[key];
+        const chip = el('span', 'trait-chip', name);
+        valuesRow.appendChild(chip);
+      }
+      row.appendChild(valuesRow);
+
+      // Show inheritance type
+      const inherit = el('div', 'trait-inheritance');
+      inherit.textContent = def.inheritanceType === 'categorical' ? 'Categorical (dominant)' : 'Linear (blending)';
+      row.appendChild(inherit);
+
+      list.appendChild(row);
+    }
+    pane.appendChild(list);
+  }
+
+  return pane;
+}
+
+// ══════════════════════════════════════════════════════
+// ENCYCLOPEDIA PANES (existing, preserved)
+// ══════════════════════════════════════════════════════
+
 // ---- Shared Grid Renderer ----
-// Renders a 4×4 grid for a single "outer" tier level
-// outerLevel: the fixed outer axis tier (0-3)
-// namesTable: the 64-entry lookup (FINISH_NAMES, ELEMENT_NAMES, COLOR_NAMES)
-// specialNames: Set of names to highlight
-// rowAxis: { short, cls } for the row axis
-// colAxis: { short, cls } for the column axis
-// keyBuilder: (outerLevel, rowLevel, colLevel) => key string
-// makeSwatchFn: optional (key) => DOM element for visual swatches
 function renderGrid(outerLevel, namesTable, specialNames, rowAxis, colAxis, keyBuilder, makeSwatchFn) {
   const grid = el('div', 'almanac-grid');
 
-  // Column headers row: blank corner + 4 column labels
   grid.appendChild(el('div', 'almanac-grid-corner'));
   for (let c = 0; c < 4; c++) {
     const colLabel = el('div', 'almanac-grid-col-label');
@@ -128,15 +353,12 @@ function renderGrid(outerLevel, namesTable, specialNames, rowAxis, colAxis, keyB
     grid.appendChild(colLabel);
   }
 
-  // Data rows: row label + 4 name cells
   for (let r = 0; r < 4; r++) {
-    // Row header
     const rowLabel = el('div', 'almanac-grid-row-label');
     rowLabel.appendChild(el('span', rowAxis.cls, rowAxis.short));
     rowLabel.appendChild(document.createTextNode(`: ${LEVEL_LABELS[r]}`));
     grid.appendChild(rowLabel);
 
-    // 4 cells
     for (let c = 0; c < 4; c++) {
       const key = keyBuilder(outerLevel, r, c);
       const name = namesTable[key] || '???';
@@ -156,7 +378,7 @@ function renderGrid(outerLevel, namesTable, specialNames, rowAxis, colAxis, keyB
   return grid;
 }
 
-// ---- Color Pane (64-entry grid) ----
+// ---- Color Pane ----
 
 const YELLOW_TIER_LABELS = [
   'Yellow: None',
@@ -170,21 +392,17 @@ function renderColorPane() {
   pane.appendChild(el('div', 'almanac-pane-header', 'Colors'));
   pane.appendChild(renderAxisLabels(COLOR_AXES));
 
-  // Render 4 grids, one per yellow tier
-  // Grid axes: rows = Magenta, cols = Cyan
   for (let y = 0; y < 4; y++) {
     pane.appendChild(el('div', 'almanac-tier-label', YELLOW_TIER_LABELS[y]));
     pane.appendChild(renderGrid(
       y,
       COLOR_NAMES,
       COLOR_SPECIAL_NAMES,
-      { short: 'M', cls: 'cmy-m' },  // row axis = Magenta
-      { short: 'C', cls: 'cmy-c' },  // col axis = Cyan
-      (yTier, mTier, cTier) => `${cTier}-${mTier}-${yTier}`, // key = C-M-Y
+      { short: 'M', cls: 'cmy-m' },
+      { short: 'C', cls: 'cmy-c' },
+      (yTier, mTier, cTier) => `${cTier}-${mTier}-${yTier}`,
       (key) => {
-        // Parse key to get CMY levels for swatch
         const [cT, mT, yT] = key.split('-').map(Number);
-        // Use tier midpoints for representative color
         const tierToLevel = [0.25, 1.0, 2.0, 2.75];
         const rgb = cmyToRGB(tierToLevel[cT], tierToLevel[mT], tierToLevel[yT]);
         const hex = rgbToHex(rgb.r, rgb.g, rgb.b);
@@ -198,7 +416,7 @@ function renderColorPane() {
   return pane;
 }
 
-// ---- Finish Pane (64-entry grid) ----
+// ---- Finish Pane ----
 
 const OPACITY_TIER_LABELS = [
   'Opacity: None',
@@ -212,25 +430,23 @@ function renderFinishPane() {
   pane.appendChild(el('div', 'almanac-pane-header', 'Finishes'));
   pane.appendChild(renderAxisLabels(FINISH_AXES));
 
-  // Render 4 grids, one per opacity tier
-  // Grid axes: rows = Shine, cols = Schiller
   for (let o = 0; o < 4; o++) {
     pane.appendChild(el('div', 'almanac-tier-label', OPACITY_TIER_LABELS[o]));
     pane.appendChild(renderGrid(
       o,
       FINISH_NAMES,
       FINISH_SPECIAL_NAMES,
-      { short: 'Sh', cls: 'finish-s' },   // row axis = Shine
-      { short: 'Sc', cls: 'finish-sc' },  // col axis = Schiller
-      (oTier, shTier, scTier) => `${oTier}-${shTier}-${scTier}`, // key = O-Sh-Sc
-      null // no swatch for finishes
+      { short: 'Sh', cls: 'finish-s' },
+      { short: 'Sc', cls: 'finish-sc' },
+      (oTier, shTier, scTier) => `${oTier}-${shTier}-${scTier}`,
+      null
     ));
   }
 
   return pane;
 }
 
-// ---- Element Pane (64-entry grid) ----
+// ---- Element Pane ----
 
 const LIGHTNING_TIER_LABELS = [
   'Lightning: None',
@@ -244,18 +460,16 @@ function renderElementPane() {
   pane.appendChild(el('div', 'almanac-pane-header', 'Breath Elements'));
   pane.appendChild(renderAxisLabels(ELEMENT_AXES));
 
-  // Render 4 grids, one per lightning tier
-  // Grid axes: rows = Fire, cols = Ice
   for (let l = 0; l < 4; l++) {
     pane.appendChild(el('div', 'almanac-tier-label', LIGHTNING_TIER_LABELS[l]));
     pane.appendChild(renderGrid(
       l,
       ELEMENT_NAMES,
       ELEMENT_SPECIAL_NAMES,
-      { short: 'F', cls: 'breath-f' },  // row axis = Fire
-      { short: 'I', cls: 'breath-i' },  // col axis = Ice
-      (lTier, fTier, iTier) => `${fTier}-${iTier}-${lTier}`, // key = F-I-L
-      null // no swatch for elements
+      { short: 'F', cls: 'breath-f' },
+      { short: 'I', cls: 'breath-i' },
+      (lTier, fTier, iTier) => `${fTier}-${iTier}-${lTier}`,
+      null
     ));
   }
 
@@ -264,14 +478,12 @@ function renderElementPane() {
 
   const rareEntry = el('div', 'almanac-entry');
 
-  // Purple dot visual
   const visual = el('div', 'almanac-entry-visual');
   const dot = el('div', 'almanac-dot');
   dot.style.background = DARK_ENERGY_PHENOTYPE.displayColor;
   visual.appendChild(dot);
   rareEntry.appendChild(visual);
 
-  // Info
   const info = el('div', 'almanac-entry-info');
   info.appendChild(el('div', 'almanac-entry-name', DARK_ENERGY_PHENOTYPE.name));
   const formula = el('div', 'almanac-entry-formula');
@@ -285,16 +497,14 @@ function renderElementPane() {
   return pane;
 }
 
-// ---- Combos Pane (Specialty Names + Element Modifiers) ----
+// ---- Combos Pane ----
 
-// Group specialty combos by category for display
 const COMBO_CATEGORIES = [
   'Gemstone', 'Opal', 'Moonstone', 'Pearl', 'Metal', 'Stone', 'Ghost',
 ];
 
 const TIER_LABELS = ['None', 'Low', 'Mid', 'High'];
 
-// Convert a tier key like "1-3-0" into colored axis spans
 function renderTierAxes(container, tierKey, axes) {
   const tiers = tierKey.split('-').map(Number);
   tiers.forEach((t, i) => {
@@ -321,13 +531,11 @@ const ELEMENT_COMBO_AXES = [
   { short: 'L', cls: 'breath-l' },
 ];
 
-// Map H/L keys to element base names
 const ELEMENT_HL_NAMES = {
   'L-L-L': 'Void', 'H-L-L': 'Fire', 'L-H-L': 'Ice', 'L-L-H': 'Lightning',
   'H-H-L': 'Steam', 'H-L-H': 'Solar', 'L-H-H': 'Aurora', 'H-H-H': 'Plasma',
 };
 
-// Convert H/L key to numeric tiers for axis display (H→3, L→0)
 function hlToTierKey(hlKey) {
   return hlKey.split('-').map(v => v === 'H' ? '3' : '0').join('-');
 }
@@ -340,7 +548,6 @@ function renderCombosPane() {
   intro.textContent = 'Special names triggered when a dragon has a specific color + finish combination, or a finish + element combination.';
   pane.appendChild(intro);
 
-  // Group SPECIALTY_COMBOS by category
   const grouped = {};
   for (const [key, combo] of Object.entries(SPECIALTY_COMBOS)) {
     const cat = combo.category;
@@ -351,7 +558,6 @@ function renderCombosPane() {
     grouped[cat].push({ name: combo.name, colorName, finishName, colorKey, finishKey });
   }
 
-  // Render each category
   for (const cat of COMBO_CATEGORIES) {
     const entries = grouped[cat];
     if (!entries || entries.length === 0) continue;
@@ -361,14 +567,10 @@ function renderCombosPane() {
     const list = el('div', 'almanac-combo-list');
     for (const entry of entries) {
       const row = el('div', 'almanac-combo-entry');
-
-      // Specialty name
       row.appendChild(el('div', 'almanac-combo-name', entry.name));
 
-      // Recipe: Color name (axis breakdown) + Finish name (axis breakdown)
       const recipe = el('div', 'almanac-combo-recipe');
 
-      // Color part
       const colorPart = el('span', 'almanac-combo-part');
       colorPart.appendChild(el('span', 'almanac-combo-part-name', entry.colorName));
       const colorAxes = el('span', 'almanac-combo-axes');
@@ -378,7 +580,6 @@ function renderCombosPane() {
 
       recipe.appendChild(el('span', 'almanac-combo-plus', '+'));
 
-      // Finish part
       const finishPart = el('span', 'almanac-combo-part');
       finishPart.appendChild(el('span', 'almanac-combo-part-name', entry.finishName));
       const finishAxes = el('span', 'almanac-combo-axes');
@@ -406,14 +607,10 @@ function renderCombosPane() {
     const elementName = ELEMENT_HL_NAMES[elementKey] || '???';
 
     const row = el('div', 'almanac-combo-entry');
-
-    // Modifier name
     row.appendChild(el('div', 'almanac-combo-name', modifier));
 
-    // Recipe: Finish name (axis breakdown) + Element name (axis breakdown)
     const recipe = el('div', 'almanac-combo-recipe');
 
-    // Finish part
     const finishPart = el('span', 'almanac-combo-part');
     finishPart.appendChild(el('span', 'almanac-combo-part-name', finishName));
     const finishAxes = el('span', 'almanac-combo-axes');
@@ -423,7 +620,6 @@ function renderCombosPane() {
 
     recipe.appendChild(el('span', 'almanac-combo-plus', '+'));
 
-    // Element part
     const elemPart = el('span', 'almanac-combo-part');
     elemPart.appendChild(el('span', 'almanac-combo-part-name', elementName));
     const elemAxes = el('span', 'almanac-combo-axes');

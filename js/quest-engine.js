@@ -459,6 +459,35 @@ function generateExtraHardQuest() {
 
 // ── Public API ──────────────────────────────────────────────
 
+// ID counter accessors for save/load
+export function getNextQuestId() { return nextQuestId; }
+export function setNextQuestId(val) { nextQuestId = val; }
+
+// Get all quests (active + completed) — used by save system
+export function getAllQuests() {
+  return [...quests];
+}
+
+// Restore quest state from save data — replaces all quests
+export function restoreQuestState(savedQuests) {
+  quests.length = 0;
+  for (const q of savedQuests) {
+    quests.push(q);
+  }
+}
+
+// Replace all active quests with new ones of the same difficulty
+export function refreshAllActiveQuests() {
+  const activeIndices = [];
+  for (let i = 0; i < quests.length; i++) {
+    if (quests[i].status === 'active') activeIndices.push(i);
+  }
+  for (const idx of activeIndices) {
+    const difficulty = quests[idx].difficulty;
+    quests[idx] = generateQuest(difficulty);
+  }
+}
+
 export function generateQuest(difficulty) {
   switch (difficulty) {
     case 'easy': return generateEasyQuest();
@@ -548,9 +577,9 @@ export function submitDragonToQuest(dragon, questId) {
   };
 }
 
-// Initialize with starting quests
+// Initialize with starting quests (skips if already restored from save)
 export function initQuestState() {
-  if (quests.length > 0) return; // already initialized
+  if (quests.length > 0) return; // already initialized or restored from save
   quests.push(generateQuest('easy'));
   quests.push(generateQuest('medium'));
   quests.push(generateQuest('hard'));

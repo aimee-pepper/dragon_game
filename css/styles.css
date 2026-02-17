@@ -922,9 +922,21 @@ header h1 {
 
 .quests-section-header {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
+  flex-direction: column;
+  gap: 4px;
   margin-bottom: var(--spacing);
+}
+
+.quests-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.quests-refresh-btn {
+  font-size: 12px;
+  padding: 4px 10px;
+  white-space: nowrap;
 }
 
 .quests-title {
@@ -1791,6 +1803,203 @@ header h1 {
   color: var(--text-muted);
   margin: 0 2px;
   opacity: 0.6;
+}
+
+/* ---- Almanac Top-Level Navigation ---- */
+
+.almanac-top-nav {
+  display: flex;
+  gap: var(--spacing-xs);
+  margin-bottom: var(--spacing);
+  border-bottom: 2px solid var(--border);
+  padding-bottom: var(--spacing-xs);
+}
+
+.almanac-top-btn {
+  flex: 1;
+  padding: 10px 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: var(--radius) var(--radius) 0 0;
+  transition: color 0.2s, background 0.2s;
+}
+
+.almanac-top-btn:hover {
+  color: var(--text);
+  background: var(--surface);
+}
+
+.almanac-top-btn.active {
+  color: var(--text-bright);
+  background: var(--surface);
+  border-bottom: 2px solid var(--accent);
+  margin-bottom: -2px;
+}
+
+/* ---- Traits Pane ---- */
+
+.traits-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: var(--spacing);
+}
+
+.trait-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+}
+
+.trait-gene-label {
+  font-weight: 600;
+  color: var(--text-bright);
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.trait-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.trait-chip {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 3px 10px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.trait-inheritance {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ---- Trophy Wall ---- */
+
+.achievements-wrapper {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.achievements-empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: var(--spacing-lg);
+  font-style: italic;
+}
+
+.trophy-wall {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing);
+  margin-bottom: var(--spacing-lg);
+}
+
+.trophy-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--spacing);
+  border-left: 3px solid var(--success);
+}
+
+.trophy-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.trophy-quest-title {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.trophy-completed-by {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.trophy-check {
+  color: var(--success);
+  font-weight: 700;
+}
+
+.trophy-dragon-name {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.trophy-name-link {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--text-muted);
+}
+
+.trophy-name-link:hover {
+  color: var(--accent);
+  text-decoration-color: var(--accent);
+}
+
+.trophy-dragon-card {
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+/* ---- Stats Dashboard ---- */
+
+.stats-header {
+  margin-top: var(--spacing-lg);
+}
+
+.stats-dashboard {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--spacing);
+  margin-bottom: var(--spacing-lg);
+}
+
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--spacing);
+  text-align: center;
+}
+
+.stat-icon {
+  font-size: 24px;
+  margin-bottom: 4px;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-bright);
+  line-height: 1.2;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
 }
 
 /* ---- Options Tab ---- */

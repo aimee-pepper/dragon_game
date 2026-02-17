@@ -6,6 +6,7 @@ import { openFamilyTree } from './ui-family-tree.js';
 import { setParentExternal } from './ui-breeder.js';
 import { applyQuestHalo, onHighlightChange, getHighlightedQuest } from './quest-highlight.js';
 import { getGenesForQuest, getDesiredAllelesForQuest } from './quest-gene-map.js';
+import { incrementStat } from './save-manager.js';
 
 let dragonRegistry = null; // set by init
 let dragonListContainer = null;
@@ -69,6 +70,7 @@ function showParentSetToast(slot, dragon) {
 function generateOne(listContainer) {
   const dragon = Dragon.createRandom();
   dragonRegistry.add(dragon);
+  incrementStat('totalGenerated');
 
   const quest = getHighlightedQuest();
   const highlightGenes = quest ? getGenesForQuest(quest) : null;

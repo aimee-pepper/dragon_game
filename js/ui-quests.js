@@ -9,8 +9,10 @@ import {
   submitDragonToQuest,
   getRequirementStatus,
   checkDragonMeetsQuest,
+  refreshAllActiveQuests,
 } from './quest-engine.js';
 import { getHighlightedQuest, setHighlightedQuest } from './quest-highlight.js';
+import { incrementStat, triggerSave } from './save-manager.js';
 
 let questContainer = null;
 let dragonRegistry = null;
@@ -40,7 +42,24 @@ function renderQuests() {
 
   // Section header
   const header = el('div', 'quests-section-header');
-  header.appendChild(el('h2', 'quests-title', 'Active Quests'));
+  const titleRow = el('div', 'quests-title-row');
+  titleRow.appendChild(el('h2', 'quests-title', 'Active Quests'));
+
+  // Refresh quests button
+  const refreshBtn = el('button', 'btn btn-secondary btn-small quests-refresh-btn', '↻ Refresh Quests');
+  refreshBtn.addEventListener('click', () => {
+    // Clear highlighted quest if it was active
+    const hl = getHighlightedQuest();
+    if (hl && hl.status === 'active') {
+      setHighlightedQuest(null);
+    }
+    refreshAllActiveQuests();
+    triggerSave();
+    renderQuests();
+  });
+  titleRow.appendChild(refreshBtn);
+  header.appendChild(titleRow);
+
   const stabledCount = getStabledDragons().length;
   header.appendChild(el('span', 'quests-hint', `${stabledCount} dragon${stabledCount !== 1 ? 's' : ''} in stables`));
   questContainer.appendChild(header);
@@ -261,6 +280,8 @@ function openQuestPicker(quest) {
       overlay.remove();
       const result = submitDragonToQuest(selected, quest.id);
       if (result.success) {
+        incrementStat('totalQuestsCompleted');
+        triggerSave();
         showQuestMessage(result.message, 'success');
         // Clear highlight if this was the highlighted quest
         const hl = getHighlightedQuest();

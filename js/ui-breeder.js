@@ -6,6 +6,7 @@ import { addToStables, getStabledDragons } from './ui-stables.js';
 import { openFamilyTree } from './ui-family-tree.js';
 import { applyQuestHalo, onHighlightChange, getHighlightedQuest } from './quest-highlight.js';
 import { getGenesForQuest, getDesiredAllelesForQuest } from './quest-gene-map.js';
+import { incrementStat } from './save-manager.js';
 
 let dragonRegistry = null;
 let parentA = null;
@@ -202,6 +203,7 @@ function doBreed() {
   if (!parentA || !parentB) return;
 
   const offspring = Dragon.breed(parentA, parentB);
+  for (const _child of offspring) incrementStat('totalBred');
 
   // Build parent name map for offspring color-coding
   const parentNames = {
