@@ -273,6 +273,156 @@ Phantom, Opalescent, Spectral, Glass, Iridescent, Seaglass, Crystal, Frosted, Ve
 
 ---
 
+## Specialty Combos
+
+When a dragon's **Color + Finish** or **Finish + Element** match specific tier combinations, a specialty name overrides or modifies the color display name. The finish name and color name remain displayed separately on cards — only the color label slot changes.
+
+### Priority Rules
+
+1. **Color + Finish → Specialty Name** (replaces color display name entirely, shows category badge)
+2. **Finish + Element → Modifier Prefix** (prepends modifier to color name, e.g. "Molten Red")
+
+Priority 1 wins over Priority 2. They do not stack.
+
+### Gemstones (22) — Color + Crystal
+
+| Specialty Name | Color | Finish |
+|---------------|-------|--------|
+| Diamond | White | Crystal |
+| Rose Quartz | Pink | Crystal |
+| Citrine | Lemon Yellow | Crystal |
+| Topaz | Saffron | Crystal |
+| Amber | Orange | Crystal |
+| Garnet | Crimson | Crystal |
+| Ruby | Red | Crystal |
+| Carnelian | Coral | Crystal |
+| Tourmaline | Hot Pink | Crystal |
+| Amethyst | Wisteria | Crystal |
+| Tanzanite | Indigo | Crystal |
+| Sapphire | Cobalt | Crystal |
+| Lapis Lazuli | Periwinkle | Crystal |
+| Aquamarine | Aqua | Crystal |
+| Alexandrite | Teal | Crystal |
+| Emerald | Clover | Crystal |
+| Peridot | Pear Green | Crystal |
+| Jade | Green | Crystal |
+| Onyx | Black | Crystal |
+| Iolite | Iris | Crystal |
+| Labradorite | Cobalt | Mother of Pearl |
+| Fire Agate | Red | Cloudy Lustrous Prismatic |
+
+### Opals (7) — Color + Translucent Lustrous Prismatic
+
+| Specialty Name | Color | Finish |
+|---------------|-------|--------|
+| White Opal | White | Translucent Lustrous Prismatic |
+| Fire Opal | Red | Translucent Lustrous Prismatic |
+| Honey Opal | Saffron | Translucent Lustrous Prismatic |
+| Sunstone | Orange | Translucent Lustrous Prismatic |
+| Water Opal | Aqua | Translucent Lustrous Prismatic |
+| Black Opal | Black | Translucent Lustrous Prismatic |
+| Boulder Opal | Slate | Translucent Lustrous Prismatic |
+
+### Moonstones (7) — Color + Translucent Lustrous Shimmering
+
+| Specialty Name | Color | Finish |
+|---------------|-------|--------|
+| Rainbow Moonstone | White | Translucent Lustrous Shimmering |
+| Blue Moonstone | Ice Blue | Translucent Lustrous Shimmering |
+| Grey Moonstone | Grey | Translucent Lustrous Shimmering |
+| Peach Moonstone | Salmon | Translucent Lustrous Shimmering |
+| Cat's Eye | Lemon Yellow | Translucent Lustrous Shimmering |
+| Star Sapphire | Cobalt | Translucent Lustrous Shimmering |
+| Star Ruby | Red | Translucent Lustrous Shimmering |
+
+### Pearls (6) — Color + Opaque Lustrous Shimmering
+
+| Specialty Name | Color | Finish |
+|---------------|-------|--------|
+| Pearl | White | Opaque Lustrous Shimmering |
+| Black Pearl | Black | Opaque Lustrous Shimmering |
+| Pink Pearl | Pink | Opaque Lustrous Shimmering |
+| Golden Pearl | Yellow | Opaque Lustrous Shimmering |
+| Grey Pearl | Grey | Opaque Lustrous Shimmering |
+| Lavender Pearl | Mauve | Opaque Lustrous Shimmering |
+
+### Metals (15) — Color + Mirror
+
+| Specialty Name | Color | Finish |
+|---------------|-------|--------|
+| Platinum | White | Mirror |
+| Silver | Grey | Mirror |
+| Pewter | Slate | Mirror |
+| Steel | Blue | Mirror |
+| Titanium | Cobalt | Mirror |
+| Gold | Yellow | Mirror |
+| Brass | Saffron | Mirror |
+| Copper | Orange | Mirror |
+| Rose Gold | Salmon | Mirror |
+| Bronze | Carrot | Mirror |
+| Iron | Maroon | Mirror |
+| Gunmetal | Midnight Blue | Mirror |
+| Electrum | Chartreuse | Mirror |
+| Tin | Ice Blue | Mirror |
+| Rhodium | Violet | Mirror |
+
+### Stones (6) — Color + Velvet
+
+| Specialty Name | Color | Finish |
+|---------------|-------|--------|
+| Marble | White | Velvet |
+| Limestone | Ice Blue | Velvet |
+| Granite | Grey | Velvet |
+| Slate (stone) | Slate | Velvet |
+| Basalt | Midnight Blue | Velvet |
+| Obsidian | Black | Velvet |
+
+### Ghosts (7) — Color + Phantom
+
+| Specialty Name | Color | Finish |
+|---------------|-------|--------|
+| Specter | White | Phantom |
+| Shade | Grey | Phantom |
+| Wraith | Black | Phantom |
+| Haunt | Ice Blue | Phantom |
+| Revenant | Slate | Phantom |
+| Spirit | Seafoam | Phantom |
+| Ghast | Mint | Phantom |
+
+### Element Modifiers (16) — Finish + Element → Prefix
+
+| Modifier | Finish | Element |
+|----------|--------|---------|
+| Molten | Mirror | Fire |
+| Frozen | Glass | Ice |
+| Charged | Mirror | Lightning |
+| Volcanic | Velvet | Fire |
+| Permafrost | Frosted | Ice |
+| Storm | Glass | Lightning |
+| Boiling | Crystal | Steam |
+| Nimbus | Frosted | Steam |
+| Celestial | Iridescent | Aurora |
+| Radiant | Mirror | Solar |
+| Hollow | Phantom | Void |
+| Mirage | Spectral | Fire |
+| Rime | Seaglass | Ice |
+| Galvanic | Chromatic | Lightning |
+| Luminous | Cloudy Lustrous Shimmering | Aurora |
+| Tidal | Opaque Lustrous Shimmering | Steam |
+
+**Total**: 70 specialty combos + 16 element modifiers = 86 cross-system overrides.
+
+### Implementation Details
+
+- Combos keyed by `"colorTierKey|finishTierKey"` (e.g. `"0-0-0|1-3-0"` = White + Crystal)
+- Element modifiers keyed by `"finishTierKey|elementHLKey"` (e.g. `"3-3-0|H-L-L"` = Mirror + Fire)
+- Tier classification: `classifyLevel()` — <0.5→0, <1.5→1, <2.5→2, ≥2.5→3
+- Resolution runs after all three triangle systems resolve, as a post-processing step in `resolveSpecialtyCombos()`
+- Specialty name stored in `phenotype.color.specialtyName` with `specialtyCategory`
+- Modifier prefix stored in `phenotype.color.modifierPrefix`
+
+---
+
 ## Genetics & Breeding
 
 ### Inheritance Rules
@@ -340,10 +490,13 @@ phenotype = {
     levels: [c, m, y],         // continuous 0–3
     key: "H-L-H",             // H/L classification
     name: "Green",            // 8-way phenotype name
-    displayName: "Deep Green", // HSL-based rich name
+    displayName: "Clover",    // 64-entry lookup name
     cmyBreakdown: { c, m, y }, // level labels
     rgb: { r, g, b },
-    hex: "#00ff00"
+    hex: "#00ff00",
+    specialtyName: "Emerald", // if Color+Finish combo matches (or undefined)
+    specialtyCategory: "Gemstone", // category for badge (or undefined)
+    modifierPrefix: "Molten",  // if Finish+Element combo matches (or undefined)
   },
   finish: {
     levels: [opacity, shine, schiller],
@@ -375,9 +528,10 @@ phenotype = {
 3. **Stables** — Persistent dragon storage with release option
 4. **Quests** — Quest cards with genotype/phenotype requirements; difficulty badges (Easy/Medium/Hard)
 5. **Almanac** — Reference guide showing all phenotype recipes
-   - Colors: 8 phenotypes with swatches
-   - Finishes: 4 opacity-tier grids (4×4 each) showing all 64 names
-   - Elements: 8 base phenotypes + Dark Energy rare variant
+   - Colors: 4 yellow-tier grids (4×4 each) showing all 64 color names with color dot swatches
+   - Finishes: 4 opacity-tier grids (4×4 each) showing all 64 finish names
+   - Elements: 4 lightning-tier grids (4×4 each) showing all 64 element names + Dark Energy rare variant
+   - Combos: Categorized specialty combo tables (Gemstones, Opals, Moonstones, Pearls, Metals, Stones, Ghosts) + Element Modifiers
 
 ### Dragon Cards
 

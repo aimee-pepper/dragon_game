@@ -44,7 +44,16 @@ export function renderDragonCard(dragon, options = {}) {
   visual.appendChild(sprite);
 
   const info = el('div', 'visual-info');
-  info.appendChild(el('div', 'color-name', p.color.displayName));
+
+  // Specialty combo overrides color display name
+  const colorLabel = p.color.specialtyName ||
+    (p.color.modifierPrefix ? `${p.color.modifierPrefix} ${p.color.displayName}` : p.color.displayName);
+  const colorNameEl = el('div', 'color-name', colorLabel);
+  if (p.color.specialtyName) {
+    const catBadge = el('span', 'specialty-badge', p.color.specialtyCategory || '');
+    colorNameEl.appendChild(catBadge);
+  }
+  info.appendChild(colorNameEl);
 
   // CMY blend breakdown: "C: High · M: None · Y: Mid"
   if (p.color.cmyBreakdown && !compact) {
@@ -379,7 +388,9 @@ export function renderPickerItem(dragon, onClick) {
   info.appendChild(nameRow);
 
   const p = dragon.phenotype;
-  const summary = `${p.color.displayName} ${p.finish.displayName || p.finish.name} \u2014 ${p.breathElement.name} \u2014 ${p.traits.body_size?.name}`;
+  const pickerColor = p.color.specialtyName ||
+    (p.color.modifierPrefix ? `${p.color.modifierPrefix} ${p.color.displayName}` : p.color.displayName);
+  const summary = `${pickerColor} ${p.finish.displayName || p.finish.name} \u2014 ${p.breathElement.name} \u2014 ${p.traits.body_size?.name}`;
   const traits = el('div', 'picker-traits', summary);
   info.appendChild(traits);
 

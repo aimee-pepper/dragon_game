@@ -8,6 +8,7 @@ import {
   getCMYLevelName,
   cmyToRGB,
   rgbToHex,
+  classifyLevel,
   getColorDisplayName,
   getFinishDisplayName,
   getFinishDescription,
@@ -17,6 +18,8 @@ import {
   RECESSIVE_PULL_STRENGTH,
   DARK_ENERGY_CHANCE,
   DARK_ENERGY_PHENOTYPE,
+  SPECIALTY_COMBOS,
+  ELEMENT_MODIFIERS,
 } from './gene-config.js';
 
 // Resolve a linear trait: average both alleles, round to nearest valid value
@@ -186,5 +189,37 @@ export function resolveFullPhenotype(genotype) {
   phenotype.finish = resolveFinish(genotype);
   phenotype.breathElement = resolveBreathElement(genotype);
 
+  // Check for specialty combo overrides (Color+Finish or Finish+Element)
+  resolveSpecialtyCombos(phenotype);
+
   return phenotype;
+}
+
+// Specialty combo resolution — checks for cross-system name overrides
+// Priority 1: Color + Finish → replaces color display name entirely
+// Priority 2: Finish + Element → modifier prefix on color name
+function resolveSpecialtyCombos(phenotype) {
+  // Build tier keys from continuous levels
+  const [cL, mL, yL] = phenotype.color.levels;
+  const colorKey = `${classifyLevel(cL)}-${classifyLevel(mL)}-${classifyLevel(yL)}`;
+
+  const [oL, shL, scL] = phenotype.finish.levels;
+  const finishKey = `${classifyLevel(oL)}-${classifyLevel(shL)}-${classifyLevel(scL)}`;
+
+  // Priority 1: Color + Finish specialty name
+  const specialtyKey = `${colorKey}|${finishKey}`;
+  const specialty = SPECIALTY_COMBOS[specialtyKey];
+  if (specialty) {
+    phenotype.color.specialtyName = specialty.name;
+    phenotype.color.specialtyCategory = specialty.category;
+    return;
+  }
+
+  // Priority 2: Finish + Element modifier prefix
+  const elementHLKey = phenotype.breathElement.key; // e.g. "H-L-L"
+  const modifierKey = `${finishKey}|${elementHLKey}`;
+  const modifier = ELEMENT_MODIFIERS[modifierKey];
+  if (modifier) {
+    phenotype.color.modifierPrefix = modifier;
+  }
 }

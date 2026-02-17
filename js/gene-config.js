@@ -685,3 +685,123 @@ export const DARK_ENERGY_PHENOTYPE = {
   displayColor: '#8800cc',
   desc: 'Rare antimatter breath — born from the void',
 };
+
+// ============================================================
+// SPECIALTY COMBOS — Color + Finish → replaces color display name
+// Key format: "colorTierKey|finishTierKey" (both are C-M-Y | O-Sh-Sc tier keys)
+// ============================================================
+
+export const SPECIALTY_COMBOS = {
+  // ── Gemstones (Color + Crystal = 1-3-0) ──
+  '0-0-0|1-3-0': { name: 'Diamond',      category: 'Gemstone' },
+  '0-2-1|1-3-0': { name: 'Rose Quartz',  category: 'Gemstone' },
+  '0-0-2|1-3-0': { name: 'Citrine',      category: 'Gemstone' },
+  '0-1-3|1-3-0': { name: 'Topaz',        category: 'Gemstone' },
+  '0-2-3|1-3-0': { name: 'Amber',        category: 'Gemstone' },
+  '1-3-3|1-3-0': { name: 'Garnet',       category: 'Gemstone' },
+  '0-3-3|1-3-0': { name: 'Ruby',         category: 'Gemstone' },
+  '0-2-2|1-3-0': { name: 'Carnelian',    category: 'Gemstone' },
+  '0-3-1|1-3-0': { name: 'Tourmaline',   category: 'Gemstone' },
+  '2-3-1|1-3-0': { name: 'Amethyst',     category: 'Gemstone' },
+  '3-2-0|1-3-0': { name: 'Tanzanite',    category: 'Gemstone' },
+  '3-2-1|1-3-0': { name: 'Sapphire',     category: 'Gemstone' },
+  '2-2-0|1-3-0': { name: 'Lapis Lazuli', category: 'Gemstone' },
+  '2-0-0|1-3-0': { name: 'Aquamarine',   category: 'Gemstone' },
+  '3-1-1|1-3-0': { name: 'Alexandrite',  category: 'Gemstone' },
+  '2-1-2|1-3-0': { name: 'Emerald',      category: 'Gemstone' },
+  '1-0-2|1-3-0': { name: 'Peridot',      category: 'Gemstone' },
+  '3-0-3|1-3-0': { name: 'Jade',         category: 'Gemstone' },
+  '3-3-3|1-3-0': { name: 'Onyx',         category: 'Gemstone' },
+  '2-2-1|1-3-0': { name: 'Iolite',       category: 'Gemstone' },
+
+  // ── Opals (Color + Translucent Lustrous Prismatic = 1-2-3) ──
+  '0-0-0|1-2-3': { name: 'White Opal',  category: 'Opal' },
+  '0-3-3|1-2-3': { name: 'Fire Opal',   category: 'Opal' },
+  '0-1-3|1-2-3': { name: 'Honey Opal',  category: 'Opal' },
+  '0-2-3|1-2-3': { name: 'Sunstone',    category: 'Opal' },
+  '2-0-0|1-2-3': { name: 'Water Opal',  category: 'Opal' },
+  '3-3-3|1-2-3': { name: 'Black Opal',  category: 'Opal' },
+  '0-2-1|1-2-3': { name: 'Pink Opal',   category: 'Opal' },
+
+  // ── Moonstones (Color + Translucent Lustrous Shimmering = 1-2-2) ──
+  '0-0-0|1-2-2': { name: 'Rainbow Moonstone', category: 'Moonstone' },
+  '1-0-0|1-2-2': { name: 'Blue Moonstone',    category: 'Moonstone' },
+  '1-1-1|1-2-2': { name: 'Grey Moonstone',    category: 'Moonstone' },
+  '0-1-1|1-2-2': { name: 'Peach Moonstone',   category: 'Moonstone' },
+  '0-0-2|1-2-2': { name: "Cat's Eye",         category: 'Moonstone' },
+  '3-2-1|1-2-2': { name: 'Star Sapphire',     category: 'Moonstone' },
+  '0-3-3|1-2-2': { name: 'Star Ruby',         category: 'Moonstone' },
+
+  // ── Pearls (Color + Opaque Lustrous Shimmering = 3-2-2) ──
+  '0-0-0|3-2-2': { name: 'Pearl',          category: 'Pearl' },
+  '3-3-3|3-2-2': { name: 'Black Pearl',    category: 'Pearl' },
+  '0-2-1|3-2-2': { name: 'Pink Pearl',     category: 'Pearl' },
+  '0-0-3|3-2-2': { name: 'Golden Pearl',   category: 'Pearl' },
+  '1-1-1|3-2-2': { name: 'Grey Pearl',     category: 'Pearl' },
+  '1-2-1|3-2-2': { name: 'Lavender Pearl', category: 'Pearl' },
+
+  // ── Labradorite (Color + Mother of Pearl = 3-3-3) ──
+  '3-2-1|3-3-3': { name: 'Labradorite', category: 'Gemstone' },
+
+  // ── Fire Agate (Color + Cloudy Lustrous Prismatic = 2-2-3) ──
+  '0-3-3|2-2-3': { name: 'Fire Agate', category: 'Gemstone' },
+
+  // ── Metals (Color + Mirror = 3-3-0) ──
+  '0-0-0|3-3-0': { name: 'Platinum',  category: 'Metal' },
+  '1-1-1|3-3-0': { name: 'Silver',    category: 'Metal' },
+  '2-2-2|3-3-0': { name: 'Pewter',    category: 'Metal' },
+  '3-3-0|3-3-0': { name: 'Steel',     category: 'Metal' },
+  '3-2-1|3-3-0': { name: 'Titanium',  category: 'Metal' },
+  '0-0-3|3-3-0': { name: 'Gold',      category: 'Metal' },
+  '0-1-3|3-3-0': { name: 'Brass',     category: 'Metal' },
+  '0-2-3|3-3-0': { name: 'Copper',    category: 'Metal' },
+  '0-1-1|3-3-0': { name: 'Rose Gold', category: 'Metal' },
+  '0-1-2|3-3-0': { name: 'Bronze',    category: 'Metal' },
+  '2-3-3|3-3-0': { name: 'Iron',      category: 'Metal' },
+  '3-3-2|3-3-0': { name: 'Gunmetal',  category: 'Metal' },
+  '1-0-3|3-3-0': { name: 'Electrum',  category: 'Metal' },
+  '1-0-0|3-3-0': { name: 'Tin',       category: 'Metal' },
+  '1-1-0|3-3-0': { name: 'Rhodium',   category: 'Metal' },
+
+  // ── Stones (Color + Velvet = 3-0-0) ──
+  '0-0-0|3-0-0': { name: 'Marble',    category: 'Stone' },
+  '1-0-0|3-0-0': { name: 'Limestone', category: 'Stone' },
+  '1-1-1|3-0-0': { name: 'Granite',   category: 'Stone' },
+  '2-2-2|3-0-0': { name: 'Slate',     category: 'Stone' },
+  '3-3-2|3-0-0': { name: 'Basalt',    category: 'Stone' },
+  '3-3-3|3-0-0': { name: 'Obsidian',  category: 'Stone' },
+
+  // ── Ghosts (Color + Phantom = 0-0-0) ──
+  '0-0-0|0-0-0': { name: 'Specter',  category: 'Ghost' },
+  '1-1-1|0-0-0': { name: 'Shade',    category: 'Ghost' },
+  '3-3-3|0-0-0': { name: 'Wraith',   category: 'Ghost' },
+  '1-0-0|0-0-0': { name: 'Haunt',    category: 'Ghost' },
+  '2-2-2|0-0-0': { name: 'Revenant', category: 'Ghost' },
+  '2-0-1|0-0-0': { name: 'Spirit',   category: 'Ghost' },
+  '3-0-1|0-0-0': { name: 'Ghast',    category: 'Ghost' },
+};
+
+// ============================================================
+// ELEMENT MODIFIERS — Finish + Element → prefix applied to color name
+// Key format: "finishTierKey|elementHLKey"
+// Only applies when no Color+Finish specialty match exists
+// ============================================================
+
+export const ELEMENT_MODIFIERS = {
+  '3-3-0|H-L-L': 'Molten',     // Mirror + Fire
+  '0-3-0|L-H-L': 'Frozen',     // Glass + Ice
+  '3-3-0|L-L-H': 'Charged',    // Mirror + Lightning
+  '3-0-0|H-L-L': 'Volcanic',   // Velvet + Fire
+  '2-0-0|L-H-L': 'Permafrost', // Frosted + Ice
+  '0-3-0|L-L-H': 'Storm',      // Glass + Lightning
+  '1-3-0|H-H-L': 'Boiling',    // Crystal + Steam
+  '2-0-0|H-H-L': 'Nimbus',     // Frosted + Steam
+  '0-3-3|L-H-H': 'Celestial',  // Iridescent + Aurora
+  '3-3-0|H-L-H': 'Radiant',    // Mirror + Solar
+  '0-0-0|L-L-L': 'Hollow',     // Phantom + Void
+  '0-1-2|H-L-L': 'Mirage',     // Spectral + Fire
+  '1-0-0|L-H-L': 'Rime',       // Seaglass + Ice
+  '3-0-3|L-L-H': 'Galvanic',   // Chromatic + Lightning
+  '2-2-2|L-H-H': 'Luminous',   // Cloudy Lustrous Shimmering + Aurora
+  '3-2-2|H-H-L': 'Tidal',      // Opaque Lustrous Shimmering + Steam
+};
