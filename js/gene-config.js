@@ -185,42 +185,74 @@ export const FINISH_PHENOTYPES = {
   'H-H-H': { name: 'Mother of Pearl', desc: 'Opaque, glossy, color-shifting' },
 };
 
-// Continuous finish naming — builds a rich descriptive name from the 3 axis levels
-// Similar to getColorNameFromRGB but for finish properties
+// ============================================================
+// FULL 64-ENTRY FINISH NAME TABLE
+// Key format: "O-Sh-Sc" where each axis is 0=None, 1=Low, 2=Med, 3=High
+// 4 opacity tiers × 4 shine levels × 4 schiller levels = 64 unique names
+// ============================================================
+
+export const FINISH_NAMES = {
+  // ── Opacity: None (0) ──
+  '0-0-0': 'Phantom',                     '0-0-1': 'Clear Matte Shifting',
+  '0-0-2': 'Clear Matte Shimmering',      '0-0-3': 'Opalescent',
+  '0-1-0': 'Clear Satin',                 '0-1-1': 'Clear Satin Shifting',
+  '0-1-2': 'Spectral',                    '0-1-3': 'Clear Satin Prismatic',
+  '0-2-0': 'Clear Lustrous',              '0-2-1': 'Clear Lustrous Shifting',
+  '0-2-2': 'Clear Lustrous Shimmering',   '0-2-3': 'Clear Lustrous Prismatic',
+  '0-3-0': 'Glass',                       '0-3-1': 'Clear Polished Shifting',
+  '0-3-2': 'Clear Polished Shimmering',   '0-3-3': 'Iridescent',
+
+  // ── Opacity: Low (1) ──
+  '1-0-0': 'Seaglass',                        '1-0-1': 'Translucent Matte Shifting',
+  '1-0-2': 'Translucent Matte Shimmering',    '1-0-3': 'Translucent Matte Prismatic',
+  '1-1-0': 'Translucent Satin',               '1-1-1': 'Translucent Satin Shifting',
+  '1-1-2': 'Translucent Satin Shimmering',    '1-1-3': 'Translucent Satin Prismatic',
+  '1-2-0': 'Translucent Lustrous',            '1-2-1': 'Translucent Lustrous Shifting',
+  '1-2-2': 'Translucent Lustrous Shimmering', '1-2-3': 'Translucent Lustrous Prismatic',
+  '1-3-0': 'Crystal',                         '1-3-1': 'Translucent Polished Shifting',
+  '1-3-2': 'Translucent Polished Shimmering', '1-3-3': 'Translucent Polished Prismatic',
+
+  // ── Opacity: Med (2) ──
+  '2-0-0': 'Frosted',                   '2-0-1': 'Cloudy Matte Shifting',
+  '2-0-2': 'Cloudy Matte Shimmering',   '2-0-3': 'Cloudy Matte Prismatic',
+  '2-1-0': 'Cloudy Satin',              '2-1-1': 'Cloudy Satin Shifting',
+  '2-1-2': 'Cloudy Satin Shimmering',   '2-1-3': 'Cloudy Satin Prismatic',
+  '2-2-0': 'Cloudy Lustrous',           '2-2-1': 'Cloudy Lustrous Shifting',
+  '2-2-2': 'Moonstone',                 '2-2-3': 'Cloudy Lustrous Prismatic',
+  '2-3-0': 'Cloudy Polished',           '2-3-1': 'Cloudy Polished Shifting',
+  '2-3-2': 'Cloudy Polished Shimmering','2-3-3': 'Cloudy Polished Prismatic',
+
+  // ── Opacity: High (3) ──
+  '3-0-0': 'Velvet',                    '3-0-1': 'Opaque Matte Shifting',
+  '3-0-2': 'Opaque Matte Shimmering',   '3-0-3': 'Chromatic',
+  '3-1-0': 'Opaque Satin',              '3-1-1': 'Opaque Satin Shifting',
+  '3-1-2': 'Opaque Satin Shimmering',   '3-1-3': 'Opaque Satin Prismatic',
+  '3-2-0': 'Enamel',                    '3-2-1': 'Opaque Lustrous Shifting',
+  '3-2-2': 'Pearl',                     '3-2-3': 'Opaque Lustrous Prismatic',
+  '3-3-0': 'Mirror',                    '3-3-1': 'Opaque Polished Shifting',
+  '3-3-2': 'Opaque Polished Shimmering','3-3-3': 'Mother of Pearl',
+};
+
+// Set of special (non-compound) finish names for almanac highlighting
+export const FINISH_SPECIAL_NAMES = new Set([
+  'Phantom', 'Opalescent', 'Spectral', 'Glass', 'Iridescent',
+  'Seaglass', 'Crystal',
+  'Frosted', 'Moonstone',
+  'Velvet', 'Chromatic', 'Enamel', 'Pearl', 'Mirror', 'Mother of Pearl',
+]);
+
+// Classify a continuous axis level (0-3) into a discrete tier (0-3)
+export function classifyFinishLevel(level) {
+  if (level < 0.5) return 0;  // None
+  if (level < 1.5) return 1;  // Low
+  if (level < 2.5) return 2;  // Med
+  return 3;                    // High
+}
+
+// Finish display name from 64-entry lookup table
 export function getFinishDisplayName(opacityLevel, shineLevel, schillerLevel) {
-  // Each level is 0-3 continuous (averaged allele pairs)
-
-  // Shine names (primary descriptor — the surface quality)
-  let shineName;
-  if (shineLevel < 0.5)      shineName = 'Matte';
-  else if (shineLevel < 1.2) shineName = 'Satin';
-  else if (shineLevel < 2.0) shineName = 'Lustrous';
-  else if (shineLevel < 2.7) shineName = 'Polished';
-  else                        shineName = 'Mirror';
-
-  // Schiller names (suffix — the color-play quality)
-  let schillerName = '';
-  if (schillerLevel >= 2.5)      schillerName = 'Prismatic';
-  else if (schillerLevel >= 1.5) schillerName = 'Iridescent';
-  else if (schillerLevel >= 0.5) schillerName = 'Shifting';
-  // < 0.5 = no schiller suffix
-
-  // Opacity prefix (only when notable)
-  let opacityPrefix = '';
-  if (opacityLevel < 0.5)        opacityPrefix = 'Translucent';
-  else if (opacityLevel < 1.2)   opacityPrefix = 'Frosted';
-  else if (opacityLevel >= 2.5)  opacityPrefix = '';  // opaque is default, no prefix
-  else if (opacityLevel >= 1.8)  opacityPrefix = '';  // solid enough, skip
-  else                            opacityPrefix = 'Hazy';
-
-  // Build name: [Opacity] [Shine] [Schiller]
-  // e.g. "Frosted Satin Shifting", "Polished Iridescent", "Mirror Prismatic"
-  const parts = [];
-  if (opacityPrefix) parts.push(opacityPrefix);
-  parts.push(shineName);
-  if (schillerName) parts.push(schillerName);
-
-  return parts.join(' ');
+  const key = `${classifyFinishLevel(opacityLevel)}-${classifyFinishLevel(shineLevel)}-${classifyFinishLevel(schillerLevel)}`;
+  return FINISH_NAMES[key] || 'Unknown Finish';
 }
 
 // Build finish description from levels

@@ -4,6 +4,8 @@ import {
   FINISH_PHENOTYPES,
   BREATH_ELEMENT_PHENOTYPES,
   DARK_ENERGY_PHENOTYPE,
+  FINISH_NAMES,
+  FINISH_SPECIAL_NAMES,
   cmyToRGB,
   rgbToHex,
 } from './gene-config.js';
@@ -178,14 +180,63 @@ function renderColorPane() {
   return pane;
 }
 
-// ---- Finish Pane ----
+// ---- Finish Pane (64-entry grid) ----
+
+const FINISH_LEVEL_LABELS = ['None', 'Low', 'Med', 'High'];
+const OPACITY_TIER_LABELS = [
+  'Opacity: None',
+  'Opacity: Low',
+  'Opacity: Medium',
+  'Opacity: High',
+];
 
 function renderFinishPane() {
   const pane = el('div', '');
   pane.appendChild(el('div', 'almanac-pane-header', 'Finishes'));
   pane.appendChild(renderAxisLabels(FINISH_AXES));
-  pane.appendChild(renderPaneEntries(FINISH_PHENOTYPES, FINISH_AXES, null));
+
+  // Render 4 grids, one per opacity tier
+  for (let o = 0; o < 4; o++) {
+    pane.appendChild(el('div', 'almanac-tier-label', OPACITY_TIER_LABELS[o]));
+    pane.appendChild(renderFinishGrid(o));
+  }
+
   return pane;
+}
+
+// Render a 4×4 grid for a single opacity level
+// Rows = Shine (None/Low/Med/High), Cols = Schiller (None/Low/Med/High)
+function renderFinishGrid(opacityLevel) {
+  const grid = el('div', 'almanac-finish-grid');
+
+  // Column headers row: blank corner + 4 schiller labels
+  grid.appendChild(el('div', 'almanac-finish-corner'));
+  for (let sc = 0; sc < 4; sc++) {
+    const colLabel = el('div', 'almanac-finish-col-label');
+    colLabel.appendChild(el('span', 'finish-sc', 'Sc'));
+    colLabel.appendChild(document.createTextNode(`: ${FINISH_LEVEL_LABELS[sc]}`));
+    grid.appendChild(colLabel);
+  }
+
+  // Data rows: shine label + 4 finish name cells
+  for (let sh = 0; sh < 4; sh++) {
+    // Row header
+    const rowLabel = el('div', 'almanac-finish-row-label');
+    rowLabel.appendChild(el('span', 'finish-s', 'Sh'));
+    rowLabel.appendChild(document.createTextNode(`: ${FINISH_LEVEL_LABELS[sh]}`));
+    grid.appendChild(rowLabel);
+
+    // 4 cells
+    for (let sc = 0; sc < 4; sc++) {
+      const key = `${opacityLevel}-${sh}-${sc}`;
+      const name = FINISH_NAMES[key] || '???';
+      const isSpecial = FINISH_SPECIAL_NAMES.has(name);
+      const cell = el('div', 'almanac-finish-cell' + (isSpecial ? ' almanac-finish-special' : ''), name);
+      grid.appendChild(cell);
+    }
+  }
+
+  return grid;
 }
 
 // ---- Element Pane ----
