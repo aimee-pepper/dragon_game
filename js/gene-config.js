@@ -218,7 +218,7 @@ export const FINISH_NAMES = {
   '2-1-0': 'Cloudy Satin',              '2-1-1': 'Cloudy Satin Shifting',
   '2-1-2': 'Cloudy Satin Shimmering',   '2-1-3': 'Cloudy Satin Prismatic',
   '2-2-0': 'Cloudy Lustrous',           '2-2-1': 'Cloudy Lustrous Shifting',
-  '2-2-2': 'Moonstone',                 '2-2-3': 'Cloudy Lustrous Prismatic',
+  '2-2-2': 'Cloudy Lustrous Shimmering', '2-2-3': 'Cloudy Lustrous Prismatic',
   '2-3-0': 'Cloudy Polished',           '2-3-1': 'Cloudy Polished Shifting',
   '2-3-2': 'Cloudy Polished Shimmering','2-3-3': 'Cloudy Polished Prismatic',
 
@@ -228,7 +228,7 @@ export const FINISH_NAMES = {
   '3-1-0': 'Opaque Satin',              '3-1-1': 'Opaque Satin Shifting',
   '3-1-2': 'Opaque Satin Shimmering',   '3-1-3': 'Opaque Satin Prismatic',
   '3-2-0': 'Enamel',                    '3-2-1': 'Opaque Lustrous Shifting',
-  '3-2-2': 'Pearl',                     '3-2-3': 'Opaque Lustrous Prismatic',
+  '3-2-2': 'Opaque Lustrous Shimmering',                     '3-2-3': 'Opaque Lustrous Prismatic',
   '3-3-0': 'Mirror',                    '3-3-1': 'Opaque Polished Shifting',
   '3-3-2': 'Opaque Polished Shimmering','3-3-3': 'Mother of Pearl',
 };
@@ -237,8 +237,8 @@ export const FINISH_NAMES = {
 export const FINISH_SPECIAL_NAMES = new Set([
   'Phantom', 'Opalescent', 'Spectral', 'Glass', 'Iridescent',
   'Seaglass', 'Crystal',
-  'Frosted', 'Moonstone',
-  'Velvet', 'Chromatic', 'Enamel', 'Pearl', 'Mirror', 'Mother of Pearl',
+  'Frosted',
+  'Velvet', 'Chromatic', 'Enamel', 'Mirror', 'Mother of Pearl',
 ]);
 
 // Classify a continuous axis level (0-3) into a discrete tier (0-3)
