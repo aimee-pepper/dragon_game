@@ -5,7 +5,7 @@
 
 const COLOR_TARGETS = [
   'Red', 'Blue', 'Green', 'Cyan', 'Magenta', 'Yellow', 'Orange',
-  'Purple', 'Teal', 'Indigo', 'Gold', 'Rose',
+  'Purple', 'Teal', 'Indigo', 'Saffron', 'Rose',
 ];
 
 // CMY recipe hints for each color target
@@ -21,7 +21,7 @@ const COLOR_RECIPES = {
   Purple:  'C: Mid+ · M: High · Y: None',
   Teal:    'C: High · M: None · Y: Mid+',
   Indigo:  'C: High · M: High · Y: Low',
-  Gold:    'C: None · M: Low · Y: High',
+  Saffron: 'C: None · M: Low · Y: High',
   Rose:    'C: None · M: High · Y: Mid+',
 };
 

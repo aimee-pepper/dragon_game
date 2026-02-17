@@ -5,15 +5,14 @@ import {
   COLOR_PHENOTYPES,
   FINISH_PHENOTYPES,
   BREATH_ELEMENT_PHENOTYPES,
-  getColorShade,
   getCMYLevelName,
   cmyToRGB,
   rgbToHex,
-  getColorNameFromRGB,
+  getColorDisplayName,
   getFinishDisplayName,
   getFinishDescription,
   getBreathLevelName,
-  getBreathDisplayName,
+  getElementDisplayName,
   getBreathDescription,
   RECESSIVE_PULL_STRENGTH,
   DARK_ENERGY_CHANCE,
@@ -92,9 +91,8 @@ function resolveColor(genotype) {
   const rgb = cmyToRGB(cLevel, mLevel, yLevel);
   const hex = rgbToHex(rgb.r, rgb.g, rgb.b);
 
-  // Derive color name from actual RGB using HSL hue analysis
-  // This ensures the name always matches the visual appearance
-  const displayName = getColorNameFromRGB(rgb.r, rgb.g, rgb.b);
+  // Color name from 64-entry lookup table
+  const displayName = getColorDisplayName(cLevel, mLevel, yLevel);
 
   // Build CMY breakdown for display: "C: High · M: None · Y: Mid"
   const cmyBreakdown = {
@@ -133,8 +131,8 @@ function resolveBreathElement(genotype) {
   const base = resolveTriangle(genotype, 'breathElement');
   const [fireLevel, iceLevel, lightningLevel] = base.levels;
 
-  // Rich descriptive name from continuous levels (like color/finish naming)
-  const displayName = getBreathDisplayName(fireLevel, iceLevel, lightningLevel);
+  // Element name from 64-entry lookup table
+  const displayName = getElementDisplayName(fireLevel, iceLevel, lightningLevel);
 
   // Axis breakdown for display: "F: High · I: None · L: Low"
   const breathBreakdown = {

@@ -1587,8 +1587,8 @@ header .subtitle {
 .finish-s { color: #aaccee; }
 .finish-sc { color: #cc99dd; }
 
-/* Finish grid — 4×4 grid per opacity tier */
-.almanac-finish-grid {
+/* Almanac 4×4 grid — shared by all three panes (colors, finishes, elements) */
+.almanac-grid {
   display: grid;
   grid-template-columns: auto 1fr 1fr 1fr 1fr;
   gap: 1px;
@@ -1598,12 +1598,12 @@ header .subtitle {
   overflow: hidden;
 }
 
-.almanac-finish-corner {
+.almanac-grid-corner {
   background: var(--bg-card);
   padding: 4px 6px;
 }
 
-.almanac-finish-col-label {
+.almanac-grid-col-label {
   background: var(--bg-card);
   padding: 4px 6px;
   font-size: 10px;
@@ -1612,7 +1612,7 @@ header .subtitle {
   text-align: center;
 }
 
-.almanac-finish-row-label {
+.almanac-grid-row-label {
   background: var(--bg-card);
   padding: 4px 6px;
   font-size: 10px;
@@ -1623,7 +1623,7 @@ header .subtitle {
   white-space: nowrap;
 }
 
-.almanac-finish-cell {
+.almanac-grid-cell {
   background: var(--bg-card-alt);
   padding: 5px 6px;
   font-size: 10px;
@@ -1632,9 +1632,20 @@ header .subtitle {
   line-height: 1.3;
 }
 
-.almanac-finish-special {
+.almanac-grid-special {
   color: var(--accent);
   font-weight: 700;
+}
+
+/* Color dot swatch inside grid cells */
+.almanac-color-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 3px;
+  vertical-align: middle;
+  border: 1px solid rgba(255,255,255,0.15);
 }
 
 /* ============================================
@@ -1853,19 +1864,25 @@ header .subtitle {
     display: block;
   }
 
-  .almanac-finish-grid {
+  .almanac-grid {
     font-size: 9px;
   }
 
-  .almanac-finish-cell {
+  .almanac-grid-cell {
     font-size: 9px;
     padding: 4px 3px;
   }
 
-  .almanac-finish-col-label,
-  .almanac-finish-row-label {
+  .almanac-grid-col-label,
+  .almanac-grid-row-label {
     font-size: 9px;
     padding: 3px 4px;
+  }
+
+  .almanac-color-dot {
+    width: 8px;
+    height: 8px;
+    margin-right: 2px;
   }
 }
 

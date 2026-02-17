@@ -242,17 +242,33 @@ export const FINISH_SPECIAL_NAMES = new Set([
 ]);
 
 // Classify a continuous axis level (0-3) into a discrete tier (0-3)
-export function classifyFinishLevel(level) {
+// Shared by all three 64-entry lookup systems (finish, element, color)
+export function classifyLevel(level) {
   if (level < 0.5) return 0;  // None
   if (level < 1.5) return 1;  // Low
   if (level < 2.5) return 2;  // Med
   return 3;                    // High
 }
 
+// Legacy alias (used in some places)
+export const classifyFinishLevel = classifyLevel;
+
 // Finish display name from 64-entry lookup table
 export function getFinishDisplayName(opacityLevel, shineLevel, schillerLevel) {
-  const key = `${classifyFinishLevel(opacityLevel)}-${classifyFinishLevel(shineLevel)}-${classifyFinishLevel(schillerLevel)}`;
+  const key = `${classifyLevel(opacityLevel)}-${classifyLevel(shineLevel)}-${classifyLevel(schillerLevel)}`;
   return FINISH_NAMES[key] || 'Unknown Finish';
+}
+
+// Element display name from 64-entry lookup table
+export function getElementDisplayName(fireLevel, iceLevel, lightningLevel) {
+  const key = `${classifyLevel(fireLevel)}-${classifyLevel(iceLevel)}-${classifyLevel(lightningLevel)}`;
+  return ELEMENT_NAMES[key] || 'Unknown Element';
+}
+
+// Color display name from 64-entry lookup table
+export function getColorDisplayName(cyanLevel, magentaLevel, yellowLevel) {
+  const key = `${classifyLevel(cyanLevel)}-${classifyLevel(magentaLevel)}-${classifyLevel(yellowLevel)}`;
+  return COLOR_NAMES[key] || 'Unknown Color';
 }
 
 // Build finish description from levels
@@ -285,6 +301,119 @@ export const BREATH_ELEMENT_PHENOTYPES = {
   'L-H-H': { name: 'Aurora',    displayColor: '#44FF88', desc: 'Shimmering curtains, color waves' },
   'H-H-H': { name: 'Plasma',    displayColor: '#FFFFFF', desc: 'White-hot, unstable energy' },
 };
+
+// ============================================================
+// FULL 64-ENTRY ELEMENT NAME TABLE
+// Key format: "F-I-L" where each axis is 0=None, 1=Low, 2=Med, 3=High
+// 4 fire tiers × 4 ice tiers × 4 lightning tiers = 64 unique names
+// ============================================================
+
+export const ELEMENT_NAMES = {
+  // ── Lightning: None (0) ──
+  '0-0-0': 'Void',              '0-1-0': 'Chill',
+  '0-2-0': 'Frost',             '0-3-0': 'Ice',
+  '1-0-0': 'Ember',             '1-1-0': 'Warm Mist',
+  '1-2-0': 'Cool Steam',        '1-3-0': 'Fog',
+  '2-0-0': 'Flame',             '2-1-0': 'Scald',
+  '2-2-0': 'Steam',             '2-3-0': 'Cold Geyser',
+  '3-0-0': 'Fire',              '3-1-0': 'Hot Scald',
+  '3-2-0': 'Geyser',            '3-3-0': 'Torrential Steam',
+
+  // ── Lightning: Low (1) ──
+  '0-0-1': 'Static',            '0-1-1': 'Cold Static',
+  '0-2-1': 'Frost Spark',       '0-3-1': 'Frigid Static',
+  '1-0-1': 'Warm Static',       '1-1-1': 'Haze',
+  '1-2-1': 'Charged Mist',      '1-3-1': 'Cold Ionic',
+  '2-0-1': 'Heat Spark',        '2-1-1': 'Charged Steam',
+  '2-2-1': 'Storm Brew',        '2-3-1': 'Charged Fog',
+  '3-0-1': 'Sunfire',           '3-1-1': 'Flash Steam',
+  '3-2-1': 'Thundercloud',      '3-3-1': 'Maelstrom',
+
+  // ── Lightning: Med (2) ──
+  '0-0-2': 'Spark',             '0-1-2': 'Ionic Chill',
+  '0-2-2': 'Ionic',             '0-3-2': 'Aurora Glow',
+  '1-0-2': 'Flare',             '1-1-2': 'Heat Haze',
+  '1-2-2': 'Charged Frost',     '1-3-2': 'Shimmer',
+  '2-0-2': 'Pulsar',            '2-1-2': 'Arc Steam',
+  '2-2-2': 'Surge',             '2-3-2': 'Radiant Fog',
+  '3-0-2': 'Solar',             '3-1-2': 'Solar Flare',
+  '3-2-2': 'Plasma Wisp',       '3-3-2': 'Corona',
+
+  // ── Lightning: High (3) ──
+  '0-0-3': 'Lightning',         '0-1-3': 'Crackling Chill',
+  '0-2-3': 'Tempest Ice',       '0-3-3': 'Aurora',
+  '1-0-3': 'Crackling Flare',   '1-1-3': 'Ion Storm',
+  '1-2-3': 'Aurora Storm',      '1-3-3': 'Radiance',
+  '2-0-3': 'Thunder Scorch',    '2-1-3': 'Plasma Arc',
+  '2-2-3': 'Fusion',            '2-3-3': 'Plasma Frost',
+  '3-0-3': 'Helios',            '3-1-3': 'Supernova',
+  '3-2-3': 'Cataclysm',         '3-3-3': 'Plasma',
+};
+
+// Set of special (non-compound) element names for almanac highlighting
+export const ELEMENT_SPECIAL_NAMES = new Set([
+  'Void', 'Ice', 'Fire', 'Lightning', 'Plasma',
+  'Ember', 'Flame', 'Chill', 'Frost', 'Static', 'Spark',
+  'Steam', 'Fog', 'Haze', 'Solar', 'Aurora',
+  'Geyser', 'Maelstrom', 'Helios', 'Supernova', 'Cataclysm',
+  'Corona', 'Radiance', 'Fusion', 'Pulsar', 'Flare', 'Sunfire',
+]);
+
+// ============================================================
+// FULL 64-ENTRY COLOR NAME TABLE
+// Key format: "C-M-Y" where each axis is 0=None, 1=Low, 2=Med, 3=High
+// 4 cyan tiers × 4 magenta tiers × 4 yellow tiers = 64 unique names
+// ============================================================
+
+export const COLOR_NAMES = {
+  // ── Yellow: None (0) ──
+  '0-0-0': 'White',             '1-0-0': 'Ice Blue',
+  '2-0-0': 'Aqua',              '3-0-0': 'Cyan',
+  '0-1-0': 'Sakura',            '1-1-0': 'Violet',
+  '2-1-0': 'Cornflower Blue',   '3-1-0': 'Cerulean',
+  '0-2-0': 'Fuchsia',           '1-2-0': 'Heliotrope',
+  '2-2-0': 'Periwinkle',        '3-2-0': 'Indigo',
+  '0-3-0': 'Magenta',           '1-3-0': 'Orchid',
+  '2-3-0': 'Purple',            '3-3-0': 'Blue',
+
+  // ── Yellow: Low (1) ──
+  '0-0-1': 'Butter Yellow',     '1-0-1': 'Celadon',
+  '2-0-1': 'Seafoam',           '3-0-1': 'Mint',
+  '0-1-1': 'Salmon',            '1-1-1': 'Grey',
+  '2-1-1': 'Viridian',          '3-1-1': 'Teal',
+  '0-2-1': 'Pink',              '1-2-1': 'Mauve',
+  '2-2-1': 'Iris',              '3-2-1': 'Cobalt',
+  '0-3-1': 'Hot Pink',          '1-3-1': 'Magnolia',
+  '2-3-1': 'Wisteria',          '3-3-1': 'Ultramarine',
+
+  // ── Yellow: Med (2) ──
+  '0-0-2': 'Lemon Yellow',      '1-0-2': 'Pear Green',
+  '2-0-2': 'Lime Green',        '3-0-2': 'Spring Green',
+  '0-1-2': 'Carrot',            '1-1-2': 'Olive',
+  '2-1-2': 'Clover',            '3-1-2': 'Fern',
+  '0-2-2': 'Coral',             '1-2-2': 'Sienna',
+  '2-2-2': 'Slate',             '3-2-2': 'Deep Sea Green',
+  '0-3-2': 'Rose',              '1-3-2': 'Berry',
+  '2-3-2': 'Plum',              '3-3-2': 'Midnight Blue',
+
+  // ── Yellow: High (3) ──
+  '0-0-3': 'Yellow',            '1-0-3': 'Chartreuse',
+  '2-0-3': 'Neon Green',        '3-0-3': 'Green',
+  '0-1-3': 'Saffron',           '1-1-3': 'Citron',
+  '2-1-3': 'Kelly Green',       '3-1-3': 'Ivy Green',
+  '0-2-3': 'Orange',            '1-2-3': 'Umber',
+  '2-2-3': 'Moss Green',        '3-2-3': 'Forest Green',
+  '0-3-3': 'Red',               '1-3-3': 'Crimson',
+  '2-3-3': 'Maroon',            '3-3-3': 'Black',
+};
+
+// Set of special (non-compound) color names for almanac highlighting
+export const COLOR_SPECIAL_NAMES = new Set([
+  'White', 'Black', 'Cyan', 'Magenta', 'Yellow', 'Blue', 'Green', 'Red',
+  'Grey', 'Violet', 'Orchid', 'Purple', 'Indigo', 'Teal',
+  'Coral', 'Rose', 'Pink', 'Salmon', 'Orange', 'Saffron',
+  'Mint', 'Fern', 'Olive', 'Crimson', 'Maroon',
+]);
 
 // ============================================================
 // COLOR SHADE QUALIFIERS
