@@ -1,70 +1,78 @@
 // Quest engine — generates quests, checks dragon eligibility, manages state
+import {
+  COLOR_NAMES,
+  FINISH_NAMES,
+  ELEMENT_NAMES,
+  SPECIALTY_COMBOS,
+  ELEMENT_MODIFIERS,
+} from './gene-config.js';
 
 // ── Quest trait pools ───────────────────────────────────────
-// Values that quests can target, organized by phenotype path
+// Derived from the full 64-entry lookup tables + specialty combos
 
-const COLOR_TARGETS = [
-  'Red', 'Blue', 'Green', 'Cyan', 'Magenta', 'Yellow', 'Orange',
-  'Purple', 'Teal', 'Indigo', 'Saffron', 'Rose',
-];
+// All 64 color names from COLOR_NAMES
+const ALL_COLORS = Object.values(COLOR_NAMES);
 
-// CMY recipe hints for each color target
-// Uses the same dot separator as the card UI
-const COLOR_RECIPES = {
-  Red:     'C: None · M: High · Y: High',
-  Blue:    'C: High · M: High · Y: None',
-  Green:   'C: High · M: None · Y: High',
-  Cyan:    'C: High · M: None · Y: None',
-  Magenta: 'C: None · M: High · Y: None',
-  Yellow:  'C: None · M: None · Y: High',
-  Orange:  'C: None · M: Mid+ · Y: High',
-  Purple:  'C: Mid+ · M: High · Y: None',
-  Teal:    'C: High · M: None · Y: Mid+',
-  Indigo:  'C: High · M: High · Y: Low',
-  Saffron: 'C: None · M: Low · Y: High',
-  Rose:    'C: None · M: High · Y: Mid+',
-};
+// All 64 finish names from FINISH_NAMES
+const ALL_FINISHES = Object.values(FINISH_NAMES);
 
-const ELEMENT_TARGETS = [
-  'Fire', 'Ice', 'Lightning', 'Steam', 'Solar', 'Aurora', 'Plasma',
-];
+// All 64 element names from ELEMENT_NAMES
+const ALL_ELEMENTS = Object.values(ELEMENT_NAMES);
 
-// Breath element recipe hints (Fire / Ice / Lightning axes)
-const ELEMENT_RECIPES = {
-  Fire:      'F: High · I: None · L: None',
-  Ice:       'F: None · I: High · L: None',
-  Lightning: 'F: None · I: None · L: High',
-  Steam:     'F: High · I: High · L: None',
-  Solar:     'F: High · I: None · L: High',
-  Aurora:    'F: None · I: High · L: High',
-  Plasma:    'F: High · I: High · L: High',
-};
+// Specialty combo names (from SPECIALTY_COMBOS)
+const ALL_SPECIALTY_NAMES = Object.values(SPECIALTY_COMBOS).map(c => c.name);
+
+// Element modifier prefixes (from ELEMENT_MODIFIERS)
+const ALL_MODIFIER_PREFIXES = [...new Set(Object.values(ELEMENT_MODIFIERS))];
+
+// Build reverse lookup: color name → tier key string for hints
+const COLOR_KEY_BY_NAME = {};
+for (const [key, name] of Object.entries(COLOR_NAMES)) {
+  COLOR_KEY_BY_NAME[name] = key;
+}
+
+// Build reverse lookup: finish name → tier key string for hints
+const FINISH_KEY_BY_NAME = {};
+for (const [key, name] of Object.entries(FINISH_NAMES)) {
+  FINISH_KEY_BY_NAME[name] = key;
+}
+
+// Build reverse lookup: element name → tier key string for hints
+const ELEMENT_KEY_BY_NAME = {};
+for (const [key, name] of Object.entries(ELEMENT_NAMES)) {
+  ELEMENT_KEY_BY_NAME[name] = key;
+}
+
+// Build reverse lookup: specialty name → { colorName, finishName }
+const SPECIALTY_RECIPES = {};
+for (const [key, combo] of Object.entries(SPECIALTY_COMBOS)) {
+  const [colorKey, finishKey] = key.split('|');
+  SPECIALTY_RECIPES[combo.name] = {
+    colorName: COLOR_NAMES[colorKey] || '???',
+    finishName: FINISH_NAMES[finishKey] || '???',
+  };
+}
+
+// Tier labels for generating hints from keys
+const TIER_LABELS = ['None', 'Low', 'Mid', 'High'];
+
+function tierKeyToHint(key, axes) {
+  const tiers = key.split('-').map(Number);
+  return tiers.map((t, i) => `${axes[i]}: ${TIER_LABELS[t]}`).join(' · ');
+}
 
 const SIZE_TARGETS = [
   { value: 'Bird', label: 'Bird-sized' },
   { value: 'Dog', label: 'Dog-sized' },
   { value: 'Cow', label: 'Cow-sized' },
+  { value: 'Standard', label: 'Standard-sized' },
   { value: 'Large', label: 'Large' },
   { value: 'Mega', label: 'Mega' },
 ];
 
-const FINISH_TARGETS = [
-  'Mirror', 'Polished', 'Matte', 'Satin', 'Lustrous', 'Prismatic', 'Iridescent',
-];
-
-// Finish recipe hints (Opacity / Shine / Schiller axes)
-const FINISH_RECIPES = {
-  Mirror:     'Shine: High',
-  Polished:   'Shine: Mid–High',
-  Matte:      'Shine: None',
-  Satin:      'Shine: Low',
-  Lustrous:   'Shine: Mid',
-  Prismatic:  'Schiller: High',
-  Iridescent: 'Schiller: Mid',
-};
-
 const WING_TARGETS = [
   { value: 'None', label: 'wingless' },
+  { value: 'Vestigial', label: 'vestigial-winged' },
   { value: 'Pair', label: 'winged' },
   { value: 'Quad', label: 'quad-winged' },
   { value: 'Six', label: 'six-winged' },
@@ -76,6 +84,33 @@ const SCALE_TARGETS = [
   { value: 'Armored', label: 'armored' },
 ];
 
+const BODY_TYPE_TARGETS = [
+  { value: 'Serpentine', label: 'Serpentine' },
+  { value: 'Normal', label: 'Normal-bodied' },
+  { value: 'Bulky', label: 'Bulky' },
+];
+
+const LIMB_TARGETS = [
+  { value: 'Limbless (0)', label: 'limbless' },
+  { value: 'Wyvern (2)', label: 'wyvern-limbed' },
+  { value: 'Quadruped (4)', label: 'quadruped' },
+  { value: 'Hexapod (6)', label: 'hexapod' },
+];
+
+const HORN_TARGETS = [
+  { value: 'None', label: 'hornless' },
+  { value: 'Sleek', label: 'sleek-horned' },
+  { value: 'Gnarled', label: 'gnarled-horned' },
+  { value: 'Knobbed', label: 'knobbed-horned' },
+];
+
+const SPINE_TARGETS = [
+  { value: 'None', label: 'spineless' },
+  { value: 'Ridge', label: 'ridged' },
+  { value: 'Spikes', label: 'spiked' },
+  { value: 'Sail', label: 'sail-backed' },
+];
+
 // ── Flavor text pools ───────────────────────────────────────
 
 const PATRONS = [
@@ -83,6 +118,8 @@ const PATRONS = [
   'The kingdom\'s general', 'A mysterious scholar', 'The royal family',
   'A dragon enthusiast', 'The guild master', 'A curious sage',
   'An eccentric collector', 'The temple priests', 'A foreign ambassador',
+  'A renowned jeweler', 'The harbor master', 'A battle-scarred knight',
+  'The queen\'s handmaiden', 'A wandering bard', 'The arch-mage',
 ];
 
 // ── Quest generation ────────────────────────────────────────
@@ -94,29 +131,72 @@ function pick(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+// ── Requirement makers ──────────────────────────────────────
+
 function makeColorReq() {
-  const color = pick(COLOR_TARGETS);
-  const recipe = COLOR_RECIPES[color];
+  const color = pick(ALL_COLORS);
+  const key = COLOR_KEY_BY_NAME[color];
+  const hint = key ? tierKeyToHint(key, ['C', 'M', 'Y']) : null;
   return {
     path: 'color.displayName',
-    match: 'includes',
+    match: 'exact',
     value: color,
     label: `${color} coloring`,
-    hint: recipe || null,
+    hint,
     hintType: 'color',
   };
 }
 
 function makeElementReq() {
-  const elem = pick(ELEMENT_TARGETS);
-  const recipe = ELEMENT_RECIPES[elem];
+  const elem = pick(ALL_ELEMENTS);
+  const key = ELEMENT_KEY_BY_NAME[elem];
+  const hint = key ? tierKeyToHint(key, ['F', 'I', 'L']) : null;
   return {
-    path: 'breathElement.name',
+    path: 'breathElement.displayName',
     match: 'exact',
     value: elem,
     label: `${elem} breath`,
-    hint: recipe || null,
+    hint,
     hintType: 'element',
+  };
+}
+
+function makeFinishReq() {
+  const finish = pick(ALL_FINISHES);
+  const key = FINISH_KEY_BY_NAME[finish];
+  const hint = key ? tierKeyToHint(key, ['O', 'Sh', 'Sc']) : null;
+  return {
+    path: 'finish.displayName',
+    match: 'exact',
+    value: finish,
+    label: `${finish} finish`,
+    hint,
+    hintType: 'finish',
+  };
+}
+
+function makeSpecialtyReq() {
+  const name = pick(ALL_SPECIALTY_NAMES);
+  const recipe = SPECIALTY_RECIPES[name];
+  return {
+    path: 'color.specialtyName',
+    match: 'exact',
+    value: name,
+    label: `"${name}" specialty`,
+    hint: recipe ? `${recipe.colorName} + ${recipe.finishName}` : null,
+    hintType: 'specialty',
+  };
+}
+
+function makeModifierReq() {
+  const modifier = pick(ALL_MODIFIER_PREFIXES);
+  return {
+    path: 'color.modifierPrefix',
+    match: 'exact',
+    value: modifier,
+    label: `${modifier} modifier`,
+    hint: null,
+    hintType: 'modifier',
   };
 }
 
@@ -127,19 +207,6 @@ function makeSizeReq() {
     match: 'exact',
     value: size.value,
     label: `${size.label} body`,
-  };
-}
-
-function makeFinishReq() {
-  const finish = pick(FINISH_TARGETS);
-  const recipe = FINISH_RECIPES[finish];
-  return {
-    path: 'finish.displayName',
-    match: 'includes',
-    value: finish,
-    label: `${finish} finish`,
-    hint: recipe || null,
-    hintType: 'finish',
   };
 }
 
@@ -163,12 +230,74 @@ function makeScaleReq() {
   };
 }
 
-// Requirement generators by category
-const REQ_MAKERS = [makeColorReq, makeElementReq, makeSizeReq, makeFinishReq, makeWingReq, makeScaleReq];
+function makeBodyTypeReq() {
+  const type = pick(BODY_TYPE_TARGETS);
+  return {
+    path: 'traits.body_type.name',
+    match: 'exact',
+    value: type.value,
+    label: `${type.label} build`,
+  };
+}
+
+function makeLimbReq() {
+  const limb = pick(LIMB_TARGETS);
+  return {
+    path: 'traits.frame_limbs.name',
+    match: 'exact',
+    value: limb.value,
+    label: limb.label,
+  };
+}
+
+function makeHornReq() {
+  const horn = pick(HORN_TARGETS);
+  return {
+    path: 'traits.horn_style.name',
+    match: 'exact',
+    value: horn.value,
+    label: horn.label,
+  };
+}
+
+function makeSpineReq() {
+  const spine = pick(SPINE_TARGETS);
+  return {
+    path: 'traits.spine_style.name',
+    match: 'exact',
+    value: spine.value,
+    label: spine.label,
+  };
+}
+
+// All requirement generators
+const REQ_MAKERS = [
+  makeColorReq, makeElementReq, makeFinishReq,
+  makeSizeReq, makeWingReq, makeScaleReq,
+  makeBodyTypeReq, makeLimbReq, makeHornReq, makeSpineReq,
+];
+
+// Extra makers available for harder quests (specialty combos are rarer)
+const ADVANCED_REQ_MAKERS = [
+  ...REQ_MAKERS,
+  makeSpecialtyReq, makeModifierReq,
+];
+
+// Pick N unique requirement makers from a given pool
+function pickUniqueMakers(pool, count) {
+  const available = [...pool];
+  const picked = [];
+  for (let i = 0; i < count && available.length > 0; i++) {
+    const idx = Math.floor(Math.random() * available.length);
+    picked.push(available.splice(idx, 1)[0]);
+  }
+  return picked;
+}
 
 // Easy quest templates: 1 requirement
 function generateEasyQuest() {
-  const req = pick([makeColorReq, makeElementReq, makeSizeReq])();
+  const basicMakers = [makeColorReq, makeElementReq, makeFinishReq, makeSizeReq, makeWingReq, makeScaleReq];
+  const req = pick(basicMakers)();
   const patron = pick(PATRONS);
   return {
     id: nextQuestId++,
@@ -183,22 +312,16 @@ function generateEasyQuest() {
 
 // Medium quest templates: 2 requirements
 function generateMediumQuest() {
-  // Pick 2 different requirement categories
-  const makers = [...REQ_MAKERS];
-  const idx1 = Math.floor(Math.random() * makers.length);
-  const maker1 = makers.splice(idx1, 1)[0];
-  const idx2 = Math.floor(Math.random() * makers.length);
-  const maker2 = makers[idx2];
-
-  const req1 = maker1();
-  const req2 = maker2();
+  const makers = pickUniqueMakers(REQ_MAKERS, 2);
+  const reqs = makers.map(m => m());
+  const labels = reqs.map(r => r.label);
   const patron = pick(PATRONS);
 
   return {
     id: nextQuestId++,
-    title: `Breed a dragon with ${req1.label} and ${req2.label}`,
-    description: `${patron} requires a dragon with ${req1.label} and ${req2.label}.`,
-    requirements: [req1, req2],
+    title: `Breed a dragon with ${labels.join(' and ')}`,
+    description: `${patron} requires a dragon with ${labels.join(' and ')}.`,
+    requirements: reqs,
     difficulty: 'medium',
     status: 'active',
     completedBy: null,
@@ -207,14 +330,8 @@ function generateMediumQuest() {
 
 // Hard quest templates: 3 requirements
 function generateHardQuest() {
-  const makers = [...REQ_MAKERS];
-  const picked = [];
-  for (let i = 0; i < 3; i++) {
-    const idx = Math.floor(Math.random() * makers.length);
-    picked.push(makers.splice(idx, 1)[0]);
-  }
-
-  const reqs = picked.map(m => m());
+  const makers = pickUniqueMakers(ADVANCED_REQ_MAKERS, 3);
+  const reqs = makers.map(m => m());
   const labels = reqs.map(r => r.label);
   const patron = pick(PATRONS);
 
@@ -229,6 +346,31 @@ function generateHardQuest() {
   };
 }
 
+// Extra Hard quest templates: 4 requirements (always includes specialty or modifier)
+function generateExtraHardQuest() {
+  // Ensure at least one specialty or modifier requirement
+  const guaranteedMaker = pick([makeSpecialtyReq, makeModifierReq]);
+  const guaranteedReq = guaranteedMaker();
+
+  // Pick 3 more unique makers from the standard pool
+  const otherMakers = pickUniqueMakers(REQ_MAKERS, 3);
+  const otherReqs = otherMakers.map(m => m());
+
+  const reqs = [guaranteedReq, ...otherReqs];
+  const labels = reqs.map(r => r.label);
+  const patron = pick(PATRONS);
+
+  return {
+    id: nextQuestId++,
+    title: `Breed a dragon with ${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`,
+    description: `${patron} demands a truly exceptional dragon with ${labels.join(', ')}.`,
+    requirements: reqs,
+    difficulty: 'extra-hard',
+    status: 'active',
+    completedBy: null,
+  };
+}
+
 // ── Public API ──────────────────────────────────────────────
 
 export function generateQuest(difficulty) {
@@ -236,6 +378,7 @@ export function generateQuest(difficulty) {
     case 'easy': return generateEasyQuest();
     case 'medium': return generateMediumQuest();
     case 'hard': return generateHardQuest();
+    case 'extra-hard': return generateExtraHardQuest();
     default: return generateEasyQuest();
   }
 }
@@ -297,9 +440,8 @@ export function submitDragonToQuest(dragon, questId) {
     quest.completedById = dragon.id;
     quest.completedByGeneration = dragon.generation;
 
-    // Generate a replacement quest with random difficulty
-    const difficulties = ['easy', 'easy', 'medium', 'medium', 'hard'];
-    const newQuest = generateQuest(pick(difficulties));
+    // Generate a replacement quest of the SAME difficulty
+    const newQuest = generateQuest(quest.difficulty);
     quests.push(newQuest);
 
     const genMsg = dragon.generation > 0
@@ -326,4 +468,5 @@ export function initQuestState() {
   quests.push(generateQuest('easy'));
   quests.push(generateQuest('medium'));
   quests.push(generateQuest('hard'));
+  quests.push(generateQuest('extra-hard'));
 }

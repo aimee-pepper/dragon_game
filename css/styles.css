@@ -765,6 +765,13 @@ header .subtitle {
 
 /* ---- Breath Element Breakdown Display ---- */
 
+.finish-breakdown {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  letter-spacing: 0.3px;
+}
+
 .breath-breakdown {
   font-size: 11px;
   color: var(--text-muted);
@@ -916,6 +923,11 @@ header .subtitle {
 .quest-difficulty-hard {
   background: rgba(107, 58, 74, 0.25);
   color: #c96b7e;
+}
+
+.quest-difficulty-extra-hard {
+  background: rgba(140, 60, 180, 0.25);
+  color: #c88aee;
 }
 
 .quest-description {

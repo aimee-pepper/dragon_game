@@ -73,13 +73,16 @@ export function renderDragonCard(dragon, options = {}) {
   const finishBadge = el('span', 'finish-badge', p.finish.displayName || p.finish.name);
   info.appendChild(finishBadge);
 
-  if (p.finish.desc && !compact) {
-    const finishDesc = el('div', '', '');
-    finishDesc.style.fontSize = '11px';
-    finishDesc.style.color = 'var(--text-muted)';
-    finishDesc.style.marginTop = '2px';
-    finishDesc.textContent = p.finish.desc;
-    info.appendChild(finishDesc);
+  // Finish axis breakdown: "O: High · Sh: None · Sc: Mid"
+  if (p.finish.finishBreakdown && !compact) {
+    const finishRow = el('div', 'finish-breakdown');
+    const { o, sh, sc } = p.finish.finishBreakdown;
+    finishRow.appendChild(el('span', 'finish-o', `O: ${o}`));
+    finishRow.appendChild(document.createTextNode(' · '));
+    finishRow.appendChild(el('span', 'finish-s', `Sh: ${sh}`));
+    finishRow.appendChild(document.createTextNode(' · '));
+    finishRow.appendChild(el('span', 'finish-sc', `Sc: ${sc}`));
+    info.appendChild(finishRow);
   }
 
   visual.appendChild(info);

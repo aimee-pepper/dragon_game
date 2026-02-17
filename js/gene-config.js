@@ -437,6 +437,9 @@ export function getCMYLevelName(level) {
   return 'High';
 }
 
+// Finish axis level name (same thresholds as CMY/breath)
+export const getFinishLevelName = getCMYLevelName;
+
 // ============================================================
 // BREATH ELEMENT AXIS DESCRIPTORS & RICH NAMING
 // Mirrors the CMY color + finish naming systems

@@ -80,6 +80,7 @@ function getDifficultyLabel(difficulty) {
     case 'easy': return 'Easy';
     case 'medium': return 'Medium';
     case 'hard': return 'Hard';
+    case 'extra-hard': return 'Extra Hard';
     default: return difficulty;
   }
 }
@@ -105,24 +106,33 @@ function renderQuestCard(quest) {
     reqItem.appendChild(el('span', 'quest-req-dot', '●'));
     const reqText = el('span', 'quest-req-text', req.label);
     reqItem.appendChild(reqText);
-    // Show recipe hint for triangle-system requirements (color, finish, element)
+    // Show recipe hint for triangle-system requirements (color, finish, element, specialty)
     if (req.hint) {
       const hint = el('span', 'quest-req-hint');
       hint.appendChild(document.createTextNode(' ('));
-      const parts = req.hint.split(' · ');
-      parts.forEach((part, i) => {
-        const axis = part.charAt(0);
-        let axisClass = '';
-        if (req.hintType === 'color') {
-          axisClass = axis === 'C' ? 'cmy-c' : axis === 'M' ? 'cmy-m' : 'cmy-y';
-        } else if (req.hintType === 'element') {
-          axisClass = axis === 'F' ? 'breath-f' : axis === 'I' ? 'breath-i' : 'breath-l';
-        } else if (req.hintType === 'finish') {
-          axisClass = 'finish-hint-axis';
-        }
-        hint.appendChild(el('span', axisClass, part));
-        if (i < parts.length - 1) hint.appendChild(document.createTextNode(' · '));
-      });
+
+      if (req.hintType === 'specialty') {
+        // Specialty hints are "ColorName + FinishName" — no axis coloring
+        hint.appendChild(document.createTextNode(req.hint));
+      } else {
+        // Axis-based hints: "C: None · M: High · Y: Low" etc.
+        const parts = req.hint.split(' · ');
+        parts.forEach((part, i) => {
+          // Extract the axis prefix (e.g. "C", "M", "F", "O", "Sh", "Sc")
+          const axisPrefix = part.split(':')[0].trim();
+          let axisClass = '';
+          if (req.hintType === 'color') {
+            axisClass = axisPrefix === 'C' ? 'cmy-c' : axisPrefix === 'M' ? 'cmy-m' : 'cmy-y';
+          } else if (req.hintType === 'element') {
+            axisClass = axisPrefix === 'F' ? 'breath-f' : axisPrefix === 'I' ? 'breath-i' : 'breath-l';
+          } else if (req.hintType === 'finish') {
+            axisClass = axisPrefix === 'O' ? 'finish-o' : axisPrefix === 'Sh' ? 'finish-s' : 'finish-sc';
+          }
+          hint.appendChild(el('span', axisClass, part));
+          if (i < parts.length - 1) hint.appendChild(document.createTextNode(' · '));
+        });
+      }
+
       hint.appendChild(document.createTextNode(')'));
       reqItem.appendChild(hint);
     }

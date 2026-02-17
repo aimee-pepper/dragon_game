@@ -12,6 +12,7 @@ import {
   getColorDisplayName,
   getFinishDisplayName,
   getFinishDescription,
+  getFinishLevelName,
   getBreathLevelName,
   getElementDisplayName,
   getBreathDescription,
@@ -122,10 +123,18 @@ function resolveFinish(genotype) {
   const displayName = getFinishDisplayName(opacityLevel, shineLevel, schillerLevel);
   const desc = getFinishDescription(opacityLevel, shineLevel, schillerLevel);
 
+  // Finish axis breakdown for display: "O: High · Sh: None · Sc: Mid"
+  const finishBreakdown = {
+    o: getFinishLevelName(opacityLevel),
+    sh: getFinishLevelName(shineLevel),
+    sc: getFinishLevelName(schillerLevel),
+  };
+
   return {
     ...base,
     displayName,
     desc,
+    finishBreakdown,
   };
 }
 
