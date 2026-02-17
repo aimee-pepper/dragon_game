@@ -1,4 +1,4 @@
-// Quest highlighting — ephemeral highlighted quest state + halo helper
+// Quest highlighting — graduated halo brightness based on allele match quality
 import { getSetting } from './settings.js';
 import { checkDragonMeetsQuest, getRequirementStatus } from './quest-engine.js';
 import { GENE_DEFS, TRIANGLE_DEFS, COLOR_NAMES, FINISH_NAMES, ELEMENT_NAMES } from './gene-config.js';
@@ -22,7 +22,6 @@ export function onHighlightChange(cb) {
 // ── Reverse lookups for genotype-level matching ──
 
 // For simple traits: value string → allele number(s) that produce it
-// e.g. "Wyvern (2)" → [1] for frame_limbs
 function getSimpleTraitAlleleLookup(geneName) {
   const def = GENE_DEFS[geneName];
   if (!def || !def.phenotypeMap) return null;
@@ -34,7 +33,7 @@ function getSimpleTraitAlleleLookup(geneName) {
   return lookup;
 }
 
-// Map quest requirement path → { type, geneNames, ... }
+// Map quest requirement path → gene name
 const SIMPLE_PATHS = {
   'traits.body_size.name': 'body_size',
   'traits.body_type.name': 'body_type',
@@ -69,101 +68,184 @@ const TRIANGLE_PATHS = {
 };
 
 /**
- * Check if a dragon's genotype carries alleles relevant to a quest requirement.
- * Returns: 'full' if the expressed phenotype matches,
- *          'carries' if any allele matches the target but phenotype doesn't express it,
- *          'none' if no relevant alleles found.
+ * Score a dragon's allele matches for a single quest requirement.
+ *
+ * Returns { score, maxScore } where:
+ *   - For simple traits: each matching allele = 1 point, max 2 (both alleles match)
+ *   - For triangle traits: each matching allele across all 3 axes = 1 point each,
+ *     max 6 (2 alleles × 3 axes)
+ *
+ * This means:
+ *   - One allele carries the target = 1 point
+ *   - Both alleles (homozygous) = 2 points (brighter)
+ *   - For triangles: more matching axes = more points
  */
-function checkGenotypeForReq(dragon, req) {
-  // Simple traits: check if either allele equals the target allele value
+function scoreReqAlleles(dragon, req) {
+  // Simple traits
   const simpleGene = SIMPLE_PATHS[req.path];
   if (simpleGene) {
     const alleles = dragon.genotype[simpleGene];
-    if (!alleles) return 'none';
+    if (!alleles) return { score: 0, maxScore: 2 };
     const lookup = getSimpleTraitAlleleLookup(simpleGene);
-    if (!lookup) return 'none';
+    if (!lookup) return { score: 0, maxScore: 2 };
     const targetAlleles = lookup[req.value];
-    if (!targetAlleles) return 'none';
-    // Check if expressed phenotype already matches
-    const def = GENE_DEFS[simpleGene];
-    let expressed;
-    if (def.inheritanceType === 'categorical') {
-      expressed = Math.max(alleles[0], alleles[1]);
-    } else {
-      expressed = Math.round((alleles[0] + alleles[1]) / 2);
-    }
-    const expressedName = def.phenotypeMap[expressed];
-    if (expressedName === req.value) return 'full';
-    // Check if either allele is a target allele
+    if (!targetAlleles) return { score: 0, maxScore: 2 };
+
+    let score = 0;
     for (const target of targetAlleles) {
-      if (alleles[0] === target || alleles[1] === target) return 'carries';
+      if (alleles[0] === target) score++;
+      if (alleles[1] === target) score++;
     }
-    return 'none';
+
+    // For linear traits, the expressed phenotype can match via averaging
+    // even when neither individual allele equals the target.
+    // e.g. wings (1,3) → avg 2 = "Pair" — phenotype matches but no allele does.
+    // Give 1 point for expressed phenotype match if allele score is 0.
+    if (score === 0) {
+      const def = GENE_DEFS[simpleGene];
+      let expressed;
+      if (def.inheritanceType === 'categorical') {
+        expressed = Math.max(alleles[0], alleles[1]);
+      } else {
+        expressed = Math.round((alleles[0] + alleles[1]) / 2);
+      }
+      const expressedName = def.phenotypeMap?.[expressed];
+      if (expressedName === req.value) score = 1;
+    }
+
+    // Cap at 2 (both alleles match)
+    return { score: Math.min(score, 2), maxScore: 2 };
   }
 
-  // Triangle systems: check if individual alleles on each axis match target tiers
+  // Triangle systems: check each of 3 axes, 2 alleles each
   const triangleDef = TRIANGLE_PATHS[req.path];
   if (triangleDef) {
     const keyStr = triangleDef.lookup[req.value];
-    if (!keyStr) return 'none';
+    if (!keyStr) return { score: 0, maxScore: 6 };
     const targetTiers = keyStr.split('-').map(Number);
-    // Check expressed phenotype first
-    let expressedMatches = true;
-    let anyAlleleMatches = false;
-    let axisCarryCount = 0;
+
+    let score = 0;
+    let expressedMatchCount = 0;
     for (let i = 0; i < triangleDef.axes.length; i++) {
       const geneName = triangleDef.axes[i];
       const alleles = dragon.genotype[geneName];
-      if (!alleles) { expressedMatches = false; continue; }
-      const avg = (alleles[0] + alleles[1]) / 2;
-      const expressedTier = Math.round(avg);
-      if (expressedTier !== targetTiers[i]) expressedMatches = false;
-      // Check if either allele equals the target tier
-      if (alleles[0] === targetTiers[i] || alleles[1] === targetTiers[i]) {
-        axisCarryCount++;
-      }
+      if (!alleles) continue;
+      if (alleles[0] === targetTiers[i]) score++;
+      if (alleles[1] === targetTiers[i]) score++;
+      // Also check if expressed avg matches target (for alleles that average to it)
+      const expressedTier = Math.round((alleles[0] + alleles[1]) / 2);
+      if (expressedTier === targetTiers[i]) expressedMatchCount++;
     }
-    if (expressedMatches) return 'full';
-    if (axisCarryCount > 0) return 'carries';
-    return 'none';
+    // If no allele-level matches but expressed phenotype matches some axes,
+    // give partial credit (1 point per matching expressed axis)
+    if (score === 0 && expressedMatchCount > 0) {
+      score = expressedMatchCount;
+    }
+    return { score, maxScore: 6 };
   }
 
-  // Specialty/modifier paths — fall back to phenotype check only
-  return 'none';
+  // Specialty / modifier paths — fall back to no score
+  return { score: 0, maxScore: 0 };
 }
 
 /**
- * Apply quest halo CSS classes to a dragon card element.
- * - quest-halo-full  → dragon meets ALL requirements (phenotype)
- * - quest-halo-partial → dragon meets ≥1 requirement OR carries relevant alleles
- * Removes both classes first so it can be called repeatedly.
+ * Compute total allele match score across ALL quest requirements.
+ *
+ * Returns { totalScore, maxPossible, reqCount, matchedReqs }
+ *
+ * matchedReqs = number of requirements where score > 0
+ *
+ * The scoring gives us graduated brightness:
+ *   - Single allele on one req → dim glow
+ *   - Homozygous on one req → brighter
+ *   - Multiple reqs matched → even brighter
+ *   - All reqs homozygous → brightest
+ */
+function computeQuestScore(dragon, quest) {
+  let totalScore = 0;
+  let maxPossible = 0;
+  let matchedReqs = 0;
+
+  for (const req of quest.requirements) {
+    const { score, maxScore } = scoreReqAlleles(dragon, req);
+    totalScore += score;
+    maxPossible += maxScore;
+    if (score > 0) matchedReqs++;
+  }
+
+  return { totalScore, maxPossible, reqCount: quest.requirements.length, matchedReqs };
+}
+
+/**
+ * Map a quest score to a halo level (0-5).
+ *
+ *   0 = no halo (no matching alleles at all)
+ *   1 = faintest glow (1 allele match on 1 requirement)
+ *   2 = dim glow (homozygous match on 1 req, or single match on 2+ reqs)
+ *   3 = medium glow (good partial match)
+ *   4 = bright glow (strong match, most reqs covered)
+ *   5 = full match (phenotype matches all requirements = quest complete)
+ */
+function scoreToHaloLevel(totalScore, maxPossible, matchedReqs, reqCount, isFullPhenotypeMatch) {
+  if (isFullPhenotypeMatch) return 5;
+  if (totalScore === 0) return 0;
+
+  // Normalize: what fraction of max allele points does this dragon have?
+  const fraction = maxPossible > 0 ? totalScore / maxPossible : 0;
+
+  // Also factor in how many distinct requirements are partially met
+  const reqCoverage = reqCount > 0 ? matchedReqs / reqCount : 0;
+
+  // Combined score: weight allele fraction (60%) and requirement coverage (40%)
+  const combined = fraction * 0.6 + reqCoverage * 0.4;
+
+  // Map to levels 1-4 (5 is reserved for full phenotype match)
+  if (combined >= 0.75) return 4;
+  if (combined >= 0.5) return 3;
+  if (combined >= 0.25) return 2;
+  return 1;
+}
+
+// All halo CSS classes we manage
+const HALO_CLASSES = [
+  'quest-halo-1',
+  'quest-halo-2',
+  'quest-halo-3',
+  'quest-halo-4',
+  'quest-halo-5',
+];
+
+/**
+ * Apply graduated quest halo CSS class to a dragon card element.
+ *
+ * Levels:
+ *   quest-halo-1 → faintest (1 allele match)
+ *   quest-halo-2 → dim
+ *   quest-halo-3 → medium
+ *   quest-halo-4 → bright
+ *   quest-halo-5 → full phenotype match (quest completable)
+ *
+ * Removes all halo classes first so it can be called repeatedly.
  */
 export function applyQuestHalo(cardElement, dragon) {
-  cardElement.classList.remove('quest-halo-full', 'quest-halo-partial');
+  for (const cls of HALO_CLASSES) {
+    cardElement.classList.remove(cls);
+  }
 
   if (!highlightedQuest) return;
   if (!getSetting('quest-halos')) return;
 
   const quest = highlightedQuest;
-  if (checkDragonMeetsQuest(dragon, quest)) {
-    cardElement.classList.add('quest-halo-full');
-    return;
-  }
 
-  // Check partial: phenotype match on any req, OR genotype carry on any req
-  const status = getRequirementStatus(dragon, quest);
-  const phenotypeMet = status.filter(r => r.met).length;
-  if (phenotypeMet > 0) {
-    cardElement.classList.add('quest-halo-partial');
-    return;
-  }
+  // Check full phenotype match first
+  const isFullMatch = checkDragonMeetsQuest(dragon, quest);
 
-  // Check genotype-level carrying
-  for (const req of quest.requirements) {
-    const result = checkGenotypeForReq(dragon, req);
-    if (result === 'carries' || result === 'full') {
-      cardElement.classList.add('quest-halo-partial');
-      return;
-    }
+  // Compute allele-level score
+  const { totalScore, maxPossible, matchedReqs, reqCount } = computeQuestScore(dragon, quest);
+
+  const level = scoreToHaloLevel(totalScore, maxPossible, matchedReqs, reqCount, isFullMatch);
+
+  if (level > 0) {
+    cardElement.classList.add(`quest-halo-${level}`);
   }
 }

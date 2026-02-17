@@ -1921,16 +1921,36 @@ header h1 {
   margin-bottom: 6px;
 }
 
-/* ---- Dragon Card Quest Halos ---- */
+/* ---- Dragon Card Quest Halos — Graduated Brightness (1=faintest, 5=full match) ---- */
 
-.dragon-card.quest-halo-full {
-  box-shadow: 0 0 0 2px rgba(106, 159, 91, 0.6), 0 0 12px rgba(106, 159, 91, 0.3);
-  border-color: var(--success);
+/* Level 1: Faintest glow — 1 allele carries a target */
+.dragon-card.quest-halo-1 {
+  box-shadow: 0 0 0 1px rgba(212, 168, 50, 0.2), 0 0 4px rgba(212, 168, 50, 0.1);
+  border-color: rgba(212, 168, 50, 0.35);
 }
 
-.dragon-card.quest-halo-partial {
-  box-shadow: 0 0 0 2px rgba(212, 168, 50, 0.5), 0 0 10px rgba(212, 168, 50, 0.2);
+/* Level 2: Dim glow — homozygous on 1 req or single match on 2+ reqs */
+.dragon-card.quest-halo-2 {
+  box-shadow: 0 0 0 1.5px rgba(212, 168, 50, 0.35), 0 0 8px rgba(212, 168, 50, 0.15);
+  border-color: rgba(212, 168, 50, 0.5);
+}
+
+/* Level 3: Medium glow — good partial match */
+.dragon-card.quest-halo-3 {
+  box-shadow: 0 0 0 2px rgba(212, 168, 50, 0.5), 0 0 10px rgba(212, 168, 50, 0.25);
   border-color: var(--mutation);
+}
+
+/* Level 4: Bright glow — strong match, most reqs covered */
+.dragon-card.quest-halo-4 {
+  box-shadow: 0 0 0 2px rgba(171, 196, 84, 0.5), 0 0 12px rgba(171, 196, 84, 0.3), 0 0 20px rgba(212, 168, 50, 0.15);
+  border-color: rgba(171, 196, 84, 0.6);
+}
+
+/* Level 5: Full match — dragon meets all quest requirements */
+.dragon-card.quest-halo-5 {
+  box-shadow: 0 0 0 2px rgba(106, 159, 91, 0.7), 0 0 14px rgba(106, 159, 91, 0.4), 0 0 24px rgba(106, 159, 91, 0.15);
+  border-color: var(--success);
 }
 
 /* ---- Genotype Quest Highlighting ---- */
