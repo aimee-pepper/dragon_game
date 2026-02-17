@@ -1985,7 +1985,7 @@ header h1 {
   padding: 10px;
   margin-top: 6px;
   box-shadow: 0 4px 16px rgba(0,0,0,0.3);
-  max-height: 200px;
+  max-height: 260px;
   overflow-y: auto;
 }
 
@@ -1995,36 +1995,43 @@ header h1 {
 
 .quest-widget-header {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 6px;
-  margin-bottom: 8px;
-}
-
-.quest-widget-title {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text-bright);
-  line-height: 1.3;
+  justify-content: flex-start;
+  align-items: center;
+  margin-bottom: 6px;
 }
 
 .quest-widget-req {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 6px;
-  padding: 2px 0;
-  font-size: 11px;
+  padding: 3px 0;
+  font-size: 12px;
   color: var(--text);
 }
 
+.quest-widget-req-label {
+  font-weight: 600;
+  color: var(--text-bright);
+}
+
 .quest-widget-dot {
-  font-size: 8px;
+  font-size: 9px;
   color: var(--text-muted);
   flex-shrink: 0;
+  width: 14px;
+  text-align: center;
 }
 
 .quest-widget-dot.met {
   color: var(--success);
+  font-weight: 700;
+}
+
+.quest-widget-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  padding-left: 20px;
+  line-height: 1.4;
 }
 
 /* ============================================

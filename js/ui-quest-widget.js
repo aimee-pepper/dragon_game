@@ -65,6 +65,24 @@ function updateVisibility() {
   }
 }
 
+// Axis color classes for inline coloring
+const AXIS_CLASSES = {
+  C: 'cmy-c', M: 'cmy-m', Y: 'cmy-y',
+  F: 'breath-f', I: 'breath-i', L: 'breath-l',
+  O: 'finish-o', Sh: 'finish-s', Sc: 'finish-sc',
+};
+
+// Render colored axis text (e.g. "C: None · M: High · Y: Low") into a container
+function renderColoredAxes(container, axisString) {
+  const parts = axisString.split(' · ');
+  parts.forEach((part, i) => {
+    const prefix = part.split(':')[0].trim();
+    const cls = AXIS_CLASSES[prefix] || '';
+    container.appendChild(el('span', cls, part));
+    if (i < parts.length - 1) container.appendChild(document.createTextNode(' · '));
+  });
+}
+
 function renderWidgetContent() {
   const content = widgetEl.querySelector('.quest-widget-content');
   if (!content) return;
@@ -73,16 +91,15 @@ function renderWidgetContent() {
   const quest = getHighlightedQuest();
   if (!quest) return;
 
-  // Title + difficulty
+  // Difficulty badge only (no verbose title)
   const header = el('div', 'quest-widget-header');
-  header.appendChild(el('span', 'quest-widget-title', quest.title));
   header.appendChild(el('span', `quest-difficulty quest-difficulty-${quest.difficulty}`, getDifficultyLabel(quest.difficulty)));
   content.appendChild(header);
 
-  // Requirements checklist — check against best stabled dragon
+  // Requirements as granular bullet list
   const stabled = getStabledDragons();
+
   for (const req of quest.requirements) {
-    const row = el('div', 'quest-widget-req');
     // Check if any stabled dragon meets this specific requirement
     let anyMet = false;
     for (const dragon of stabled) {
@@ -90,9 +107,36 @@ function renderWidgetContent() {
       const reqStatus = status.find(r => r.label === req.label);
       if (reqStatus && reqStatus.met) { anyMet = true; break; }
     }
-    const dot = el('span', anyMet ? 'quest-widget-dot met' : 'quest-widget-dot', '●');
+
+    // Main requirement row: dot + label
+    const row = el('div', 'quest-widget-req');
+    const dot = el('span', anyMet ? 'quest-widget-dot met' : 'quest-widget-dot', anyMet ? '✓' : '●');
     row.appendChild(dot);
-    row.appendChild(el('span', '', req.label));
+    row.appendChild(el('span', 'quest-widget-req-label', req.label));
     content.appendChild(row);
+
+    // Show axis hints below if available
+    if (req.hintType === 'specialty' && req.hintColor && req.hintFinish) {
+      // Specialty: color axes + finish axes
+      const hintRow1 = el('div', 'quest-widget-hint');
+      renderColoredAxes(hintRow1, req.hintColor);
+      content.appendChild(hintRow1);
+      const hintRow2 = el('div', 'quest-widget-hint');
+      renderColoredAxes(hintRow2, req.hintFinish);
+      content.appendChild(hintRow2);
+    } else if (req.hintType === 'modifier' && req.hintFinish && req.hintElement) {
+      // Modifier: finish axes + element axes
+      const hintRow1 = el('div', 'quest-widget-hint');
+      renderColoredAxes(hintRow1, req.hintFinish);
+      content.appendChild(hintRow1);
+      const hintRow2 = el('div', 'quest-widget-hint');
+      renderColoredAxes(hintRow2, req.hintElement);
+      content.appendChild(hintRow2);
+    } else if (req.hint && (req.hintType === 'color' || req.hintType === 'element' || req.hintType === 'finish')) {
+      // Single-system axis hint
+      const hintRow = el('div', 'quest-widget-hint');
+      renderColoredAxes(hintRow, req.hint);
+      content.appendChild(hintRow);
+    }
   }
 }
