@@ -1271,153 +1271,200 @@ header h1 {
 }
 
 .family-tree-container {
-  overflow-x: auto;
-  overflow-y: visible;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: var(--spacing-sm);
   -webkit-overflow-scrolling: touch;
 }
 
-/* Tree level: recursive container for parents-row + connector + node */
-.tree-level {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-width: 80px;
+/* ---- Cascade Tree Layout ---- */
+
+.cascade-tree {
+  padding-left: 0;
 }
 
-/* Row of two parent subtrees side by side */
-.tree-parents-row {
-  display: flex;
-  justify-content: center;
-  gap: 4px;
-}
-
-/* Connector lines between parents and child */
-.tree-connector {
+/* A group = one node + its children (recursive) */
+.cascade-group {
   position: relative;
-  width: 100%;
-  height: 20px;
 }
 
-.tree-line-left,
-.tree-line-right {
+/* Row: horizontal connector + node content + toggle */
+.cascade-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  position: relative;
+}
+
+/* Horizontal branch connector (drawn via ::before on rows inside .cascade-children) */
+.cascade-children > .cascade-group > .cascade-row::before {
+  content: '';
   position: absolute;
-  top: 0;
-  height: 10px;
+  left: -14px;
+  top: 50%;
+  width: 14px;
+  height: 0;
   border-top: 2px solid var(--border);
-  width: 50%;
 }
 
-.tree-line-left {
-  left: 25%;
-  border-right: 2px solid var(--border);
-}
-
-.tree-line-right {
-  right: 25%;
+/* Vertical connector: left border on children container */
+.cascade-children {
+  margin-left: 11px;
+  padding-left: 14px;
   border-left: 2px solid var(--border);
 }
 
-.tree-line-down {
-  position: absolute;
-  top: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 2px;
-  height: 10px;
-  background: var(--border);
+/* Last child group: cut the vertical line at the branch point */
+.cascade-children > .cascade-group.cascade-last {
+  border-left: 2px solid transparent;
 }
 
-/* Individual dragon node in the tree */
-.tree-node {
+/* For the last child, we need to position the vertical line to stop at the branch */
+.cascade-children > .cascade-group.cascade-last::before {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: 0;
+  bottom: 50%;
+  width: 0;
+  border-left: 2px solid var(--border);
+}
+
+/* Collapsed state */
+.cascade-children.cascade-collapsed {
+  display: none;
+}
+
+/* ---- Cascade Node (dragon content) ---- */
+
+.cascade-node {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  padding: 6px;
+  gap: 8px;
+  padding: 6px 10px;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: border-color 0.15s, background 0.15s;
-  max-width: 100px;
-  margin: 2px;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.3s;
+  flex: 1;
+  min-width: 0;
 }
 
-.tree-node:active {
+.cascade-node:active {
   background: var(--bg-card-alt);
   border-color: var(--accent);
 }
 
-.tree-node-unknown {
-  opacity: 0.4;
-  cursor: default;
-  min-height: 60px;
-  justify-content: center;
-}
-
-.tree-node-unknown:active {
-  background: var(--bg-card);
-  border-color: var(--border);
-}
-
-/* Scaled-down sprite inside tree nodes (canvas-based) */
-.tree-sprite {
-  width: 60px !important;
-  max-width: 60px !important;
+/* Compact sprite inside cascade nodes */
+.cascade-sprite {
+  width: 44px !important;
+  max-width: 44px !important;
   height: auto;
+  flex-shrink: 0;
 }
 
-.tree-sprite canvas {
+.cascade-sprite canvas {
   width: 100%;
   height: auto;
-  max-width: 60px;
+  max-width: 44px;
 }
 
-.tree-node-label {
-  text-align: center;
+.cascade-node-info {
+  flex: 1;
+  min-width: 0;
 }
 
-.tree-node-name {
-  font-size: 10px;
+.cascade-node-name {
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-bright);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 80px;
 }
 
-.tree-node-gen {
-  font-size: 9px;
+.cascade-node-gen {
+  font-size: 10px;
   color: var(--accent);
   font-weight: 500;
 }
 
-/* Truncated node indicator (has deeper ancestors not shown) */
-.tree-node-truncated {
+/* Wild dragon: dashed green border */
+.cascade-node-wild {
   border-style: dashed;
+  border-width: 2px;
 }
 
-.tree-node-more {
-  font-size: 8px;
+/* Unknown ancestor */
+.cascade-unknown {
+  opacity: 0.4;
+  cursor: default;
+  min-height: 36px;
+  justify-content: center;
+}
+
+.cascade-unknown:active {
+  background: var(--bg-card);
+  border-color: var(--border);
+}
+
+/* Reference node (duplicate ancestor — compact) */
+.cascade-ref {
+  opacity: 0.65;
+  border-style: dotted;
+  border-width: 2px;
+}
+
+.cascade-ref:hover,
+.cascade-ref:active {
+  opacity: 1;
+}
+
+.cascade-ref-label {
+  font-size: 9px;
   color: var(--accent);
   opacity: 0.8;
-  margin-top: 2px;
 }
 
-/* Scroll hint for wide trees */
-.tree-scroll-hint {
-  text-align: center;
-  font-size: 11px;
+/* Expand/collapse toggle button */
+.cascade-toggle {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-card-alt);
   color: var(--text-muted);
-  padding: 4px 0 8px;
-  animation: fade-hint 2s ease-in-out infinite;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s, border-color 0.15s;
+  line-height: 1;
+  padding: 0;
 }
 
-@keyframes fade-hint {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
+.cascade-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Pulse highlight animation for "find first occurrence" */
+.cascade-highlight {
+  animation: cascade-pulse 1.5s ease-out;
+}
+
+@keyframes cascade-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(196, 162, 101, 0.7); }
+  25% { box-shadow: 0 0 0 6px rgba(196, 162, 101, 0.5); }
+  50% { box-shadow: 0 0 0 3px rgba(196, 162, 101, 0.3); }
+  100% { box-shadow: 0 0 0 0 rgba(196, 162, 101, 0); }
 }
 
 /* Ancestor detail popup — stacks above family tree */
@@ -1436,40 +1483,6 @@ header h1 {
 .tree-gen-3 { border-color: #cc7acc; }
 .tree-gen-4 { border-color: #cc8855; }
 .tree-gen-5 { border-color: #cc5555; }
-
-/* Wild dragon: dashed green border */
-.tree-node-wild {
-  border-style: dashed;
-  border-width: 2px;
-}
-
-/* Reference node (duplicate ancestor — compact) */
-.tree-node-ref {
-  transform: scale(0.75);
-  opacity: 0.7;
-  border-style: dotted;
-  border-width: 2px;
-}
-
-.tree-node-ref:hover,
-.tree-node-ref:active {
-  opacity: 1;
-}
-
-.tree-ref-label {
-  font-size: 8px;
-  color: var(--accent);
-  opacity: 0.8;
-}
-
-/* SVG overlay for duplicate connector lines */
-.tree-svg-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  pointer-events: none;
-  z-index: 1;
-}
 
 /* Generation legend */
 .tree-legend {
@@ -2158,7 +2171,7 @@ header h1 {
     padding: var(--spacing-sm) var(--spacing);
   }
 
-  /* ---- Family tree: compact for mobile ---- */
+  /* ---- Family tree cascade: compact for mobile ---- */
   .family-tree-panel {
     max-height: 90vh;
     padding: var(--spacing-sm);
@@ -2168,62 +2181,47 @@ header h1 {
     padding: var(--spacing-xs);
   }
 
-  .tree-level {
-    min-width: 60px;
+  /* Tighter indent on mobile */
+  .cascade-children {
+    margin-left: 8px;
+    padding-left: 12px;
   }
 
-  .tree-parents-row {
-    gap: 2px;
+  .cascade-children > .cascade-group > .cascade-row::before {
+    left: -12px;
+    width: 12px;
   }
 
-  .tree-connector {
-    height: 14px;
+  .cascade-node {
+    padding: 4px 8px;
+    gap: 6px;
   }
 
-  .tree-line-left,
-  .tree-line-right {
-    height: 7px;
+  .cascade-sprite {
+    width: 36px !important;
+    max-width: 36px !important;
   }
 
-  .tree-line-down {
-    top: 7px;
-    height: 7px;
+  .cascade-sprite canvas {
+    max-width: 36px;
   }
 
-  .tree-node {
-    padding: 4px;
-    max-width: 80px;
-    margin: 1px;
+  .cascade-node-name {
+    font-size: 11px;
   }
 
-  .tree-sprite {
-    width: 40px !important;
-    max-width: 40px !important;
-  }
-
-  .tree-sprite canvas {
-    max-width: 40px;
-  }
-
-  .tree-node-name {
+  .cascade-node-gen {
     font-size: 9px;
-    max-width: 60px;
   }
 
-  .tree-node-gen {
+  .cascade-toggle {
+    width: 24px;
+    height: 24px;
+    font-size: 13px;
+  }
+
+  .cascade-ref-label {
     font-size: 8px;
-  }
-
-  .tree-node-unknown {
-    min-height: 40px;
-  }
-
-  .tree-node-ref {
-    transform: scale(0.65);
-  }
-
-  .tree-ref-label {
-    font-size: 7px;
   }
 
   .tree-legend {
@@ -2306,5 +2304,35 @@ header h1 {
 
   .almanac-entry-formula {
     font-size: 11px;
+  }
+
+  /* Extra-small cascade tree tweaks */
+  .cascade-children {
+    margin-left: 6px;
+    padding-left: 10px;
+  }
+
+  .cascade-children > .cascade-group > .cascade-row::before {
+    left: -10px;
+    width: 10px;
+  }
+
+  .cascade-sprite {
+    width: 30px !important;
+    max-width: 30px !important;
+  }
+
+  .cascade-sprite canvas {
+    max-width: 30px;
+  }
+
+  .cascade-node-name {
+    font-size: 10px;
+  }
+
+  .cascade-toggle {
+    width: 22px;
+    height: 22px;
+    font-size: 12px;
   }
 }

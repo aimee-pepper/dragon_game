@@ -1,12 +1,13 @@
-// Family tree visualization popup
-// Shows full ancestor tree with generation-colored borders,
-// wild dragon styling, and compact reference nodes for duplicate ancestors.
+// Family tree visualization popup — Vertical Cascade Layout
+// Shows ancestor tree as an indented cascade (like a file tree).
+// Subject at top, ancestors expand downward with CSS border-based connectors.
 import { renderDragonSprite } from './ui-dragon-sprite.js';
 import { renderDragonCard } from './ui-card.js';
 
 const MAX_DEPTH = 6; // up to great-great-great-great-grandparents
+const DEFAULT_EXPANDED_DEPTH = 2; // depths 0-2 expanded, 3+ collapsed
 
-let nodeCounter = 0; // unique node IDs for SVG targeting
+let nodeCounter = 0; // unique node IDs for targeting
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -92,30 +93,10 @@ export function openFamilyTree(dragon, registry) {
   panel.appendChild(el('div', 'family-tree-gen-info', genText));
 
   // Build and render tree
-  const { tree, occurrences } = buildAncestorTree(dragon, registry);
-  const treeContainer = el('div', 'family-tree-container');
-  treeContainer.style.position = 'relative'; // for SVG overlay positioning
-  treeContainer.appendChild(renderTreeLevel(tree, registry));
+  const { tree } = buildAncestorTree(dragon, registry);
+  const treeContainer = el('div', 'family-tree-container cascade-tree');
+  treeContainer.appendChild(renderCascadeNode(tree, registry, 0, true));
   panel.appendChild(treeContainer);
-
-  // Scroll hint: show if tree overflows horizontally
-  requestAnimationFrame(() => {
-    if (treeContainer.scrollWidth > treeContainer.clientWidth + 10) {
-      const hint = el('div', 'tree-scroll-hint', '← Swipe to see full tree →');
-      treeContainer.insertBefore(hint, treeContainer.firstChild);
-      treeContainer.addEventListener('scroll', () => {
-        if (hint.parentElement) hint.remove();
-      }, { once: true });
-    }
-
-    // Draw SVG connector lines for duplicate ancestors
-    renderDuplicateLinks(treeContainer, occurrences);
-
-    // Re-render SVG on scroll to keep lines aligned
-    treeContainer.addEventListener('scroll', () => {
-      renderDuplicateLinks(treeContainer, occurrences);
-    });
-  });
 
   // Generation legend
   const legend = renderGenerationLegend(dragon.generation);
@@ -137,81 +118,104 @@ export function openFamilyTree(dragon, registry) {
 }
 
 /**
- * Render a single tree level recursively.
- * Layout: parents row on top, connector lines, child node below.
+ * Render a single cascade node recursively.
+ * Each node is a .cascade-group containing:
+ *   - .cascade-row (connector gutter + node content + optional toggle)
+ *   - .cascade-children (indented container for parent nodes, if any)
  */
-function renderTreeLevel(node, registry) {
-  const wrapper = el('div', 'tree-level');
+function renderCascadeNode(node, registry, depth = 0, isLast = true) {
+  const group = el('div', 'cascade-group');
+  if (isLast) group.classList.add('cascade-last');
+  group.setAttribute('data-depth', depth);
 
-  // If this is a reference (duplicate) node, render compact version
+  const row = el('div', 'cascade-row');
+
+  // Reference node (duplicate ancestor)
   if (node.isReference) {
-    wrapper.appendChild(renderReferenceNode(node.dragon, node.nodeId, registry));
-    return wrapper;
+    row.appendChild(renderCascadeRefContent(node.dragon, node.nodeId, node.firstNodeId, registry));
+    group.appendChild(row);
+    return group;
   }
 
-  // Parents row (if any exist)
-  if (node.parentA || node.parentB) {
-    const parentsRow = el('div', 'tree-parents-row');
+  // Regular dragon node content
+  row.appendChild(renderCascadeDragonContent(node.dragon, node.nodeId, registry));
 
+  // Does this node have parents to show?
+  const hasParents = node.parentA || node.parentB;
+
+  if (hasParents) {
+    // Toggle button for expand/collapse
+    const defaultExpanded = depth < DEFAULT_EXPANDED_DEPTH;
+    const toggle = el('button', 'cascade-toggle');
+    toggle.textContent = defaultExpanded ? '−' : '+';
+    toggle.setAttribute('aria-label', defaultExpanded ? 'Collapse' : 'Expand');
+    row.appendChild(toggle);
+
+    group.appendChild(row);
+
+    // Children container
+    const children = el('div', 'cascade-children');
+    if (!defaultExpanded) children.classList.add('cascade-collapsed');
+
+    // Parent A
     if (node.parentA) {
-      parentsRow.appendChild(renderTreeLevel(node.parentA, registry));
+      children.appendChild(renderCascadeNode(node.parentA, registry, depth + 1, false));
     } else {
-      parentsRow.appendChild(renderUnknownNode());
+      children.appendChild(renderCascadeUnknown(false));
     }
 
+    // Parent B
     if (node.parentB) {
-      parentsRow.appendChild(renderTreeLevel(node.parentB, registry));
+      children.appendChild(renderCascadeNode(node.parentB, registry, depth + 1, true));
     } else {
-      parentsRow.appendChild(renderUnknownNode());
+      children.appendChild(renderCascadeUnknown(true));
     }
 
-    wrapper.appendChild(parentsRow);
+    group.appendChild(children);
 
-    // Connector lines
-    const connector = el('div', 'tree-connector');
-    connector.appendChild(el('div', 'tree-line tree-line-left'));
-    connector.appendChild(el('div', 'tree-line tree-line-right'));
-    connector.appendChild(el('div', 'tree-line tree-line-down'));
-    wrapper.appendChild(connector);
+    // Toggle click handler
+    toggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isCollapsed = children.classList.toggle('cascade-collapsed');
+      toggle.textContent = isCollapsed ? '+' : '−';
+      toggle.setAttribute('aria-label', isCollapsed ? 'Expand' : 'Collapse');
+    });
+  } else {
+    group.appendChild(row);
   }
 
-  // This dragon's node
-  wrapper.appendChild(renderDragonNode(node.dragon, node.nodeId, registry));
-
-  return wrapper;
+  return group;
 }
 
 /**
- * Render a single dragon node in the tree.
- * Shows: scaled compact sprite, name, generation.
- * Styled with generation-based border color.
- * Clickable to open ancestor detail popup.
+ * Render dragon content for a cascade node.
+ * Compact sprite + name + gen label, clickable for detail popup.
  */
-function renderDragonNode(dragon, nodeId, registry) {
-  const node = el('div', 'tree-node');
+function renderCascadeDragonContent(dragon, nodeId, registry) {
+  const node = el('div', 'cascade-node');
   node.setAttribute('data-node-id', nodeId);
 
   // Generation-based border color
   const genClass = 'tree-gen-' + Math.min(dragon.generation, 5);
   node.classList.add(genClass);
 
-  // Wild dragon styling (gen 0 with no parents)
+  // Wild dragon styling
   if (dragon.generation === 0 && !dragon.parentIds) {
-    node.classList.add('tree-node-wild');
+    node.classList.add('cascade-node-wild');
   }
 
-  // Compact sprite, scaled down via CSS
+  // Compact sprite
   const sprite = renderDragonSprite(dragon.phenotype, true);
-  sprite.classList.add('tree-sprite');
+  sprite.classList.add('cascade-sprite');
   node.appendChild(sprite);
 
   // Name + gen label
-  const label = el('div', 'tree-node-label');
-  label.appendChild(el('div', 'tree-node-name', dragon.name));
-  label.appendChild(el('div', 'tree-node-gen', `Gen ${dragon.generation}`));
-  node.appendChild(label);
+  const info = el('div', 'cascade-node-info');
+  info.appendChild(el('div', 'cascade-node-name', dragon.name));
+  info.appendChild(el('div', 'cascade-node-gen', `Gen ${dragon.generation}`));
+  node.appendChild(info);
 
-  // Click to open detail popup
+  // Click → detail popup
   node.addEventListener('click', (e) => {
     e.stopPropagation();
     openAncestorDetail(dragon, registry);
@@ -222,37 +226,42 @@ function renderDragonNode(dragon, nodeId, registry) {
 
 /**
  * Render a compact reference node for a duplicate ancestor.
- * Smaller, slightly transparent, with "↗ see above" label.
+ * Shows name + "↗ see above" label. Clicking pulses the first occurrence.
  */
-function renderReferenceNode(dragon, nodeId, registry) {
-  const node = el('div', 'tree-node tree-node-ref');
+function renderCascadeRefContent(dragon, nodeId, firstNodeId, registry) {
+  const node = el('div', 'cascade-node cascade-ref');
   node.setAttribute('data-node-id', nodeId);
   node.setAttribute('data-ref-target', dragon.id);
 
-  // Generation-based border color (same as full node)
+  // Generation color
   const genClass = 'tree-gen-' + Math.min(dragon.generation, 5);
   node.classList.add(genClass);
 
-  // Wild dragon styling
+  // Wild styling
   if (dragon.generation === 0 && !dragon.parentIds) {
-    node.classList.add('tree-node-wild');
+    node.classList.add('cascade-node-wild');
   }
 
   // Compact sprite
   const sprite = renderDragonSprite(dragon.phenotype, true);
-  sprite.classList.add('tree-sprite');
+  sprite.classList.add('cascade-sprite');
   node.appendChild(sprite);
 
   // Name + reference hint
-  const label = el('div', 'tree-node-label');
-  label.appendChild(el('div', 'tree-node-name', dragon.name));
-  label.appendChild(el('div', 'tree-ref-label', '↗ see above'));
-  node.appendChild(label);
+  const info = el('div', 'cascade-node-info');
+  info.appendChild(el('div', 'cascade-node-name', dragon.name));
+  info.appendChild(el('div', 'cascade-ref-label', '↗ see above'));
+  node.appendChild(info);
 
-  // Click to open detail popup
+  // Click → scroll to first occurrence and pulse-highlight it
   node.addEventListener('click', (e) => {
     e.stopPropagation();
-    openAncestorDetail(dragon, registry);
+    const firstNode = document.querySelector(`[data-node-id="${firstNodeId}"]`);
+    if (firstNode) {
+      firstNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      firstNode.classList.add('cascade-highlight');
+      setTimeout(() => firstNode.classList.remove('cascade-highlight'), 1500);
+    }
   });
 
   return node;
@@ -261,71 +270,17 @@ function renderReferenceNode(dragon, nodeId, registry) {
 /**
  * Placeholder node for unknown/missing ancestors.
  */
-function renderUnknownNode() {
-  const wrapper = el('div', 'tree-level');
-  const node = el('div', 'tree-node tree-node-unknown');
-  const label = el('div', 'tree-node-label');
-  label.appendChild(el('div', 'tree-node-name', '???'));
-  label.appendChild(el('div', 'tree-node-gen', 'Unknown'));
-  node.appendChild(label);
-  wrapper.appendChild(node);
-  return wrapper;
-}
+function renderCascadeUnknown(isLast) {
+  const group = el('div', 'cascade-group');
+  if (isLast) group.classList.add('cascade-last');
 
-/**
- * Render SVG overlay with dotted lines connecting duplicate reference
- * nodes to their first (full) occurrence in the tree.
- */
-function renderDuplicateLinks(container, occurrences) {
-  // Remove existing SVG overlay
-  const existingSvg = container.querySelector('.tree-svg-overlay');
-  if (existingSvg) existingSvg.remove();
+  const row = el('div', 'cascade-row');
+  const node = el('div', 'cascade-node cascade-unknown');
+  node.appendChild(el('div', 'cascade-node-name', '???'));
+  row.appendChild(node);
+  group.appendChild(row);
 
-  // Find all reference nodes
-  const refNodes = container.querySelectorAll('.tree-node-ref');
-  if (refNodes.length === 0) return;
-
-  // Create SVG overlay sized to the full scrollable area
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.classList.add('tree-svg-overlay');
-  svg.style.width = container.scrollWidth + 'px';
-  svg.style.height = container.scrollHeight + 'px';
-
-  const containerRect = container.getBoundingClientRect();
-
-  refNodes.forEach(refNode => {
-    const dragonId = refNode.getAttribute('data-ref-target');
-    if (!dragonId) return;
-
-    // Find the first occurrence node
-    const entry = occurrences.get(parseInt(dragonId));
-    if (!entry) return;
-
-    const firstNode = container.querySelector(`[data-node-id="${entry.firstNodeId}"]`);
-    if (!firstNode) return;
-
-    // Get positions relative to the container's scroll area
-    const refRect = refNode.getBoundingClientRect();
-    const firstRect = firstNode.getBoundingClientRect();
-
-    const x1 = refRect.left - containerRect.left + container.scrollLeft + refRect.width / 2;
-    const y1 = refRect.top - containerRect.top + container.scrollTop + refRect.height / 2;
-    const x2 = firstRect.left - containerRect.left + container.scrollLeft + firstRect.width / 2;
-    const y2 = firstRect.top - containerRect.top + container.scrollTop + firstRect.height / 2;
-
-    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    line.setAttribute('x1', x1);
-    line.setAttribute('y1', y1);
-    line.setAttribute('x2', x2);
-    line.setAttribute('y2', y2);
-    line.setAttribute('stroke', '#c4a265'); // accent color
-    line.setAttribute('stroke-width', '1.5');
-    line.setAttribute('stroke-dasharray', '4,4');
-    line.setAttribute('opacity', '0.5');
-    svg.appendChild(line);
-  });
-
-  container.appendChild(svg);
+  return group;
 }
 
 /**
