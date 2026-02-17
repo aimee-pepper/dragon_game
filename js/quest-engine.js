@@ -335,15 +335,41 @@ const ADVANCED_REQ_MAKERS = [
   makeSpecialtyReq, makeModifierReq,
 ];
 
-// Pick N unique requirement makers from a given pool
-function pickUniqueMakers(pool, count) {
-  const available = [...pool];
+
+// Conflict pairs: if one is picked, the other must be excluded.
+// Each entry is [makerA, makerB] meaning they can't coexist.
+const CONFLICT_PAIRS = [
+  [makeSpecialtyReq, makeColorReq],    // specialty locks color
+  [makeSpecialtyReq, makeFinishReq],   // specialty locks finish
+  [makeSpecialtyReq, makeModifierReq], // both lock finish
+  [makeModifierReq, makeFinishReq],    // modifier locks finish
+  [makeModifierReq, makeElementReq],   // modifier locks element
+];
+
+// Pick N unique, non-conflicting requirement makers from a pool.
+// Each time a maker is picked, any makers it conflicts with (in either direction)
+// are removed from the remaining pool before the next pick.
+function pickCompatibleMakers(pool, count) {
+  let available = [...pool];
   const picked = [];
   for (let i = 0; i < count && available.length > 0; i++) {
     const idx = Math.floor(Math.random() * available.length);
-    picked.push(available.splice(idx, 1)[0]);
+    const maker = available.splice(idx, 1)[0];
+    picked.push(maker);
+    // Remove anything that conflicts with this pick (bidirectional)
+    available = removeConflicts(available, maker);
   }
   return picked;
+}
+
+// Remove makers from a pool that would conflict with the given maker
+function removeConflicts(pool, maker) {
+  const blocked = new Set();
+  for (const [a, b] of CONFLICT_PAIRS) {
+    if (maker === a) blocked.add(b);
+    if (maker === b) blocked.add(a);
+  }
+  return pool.filter(m => !blocked.has(m));
 }
 
 // Easy quest templates: 1 requirement
@@ -364,7 +390,7 @@ function generateEasyQuest() {
 
 // Medium quest templates: 2 requirements
 function generateMediumQuest() {
-  const makers = pickUniqueMakers(REQ_MAKERS, 2);
+  const makers = pickCompatibleMakers(REQ_MAKERS, 2);
   const reqs = makers.map(m => m());
   const labels = reqs.map(r => r.label);
   const patron = pick(PATRONS);
@@ -382,7 +408,7 @@ function generateMediumQuest() {
 
 // Hard quest templates: 3 requirements
 function generateHardQuest() {
-  const makers = pickUniqueMakers(ADVANCED_REQ_MAKERS, 3);
+  const makers = pickCompatibleMakers(ADVANCED_REQ_MAKERS, 3);
   const reqs = makers.map(m => m());
   const labels = reqs.map(r => r.label);
   const patron = pick(PATRONS);
@@ -404,8 +430,9 @@ function generateExtraHardQuest() {
   const guaranteedMaker = pick([makeSpecialtyReq, makeModifierReq]);
   const guaranteedReq = guaranteedMaker();
 
-  // Pick 3 more unique makers from the standard pool
-  const otherMakers = pickUniqueMakers(REQ_MAKERS, 3);
+  // Filter the standard pool to remove makers that conflict with the guaranteed req
+  const safePool = removeConflicts(REQ_MAKERS, guaranteedMaker);
+  const otherMakers = pickCompatibleMakers(safePool, 3);
   const otherReqs = otherMakers.map(m => m());
 
   const reqs = [guaranteedReq, ...otherReqs];
