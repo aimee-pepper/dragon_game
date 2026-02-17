@@ -11,6 +11,17 @@ let countLabel = null;
 // The stabled dragon IDs — kept separate from the generate arena
 const stabledDragons = new Map();
 
+// Listeners notified whenever stables contents change
+const stablesChangeListeners = [];
+
+export function onStablesChange(cb) {
+  stablesChangeListeners.push(cb);
+}
+
+function notifyStablesChange() {
+  for (const cb of stablesChangeListeners) cb();
+}
+
 function el(tag, className, text) {
   const e = document.createElement(tag);
   if (className) e.className = className;
@@ -30,6 +41,7 @@ export function initStablesTab(container, registry) {
   clearBtn.addEventListener('click', () => {
     stabledDragons.clear();
     refreshStablesList();
+    notifyStablesChange();
   });
   header.appendChild(clearBtn);
 
@@ -49,12 +61,14 @@ export function initStablesTab(container, registry) {
 export function addToStables(dragon) {
   stabledDragons.set(dragon.id, dragon);
   refreshStablesList();
+  notifyStablesChange();
 }
 
 // Remove a dragon from the stables
 export function removeFromStables(dragonId) {
   stabledDragons.delete(dragonId);
   refreshStablesList();
+  notifyStablesChange();
 }
 
 // Check if a dragon is stabled

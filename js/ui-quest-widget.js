@@ -2,7 +2,7 @@
 import { getSetting, onSettingChange } from './settings.js';
 import { getHighlightedQuest, onHighlightChange } from './quest-highlight.js';
 import { getRequirementStatus } from './quest-engine.js';
-import { getStabledDragons } from './ui-stables.js';
+import { getStabledDragons, onStablesChange } from './ui-stables.js';
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -44,6 +44,11 @@ export function initQuestWidget() {
 
   // React to setting changes
   onSettingChange('pinned-quest-widget', () => updateVisibility());
+
+  // React to stables changes (update checkmarks when dragons are stabled/released)
+  onStablesChange(() => {
+    if (expanded) renderWidgetContent();
+  });
 
   updateVisibility();
 }

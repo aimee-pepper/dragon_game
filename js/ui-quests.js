@@ -1,5 +1,5 @@
 // Quests tab: display active quests, submit stabled dragons, track completions
-import { getStabledDragons } from './ui-stables.js';
+import { getStabledDragons, onStablesChange } from './ui-stables.js';
 import { renderDragonSprite } from './ui-dragon-sprite.js';
 import { openFamilyTree } from './ui-family-tree.js';
 import {
@@ -30,6 +30,9 @@ export function initQuestsTab(container, registry) {
   container.appendChild(questContainer);
 
   renderQuests();
+
+  // Re-render when stables change (updates dragon count + submit picker)
+  onStablesChange(() => renderQuests());
 }
 
 function renderQuests() {
