@@ -14,6 +14,16 @@ import {
 const SAVE_KEY = 'dragon-keeper-save';
 const SAVE_VERSION = 1;
 
+// ── Achievement hooks (set by app.js to avoid circular dependency) ──
+
+let _getAchievementSaveData = () => ({});
+let _restoreAchievements = () => {};
+
+export function registerAchievementHooks(getSaveData, restore) {
+  _getAchievementSaveData = getSaveData;
+  _restoreAchievements = restore;
+}
+
 // ── Stats tracking ──────────────────────────────────────────
 
 const stats = {
@@ -28,10 +38,22 @@ export function getStats() {
   return { ...stats };
 }
 
+// Listeners notified when any stat changes (for achievement checks)
+const statChangeListeners = [];
+
+export function onStatChange(cb) {
+  statChangeListeners.push(cb);
+}
+
+function notifyStatChange() {
+  for (const cb of statChangeListeners) cb();
+}
+
 export function incrementStat(key) {
   if (key in stats) {
     stats[key]++;
     debouncedSave();
+    notifyStatChange();
   }
 }
 
@@ -71,6 +93,7 @@ export function saveGame(registry) {
       dragons: {},
       quests: getAllQuests(),
       stats: { ...stats },
+      achievements: _getAchievementSaveData(),
     };
 
     for (const dragon of dragonsToSave) {
@@ -165,6 +188,11 @@ export function loadGame(registry) {
           stats[key] = saveData.stats[key];
         }
       }
+    }
+
+    // Restore achievements
+    if (saveData.achievements) {
+      _restoreAchievements(saveData.achievements);
     }
 
     console.log(`Game loaded: ${Object.keys(saveData.dragons).length} dragons, ${saveData.quests.length} quests`);

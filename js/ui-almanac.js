@@ -23,6 +23,16 @@ import { getCompletedQuests } from './quest-engine.js';
 import { renderDragonCard } from './ui-card.js';
 import { openFamilyTree } from './ui-family-tree.js';
 import { getStats } from './save-manager.js';
+import {
+  getAchievements,
+  isUnlocked,
+  getUnlockedAchievements,
+  getUnlockedCount,
+  getTotalCount,
+  getAchievementProgress,
+  ACHIEVEMENT_CATEGORIES,
+  getColorThemes,
+} from './achievements.js';
 
 let containerEl = null;
 let dragonRegistry = null;
@@ -61,6 +71,11 @@ export function initAlmanacTab(container, registry) {
   containerEl = el('div', 'almanac-wrapper');
   container.appendChild(containerEl);
   render();
+}
+
+// Re-render the almanac (used when achievements update)
+export function refreshAlmanac() {
+  if (containerEl) render();
 }
 
 function render() {
@@ -161,10 +176,127 @@ function renderEncyclopedia() {
 // ACHIEVEMENTS SECTION
 // ══════════════════════════════════════════════════════
 
+let activeAchSubTab = 'badges';
+
 function renderAchievements() {
   const wrapper = el('div', 'achievements-wrapper');
 
-  // ── Trophy Wall ──
+  // ── Sub-navigation: Badges / Trophies / Stats ──
+  const subNav = el('div', 'ach-sub-nav');
+  const subTabs = [
+    { key: 'badges', label: `Badges (${getUnlockedCount()}/${getTotalCount()})` },
+    { key: 'trophies', label: 'Trophies' },
+    { key: 'stats', label: 'Stats' },
+  ];
+  subTabs.forEach(tab => {
+    const btn = el('button', 'ach-sub-btn' + (tab.key === activeAchSubTab ? ' active' : ''), tab.label);
+    btn.addEventListener('click', () => {
+      activeAchSubTab = tab.key;
+      render();
+    });
+    subNav.appendChild(btn);
+  });
+  wrapper.appendChild(subNav);
+
+  if (activeAchSubTab === 'badges') {
+    renderAchievementBadges(wrapper);
+  } else if (activeAchSubTab === 'trophies') {
+    renderTrophyWall(wrapper);
+  } else {
+    renderStatsPanel(wrapper);
+  }
+
+  containerEl.appendChild(wrapper);
+}
+
+// ── Achievement Badges Grid ──
+
+function renderAchievementBadges(wrapper) {
+  const achievements = getAchievements();
+
+  // Overall progress bar
+  const progressRow = el('div', 'ach-progress-row');
+  const unlocked = getUnlockedCount();
+  const total = getTotalCount();
+  const pct = total > 0 ? Math.round((unlocked / total) * 100) : 0;
+  progressRow.appendChild(el('span', 'ach-progress-label', `${unlocked} / ${total} unlocked (${pct}%)`));
+  const bar = el('div', 'ach-progress-bar');
+  const fill = el('div', 'ach-progress-fill');
+  fill.style.width = `${pct}%`;
+  bar.appendChild(fill);
+  progressRow.appendChild(bar);
+  wrapper.appendChild(progressRow);
+
+  // Group by category
+  for (const cat of ACHIEVEMENT_CATEGORIES) {
+    const catAchievements = achievements.filter(a => a.category === cat.key);
+    if (catAchievements.length === 0) continue;
+
+    const catUnlocked = catAchievements.filter(a => isUnlocked(a.id)).length;
+    const catHeader = el('div', 'ach-cat-header');
+    catHeader.appendChild(el('span', 'ach-cat-icon', cat.icon));
+    catHeader.appendChild(el('span', 'ach-cat-label', `${cat.label} (${catUnlocked}/${catAchievements.length})`));
+    wrapper.appendChild(catHeader);
+
+    const grid = el('div', 'ach-badge-grid');
+    for (const achievement of catAchievements) {
+      grid.appendChild(renderAchievementBadge(achievement));
+    }
+    wrapper.appendChild(grid);
+  }
+}
+
+function renderAchievementBadge(achievement) {
+  const unlocked = isUnlocked(achievement.id);
+  const badge = el('div', `ach-badge ach-${achievement.rarity}${unlocked ? ' ach-unlocked' : ''}`);
+
+  // Icon
+  const iconEl = el('div', 'ach-badge-icon', achievement.icon);
+  badge.appendChild(iconEl);
+
+  // Name
+  badge.appendChild(el('div', 'ach-badge-name', achievement.name));
+
+  // Description
+  badge.appendChild(el('div', 'ach-badge-desc', achievement.desc));
+
+  // Rarity label
+  const rarityLabel = el('div', `ach-badge-rarity ach-rarity-${achievement.rarity}`);
+  rarityLabel.textContent = achievement.rarity.charAt(0).toUpperCase() + achievement.rarity.slice(1);
+  badge.appendChild(rarityLabel);
+
+  // Progress bar (if not yet unlocked and has progress)
+  if (!unlocked && achievement.progress) {
+    const prog = getAchievementProgress(achievement.id, dragonRegistry);
+    if (prog) {
+      const progWrap = el('div', 'ach-badge-progress');
+      const progBar = el('div', 'ach-badge-progress-bar');
+      const progFill = el('div', 'ach-badge-progress-fill');
+      const progPct = Math.min(100, Math.round((prog.current / prog.target) * 100));
+      progFill.style.width = `${progPct}%`;
+      progBar.appendChild(progFill);
+      progWrap.appendChild(progBar);
+      progWrap.appendChild(el('span', 'ach-badge-progress-text', `${prog.current}/${prog.target}`));
+      badge.appendChild(progWrap);
+    }
+  }
+
+  // Unlock timestamp
+  if (unlocked) {
+    const data = getUnlockedAchievements()[achievement.id];
+    if (data && data.unlockedAt) {
+      const date = new Date(data.unlockedAt);
+      const dateStr = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      badge.appendChild(el('div', 'ach-badge-date', `Unlocked ${dateStr}`));
+    }
+  }
+
+  return badge;
+}
+
+// ── Trophy Wall ──
+
+function renderTrophyWall(wrapper) {
   wrapper.appendChild(el('div', 'almanac-pane-header', 'Quest Trophy Wall'));
 
   const completed = getCompletedQuests();
@@ -179,9 +311,12 @@ function renderAchievements() {
     }
     wrapper.appendChild(trophyList);
   }
+}
 
-  // ── Stats Dashboard ──
-  wrapper.appendChild(el('div', 'almanac-pane-header stats-header', 'Stats'));
+// ── Stats Dashboard ──
+
+function renderStatsPanel(wrapper) {
+  wrapper.appendChild(el('div', 'almanac-pane-header', 'Stats'));
 
   const stats = getStats();
   const statsGrid = el('div', 'stats-dashboard');
@@ -203,7 +338,6 @@ function renderAchievements() {
   }
 
   wrapper.appendChild(statsGrid);
-  containerEl.appendChild(wrapper);
 }
 
 function renderTrophyCard(quest) {
