@@ -10,6 +10,7 @@ import { incrementStat } from './save-manager.js';
 
 let dragonRegistry = null; // set by init
 let dragonListContainer = null;
+let capturedDragonIds = []; // track IDs of dragons visible on the capture page
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -41,6 +42,7 @@ export function initGenerateTab(container, registry) {
   const clearBtn = el('button', 'btn btn-secondary', 'Clear All');
   clearBtn.addEventListener('click', () => {
     list.innerHTML = '';
+    capturedDragonIds = [];
   });
   controls2.appendChild(clearBtn);
 
@@ -88,6 +90,7 @@ function generateOne(listContainer) {
   applyQuestHalo(card, dragon);
   // Insert at top of list
   listContainer.insertBefore(card, listContainer.firstChild);
+  capturedDragonIds.push(dragon.id);
 }
 
 function refreshHalos() {
@@ -96,5 +99,39 @@ function refreshHalos() {
   for (const card of cards) {
     const dragon = dragonRegistry.get(Number(card.dataset.dragonId));
     if (dragon) applyQuestHalo(card, dragon);
+  }
+}
+
+// ── Persistence helpers ──
+
+export function getCapturedDragonIds() {
+  return [...capturedDragonIds];
+}
+
+/**
+ * Restore captured dragons on the generate tab.
+ * Renders cards for each dragon in the list container.
+ * Call after initGenerateTab() so container exists.
+ */
+export function restoreCapturedDragons(dragons) {
+  if (!dragonListContainer || dragons.length === 0) return;
+
+  const quest = getHighlightedQuest();
+  const highlightGenes = quest ? getGenesForQuest(quest) : null;
+  const desiredAlleles = quest ? getDesiredAllelesForQuest(quest) : null;
+
+  for (const dragon of dragons) {
+    const card = renderDragonCard(dragon, {
+      onSaveToStables: (d) => addToStables(d),
+      onViewLineage: (d) => openFamilyTree(d, dragonRegistry),
+      onUseAsParentA: (d) => { setParentExternal('A', d); showParentSetToast('A', d); },
+      onUseAsParentB: (d) => { setParentExternal('B', d); showParentSetToast('B', d); },
+      highlightGenes,
+      desiredAlleles,
+    });
+    card.dataset.dragonId = dragon.id;
+    applyQuestHalo(card, dragon);
+    dragonListContainer.appendChild(card);
+    capturedDragonIds.push(dragon.id);
   }
 }

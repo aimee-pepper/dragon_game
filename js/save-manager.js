@@ -3,7 +3,7 @@
 // Exception: isDarkEnergy persisted (random 5% chance, not reproducible)
 
 import { Dragon, getNextDragonId, setNextDragonId } from './dragon.js';
-import { getStabledDragons, restoreStabledDragons } from './ui-stables.js';
+import { getStabledDragons, restoreStabledDragons, getDenDragonIds, getDenSlotCount, restoreDen } from './ui-stables.js';
 import {
   getAllQuests,
   restoreQuestState,
@@ -22,6 +22,54 @@ let _restoreAchievements = () => {};
 export function registerAchievementHooks(getSaveData, restore) {
   _getAchievementSaveData = getSaveData;
   _restoreAchievements = restore;
+}
+
+// ── Breed parent hooks (set by app.js) ──
+
+let _getBreedParentAId = () => null;
+let _getBreedParentBId = () => null;
+let _restoreBreedParents = () => {};
+
+// Deferred restore: IDs stored during load, applied after initBreedTab
+let _pendingBreedParentAId = null;
+let _pendingBreedParentBId = null;
+
+export function registerBreedHooks(getAId, getBId, restore) {
+  _getBreedParentAId = getAId;
+  _getBreedParentBId = getBId;
+  _restoreBreedParents = restore;
+}
+
+/** Call from app.js after initBreedTab() to apply deferred breed parent restore */
+export function applyPendingBreedRestore(registry) {
+  const a = _pendingBreedParentAId != null ? registry.get(_pendingBreedParentAId) : null;
+  const b = _pendingBreedParentBId != null ? registry.get(_pendingBreedParentBId) : null;
+  if (a || b) _restoreBreedParents(a, b);
+  _pendingBreedParentAId = null;
+  _pendingBreedParentBId = null;
+}
+
+// ── Captured dragon hooks (set by app.js) ──
+
+let _getCapturedDragonIds = () => [];
+let _restoreCapturedDragons = () => {};
+
+// Deferred restore
+let _pendingCapturedDragonIds = [];
+
+export function registerCaptureHooks(getIds, restore) {
+  _getCapturedDragonIds = getIds;
+  _restoreCapturedDragons = restore;
+}
+
+/** Call from app.js after initGenerateTab() to apply deferred captured dragon restore */
+export function applyPendingCapturedRestore(registry) {
+  if (_pendingCapturedDragonIds.length === 0) return;
+  const dragons = _pendingCapturedDragonIds
+    .map(id => registry.get(id))
+    .filter(Boolean);
+  if (dragons.length > 0) _restoreCapturedDragons(dragons);
+  _pendingCapturedDragonIds = [];
 }
 
 // ── Stats tracking ──────────────────────────────────────────
@@ -90,6 +138,11 @@ export function saveGame(registry) {
       nextDragonId: getNextDragonId(),
       nextQuestId: getNextQuestId(),
       stabledDragonIds: getStabledDragons().map(d => d.id),
+      denDragonIds: getDenDragonIds(),
+      denSlotCount: getDenSlotCount(),
+      breedParentAId: _getBreedParentAId(),
+      breedParentBId: _getBreedParentBId(),
+      capturedDragonIds: _getCapturedDragonIds(),
       dragons: {},
       quests: getAllQuests(),
       stats: { ...stats },
@@ -111,10 +164,20 @@ function collectReachableDragons() {
   const stabled = getStabledDragons();
   const completedQuests = getAllQuests().filter(q => q.status === 'completed');
 
-  // Seed with stabled dragon IDs + quest-completed dragon IDs
+  // Seed with stabled dragon IDs + quest-completed dragon IDs + breed parents + captured
   const seedIds = new Set(stabled.map(d => d.id));
   for (const q of completedQuests) {
     if (q.completedById) seedIds.add(q.completedById);
+  }
+  const breedAId = _getBreedParentAId();
+  const breedBId = _getBreedParentBId();
+  if (breedAId != null) seedIds.add(breedAId);
+  if (breedBId != null) seedIds.add(breedBId);
+  for (const cid of _getCapturedDragonIds()) {
+    seedIds.add(cid);
+  }
+  for (const did of getDenDragonIds()) {
+    seedIds.add(did);
   }
 
   // BFS walk parentIds to collect all ancestors
@@ -176,6 +239,14 @@ export function loadGame(registry) {
       restoreStabledDragons(stabledDragons);
     }
 
+    // Restore den
+    if (saveData.denDragonIds) {
+      const denDragons = saveData.denDragonIds
+        .map(id => dragonMap[id])
+        .filter(Boolean);
+      restoreDen(denDragons, saveData.denSlotCount);
+    }
+
     // Restore quests
     if (saveData.quests && saveData.quests.length > 0) {
       restoreQuestState(saveData.quests);
@@ -194,6 +265,13 @@ export function loadGame(registry) {
     if (saveData.achievements) {
       _restoreAchievements(saveData.achievements);
     }
+
+    // Deferred restore: breed parents (applied after initBreedTab)
+    _pendingBreedParentAId = saveData.breedParentAId ?? null;
+    _pendingBreedParentBId = saveData.breedParentBId ?? null;
+
+    // Deferred restore: captured dragons (applied after initGenerateTab)
+    _pendingCapturedDragonIds = saveData.capturedDragonIds ?? [];
 
     console.log(`Game loaded: ${Object.keys(saveData.dragons).length} dragons, ${saveData.quests.length} quests`);
     return true;

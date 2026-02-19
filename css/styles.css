@@ -88,8 +88,9 @@ header h1 {
 
 /* subtitle removed — no longer in header */
 
-/* ---- Tab Navigation ---- */
+/* ---- Tab Navigation (Header + Footer) ---- */
 
+#header-nav,
 #main-nav {
   display: flex;
   gap: var(--spacing-xs);
@@ -97,7 +98,8 @@ header h1 {
 
 .tab-btn {
   flex: 1;
-  padding: 10px 0;
+  padding: 12px 0;
+  min-height: 44px;
   border: none;
   background: var(--btn-secondary-bg);
   color: var(--text-muted);
@@ -114,12 +116,79 @@ header h1 {
   color: var(--btn-text);
 }
 
+/* ---- Footer Navigation ---- */
+
+#footer-bar {
+  position: fixed !important;
+  bottom: 0 !important;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.3);
+  padding: var(--spacing-xs) var(--spacing);
+  padding-bottom: calc(var(--spacing-xs) + env(safe-area-inset-bottom, 0px));
+}
+
+#footer-nav {
+  display: flex;
+  gap: var(--spacing-xs);
+}
+
+#footer-nav .tab-btn {
+  font-size: 13px;
+  padding: 10px 0;
+  min-height: 40px;
+}
+
 /* ---- Tab Panels ---- */
 
 .tab-panel {
   display: none;
   padding: var(--spacing);
-  padding-bottom: calc(var(--spacing) * 4);
+  padding-bottom: calc(var(--spacing) * 2 + 64px); /* clear footer */
+}
+
+/* ---- Placeholder (Coming Soon) Tabs ---- */
+
+.placeholder-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: calc(var(--spacing) * 3) var(--spacing);
+  gap: var(--spacing-sm);
+}
+
+.placeholder-icon {
+  font-size: 48px;
+  opacity: 0.6;
+}
+
+.placeholder-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-bright);
+}
+
+.placeholder-badge {
+  display: inline-block;
+  padding: 4px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.placeholder-desc {
+  font-size: 14px;
+  color: var(--text-muted);
+  max-width: 280px;
 }
 
 .tab-panel.active {
@@ -523,6 +592,16 @@ header h1 {
   max-width: 80px;
 }
 
+.parent-sprite {
+  max-width: 100px;
+}
+
+.parent-sprite-canvas {
+  width: 100%;
+  max-width: 100px;
+  height: auto;
+}
+
 .parent-summary-name {
   font-size: 14px;
   font-weight: 700;
@@ -862,12 +941,175 @@ header h1 {
 
 /* ---- Stables ---- */
 
+/* ---- Den Section (Favorites) ---- */
+
+.den-section {
+  margin-bottom: var(--spacing);
+}
+
+.den-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.den-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-bright);
+}
+
+.den-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.den-slots {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.den-slot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px;
+  background: var(--bg-card);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  min-width: 80px;
+  max-width: 90px;
+  flex-shrink: 0;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.den-slot-filled {
+  cursor: pointer;
+  border-color: var(--accent);
+  background: rgba(196, 162, 101, 0.05);
+}
+
+.den-slot-filled:active {
+  background: rgba(196, 162, 101, 0.12);
+}
+
+.den-slot-empty {
+  border-style: dashed;
+  opacity: 0.5;
+  min-height: 80px;
+  justify-content: center;
+}
+
+.den-slot-plus {
+  font-size: 24px;
+  color: var(--text-muted);
+  font-weight: 300;
+}
+
+.den-sprite {
+  width: 48px !important;
+  max-width: 48px !important;
+  height: auto;
+  flex-shrink: 0;
+}
+
+.den-sprite canvas {
+  width: 100%;
+  height: auto;
+  max-width: 48px;
+}
+
+.den-sprite-canvas {
+  width: 48px;
+  max-width: 48px;
+  height: auto;
+  flex-shrink: 0;
+}
+
+.den-slot-name {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-bright);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  text-align: center;
+}
+
+.den-remove-btn {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 5px;
+  line-height: 1;
+  border-radius: 50%;
+  transition: color 0.15s, background 0.15s;
+}
+
+.den-remove-btn:hover,
+.den-remove-btn:active {
+  color: var(--error);
+  background: rgba(255, 82, 82, 0.12);
+}
+
+/* ---- Nests Section Label ---- */
+
+.nests-section {
+  border-top: 1px solid var(--border);
+  padding-top: var(--spacing-sm);
+}
+
+.nests-section-label {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-bright);
+}
+
+/* ---- Den Button on Stables Cards ---- */
+
+.btn-den {
+  background: rgba(196, 162, 101, 0.15);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.btn-den:active {
+  background: rgba(196, 162, 101, 0.3);
+}
+
+.btn-den.btn-denned {
+  opacity: 0.6;
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+.btn-den.btn-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ---- Stables Header ---- */
+
 .stables-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 12px 0;
   margin-bottom: 8px;
+  gap: 8px;
 }
 
 .stables-count {
@@ -1317,6 +1559,7 @@ header h1 {
 }
 
 /* ---- Classic Bottom-Up Pedigree Layout ---- */
+/* Solid lines = direct connections | Dotted = repeat ancestors */
 
 .pedigree-tree {
   display: flex;
@@ -1331,16 +1574,33 @@ header h1 {
   align-items: center;
 }
 
-/* Parents row: two .ped-family subtrees side by side */
+/* Parent branch wrapper */
+.ped-branch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Parent label (Sire/Dam) — only shown at depth 0 */
+.ped-parent-label {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+/* Parents row: two .ped-branch subtrees side by side */
 .ped-parents {
   display: flex;
   justify-content: center;
-  gap: 4px;
+  gap: 6px;
   position: relative;
-  padding-bottom: 0;
+  padding-bottom: 12px;
 }
 
-/* Horizontal bar connecting the two parent branches */
+/* Horizontal bar connecting the two parent branches — SOLID by default */
 .ped-parents::after {
   content: '';
   position: absolute;
@@ -1351,19 +1611,43 @@ header h1 {
   border-bottom: 2px solid var(--border);
 }
 
-/* Vertical connector from horizontal bar down to child */
+/* Dotted horizontal bar when both parents are references */
+.ped-parents-dotted::after {
+  border-bottom-style: dotted;
+  opacity: 0.6;
+}
+
+/* Vertical connector from horizontal bar down to child — SOLID */
 .ped-vline {
   width: 0;
-  height: 12px;
+  height: 14px;
   border-left: 2px solid var(--border);
 }
 
-/* Vertical connector from each parent node down to the horizontal bar */
+/* Vertical connector from each parent branch down to the horizontal bar — SOLID */
+.ped-branch > .ped-family > .ped-child::after,
+.ped-branch > .ped-child::after {
+  content: '';
+  display: block;
+  width: 0;
+  height: 12px;
+  border-left: 2px solid var(--border);
+  margin: 0 auto;
+}
+
+/* Dotted vertical connectors for reference/repeat parent branches */
+.ped-branch-dotted > .ped-family > .ped-child::after,
+.ped-branch-dotted > .ped-child::after {
+  border-left-style: dotted;
+  opacity: 0.6;
+}
+
+/* Legacy selector for deeper levels */
 .ped-parents > .ped-family > .ped-child::after {
   content: '';
   display: block;
   width: 0;
-  height: 10px;
+  height: 12px;
   border-left: 2px solid var(--border);
   margin: 0 auto;
 }
@@ -1382,15 +1666,15 @@ header h1 {
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  padding: 4px 6px;
+  padding: 5px 6px;
   background: var(--bg-card);
-  border: 1px solid var(--border);
+  border: 2px solid var(--border);
   border-radius: var(--radius-sm);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: border-color 0.15s, background 0.15s, box-shadow 0.3s;
-  min-width: 64px;
-  max-width: 80px;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.3s, opacity 0.2s;
+  min-width: 68px;
+  max-width: 86px;
   text-align: center;
 }
 
@@ -1399,10 +1683,58 @@ header h1 {
   border-color: var(--accent);
 }
 
-/* Compact sprite */
+/* Subject node (depth 0) — larger and more prominent */
+.ped-node-subject {
+  min-width: 80px;
+  max-width: 100px;
+  padding: 6px 8px;
+}
+
+.ped-node-subject .ped-sprite,
+.ped-node-subject .ped-sprite canvas {
+  width: 56px !important;
+  max-width: 56px !important;
+}
+
+.ped-node-subject .ped-sprite-canvas {
+  width: 56px;
+  max-width: 56px;
+}
+
+.ped-node-subject .ped-node-name {
+  font-size: 11px;
+}
+
+/* Distant ancestors (depth 3+) — slightly smaller */
+.ped-node-distant {
+  min-width: 56px;
+  max-width: 72px;
+  padding: 3px 4px;
+}
+
+.ped-node-distant .ped-sprite,
+.ped-node-distant .ped-sprite canvas {
+  width: 36px !important;
+  max-width: 36px !important;
+}
+
+.ped-node-distant .ped-sprite-canvas {
+  width: 36px;
+  max-width: 36px;
+}
+
+.ped-node-distant .ped-node-name {
+  font-size: 9px;
+}
+
+.ped-node-distant .ped-node-gen {
+  font-size: 7px;
+}
+
+/* Compact sprite (legacy pixel-art) */
 .ped-sprite {
-  width: 40px !important;
-  max-width: 40px !important;
+  width: 44px !important;
+  max-width: 44px !important;
   height: auto;
   flex-shrink: 0;
 }
@@ -1410,7 +1742,15 @@ header h1 {
 .ped-sprite canvas {
   width: 100%;
   height: auto;
-  max-width: 40px;
+  max-width: 44px;
+}
+
+/* Async PNG sprite canvas in pedigree nodes */
+.ped-sprite-canvas {
+  width: 44px;
+  max-width: 44px;
+  height: auto;
+  flex-shrink: 0;
 }
 
 .ped-node-name {
@@ -1448,22 +1788,42 @@ header h1 {
   border-color: var(--border);
 }
 
-/* Reference node (duplicate ancestor) */
+/* ---- Reference/Repeat Ancestor Nodes ---- */
+/* Smaller, less opaque, dotted border — visually distinguished from first appearance */
+
 .ped-ref {
-  opacity: 0.65;
+  opacity: 0.5;
   border-style: dotted;
   border-width: 2px;
+  min-width: 56px;
+  max-width: 72px;
+  padding: 3px 4px;
+}
+
+.ped-ref .ped-sprite,
+.ped-ref .ped-sprite canvas {
+  width: 32px !important;
+  max-width: 32px !important;
+}
+
+.ped-ref .ped-sprite-canvas {
+  width: 32px;
+  max-width: 32px;
 }
 
 .ped-ref:hover,
 .ped-ref:active {
-  opacity: 1;
+  opacity: 0.85;
 }
 
 .ped-ref-label {
   font-size: 7px;
   color: var(--accent);
   opacity: 0.8;
+}
+
+.ped-ref .ped-node-name {
+  font-size: 9px;
 }
 
 /* Pulse highlight animation */
@@ -1473,8 +1833,8 @@ header h1 {
 
 @keyframes ped-pulse {
   0% { box-shadow: 0 0 0 0 rgba(196, 162, 101, 0.7); }
-  25% { box-shadow: 0 0 0 6px rgba(196, 162, 101, 0.5); }
-  50% { box-shadow: 0 0 0 3px rgba(196, 162, 101, 0.3); }
+  25% { box-shadow: 0 0 0 8px rgba(196, 162, 101, 0.5); }
+  50% { box-shadow: 0 0 0 4px rgba(196, 162, 101, 0.3); }
   100% { box-shadow: 0 0 0 0 rgba(196, 162, 101, 0); }
 }
 
@@ -1487,13 +1847,45 @@ header h1 {
   max-height: 80vh;
 }
 
-/* ---- Generation border colors ---- */
-.tree-gen-0 { border-color: #44aa99; }
-.tree-gen-1 { border-color: var(--accent); }
-.tree-gen-2 { border-color: #7a8fcc; }
-.tree-gen-3 { border-color: #cc7acc; }
-.tree-gen-4 { border-color: #cc8855; }
-.tree-gen-5 { border-color: #cc5555; }
+/* ---- Generation border colors + subtle background tints ---- */
+.tree-gen-0 { border-color: #44aa99; background: rgba(68, 170, 153, 0.06); }
+.tree-gen-1 { border-color: var(--accent); background: rgba(196, 162, 101, 0.06); }
+.tree-gen-2 { border-color: #7a8fcc; background: rgba(122, 143, 204, 0.06); }
+.tree-gen-3 { border-color: #cc7acc; background: rgba(204, 122, 204, 0.06); }
+.tree-gen-4 { border-color: #cc8855; background: rgba(204, 136, 85, 0.06); }
+.tree-gen-5 { border-color: #cc5555; background: rgba(204, 85, 85, 0.06); }
+
+/* ---- Line Type Legend ---- */
+.tree-line-legend {
+  display: flex;
+  gap: 16px;
+  font-size: 10px;
+  color: var(--text-muted);
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+.tree-line-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.tree-line-solid {
+  display: inline-block;
+  width: 16px;
+  height: 0;
+  border-bottom: 2px solid var(--border);
+}
+
+.tree-line-dotted {
+  display: inline-block;
+  width: 16px;
+  height: 0;
+  border-bottom: 2px dotted var(--border);
+  opacity: 0.6;
+}
 
 /* Generation legend */
 .tree-legend {
@@ -2457,7 +2849,7 @@ header h1 {
 
 .quest-widget {
   position: fixed;
-  bottom: 16px;
+  bottom: calc(56px + env(safe-area-inset-bottom));
   right: 12px;
   z-index: 150;
   max-width: 280px;
@@ -2570,10 +2962,16 @@ header h1 {
     font-size: 18px;
   }
 
-  /* Tab nav: smaller text, tighter — 6 tabs fit with icon for Options */
+  /* Tab nav: smaller text, tighter for mobile */
   .tab-btn {
     padding: 8px 0;
     font-size: 12px;
+  }
+
+  #footer-nav .tab-btn {
+    font-size: 12px;
+    padding: 8px 0;
+    min-height: 36px;
   }
 
   /* Tab panels: less padding */
@@ -2672,7 +3070,7 @@ header h1 {
   /* Quest widget: smaller on mobile */
   .quest-widget {
     max-width: 220px;
-    bottom: 12px;
+    bottom: calc(52px + env(safe-area-inset-bottom));
     right: 8px;
   }
 
@@ -2702,13 +3100,18 @@ header h1 {
   }
 
   .ped-parents {
-    gap: 2px;
+    gap: 3px;
   }
 
   .ped-node {
     padding: 3px 4px;
     min-width: 52px;
     max-width: 68px;
+  }
+
+  .ped-node-subject {
+    min-width: 64px;
+    max-width: 80px;
   }
 
   .ped-sprite {
@@ -2720,6 +3123,33 @@ header h1 {
     max-width: 32px;
   }
 
+  .ped-sprite-canvas {
+    width: 32px;
+    max-width: 32px;
+  }
+
+  .ped-node-subject .ped-sprite,
+  .ped-node-subject .ped-sprite canvas {
+    width: 40px !important;
+    max-width: 40px !important;
+  }
+
+  .ped-node-subject .ped-sprite-canvas {
+    width: 40px;
+    max-width: 40px;
+  }
+
+  .ped-ref .ped-sprite,
+  .ped-ref .ped-sprite canvas {
+    width: 24px !important;
+    max-width: 24px !important;
+  }
+
+  .ped-ref .ped-sprite-canvas {
+    width: 24px;
+    max-width: 24px;
+  }
+
   .ped-node-name {
     font-size: 9px;
   }
@@ -2728,17 +3158,29 @@ header h1 {
     font-size: 7px;
   }
 
-  .ped-vline {
-    height: 8px;
+  .ped-parent-label {
+    font-size: 8px;
+    margin-bottom: 2px;
   }
 
-  .ped-parents > .ped-family > .ped-child::after {
+  .ped-vline {
+    height: 10px;
+  }
+
+  .ped-parents > .ped-family > .ped-child::after,
+  .ped-branch > .ped-family > .ped-child::after,
+  .ped-branch > .ped-child::after {
     height: 8px;
   }
 
   .tree-legend {
     font-size: 9px;
     gap: 6px;
+  }
+
+  .tree-line-legend {
+    font-size: 9px;
+    gap: 10px;
   }
 
   /* ---- Almanac: mobile single-pane toggle ---- */
@@ -2825,6 +3267,11 @@ header h1 {
     padding: 2px 3px;
   }
 
+  .ped-node-subject {
+    min-width: 52px;
+    max-width: 68px;
+  }
+
   .ped-sprite {
     width: 26px !important;
     max-width: 26px !important;
@@ -2834,11 +3281,31 @@ header h1 {
     max-width: 26px;
   }
 
+  .ped-sprite-canvas {
+    width: 26px;
+    max-width: 26px;
+  }
+
+  .ped-ref .ped-sprite,
+  .ped-ref .ped-sprite canvas {
+    width: 20px !important;
+    max-width: 20px !important;
+  }
+
+  .ped-ref .ped-sprite-canvas {
+    width: 20px;
+    max-width: 20px;
+  }
+
   .ped-node-name {
     font-size: 8px;
   }
 
   .ped-node-gen {
     font-size: 6px;
+  }
+
+  .ped-parent-label {
+    font-size: 7px;
   }
 }

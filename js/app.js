@@ -1,14 +1,16 @@
 // App initialization, tab switching, settings, and shared dragon registry
-import { initGenerateTab } from './ui-generator.js';
-import { initBreedTab } from './ui-breeder.js';
+import { initGenerateTab, getCapturedDragonIds, restoreCapturedDragons } from './ui-generator.js';
+import { initBreedTab, getParentAId, getParentBId, restoreBreedParents } from './ui-breeder.js';
 import { initStablesTab } from './ui-stables.js';
 import { onStablesChange } from './ui-stables.js';
 import { initQuestsTab } from './ui-quests.js';
 import { initAlmanacTab, refreshAlmanac } from './ui-almanac.js';
 import { initOptionsTab } from './ui-options.js';
-import { initSettings, getSetting, onSettingChange } from './settings.js';
+import { initSettings, getSetting, setSetting, onSettingChange } from './settings.js';
 import { initQuestWidget } from './ui-quest-widget.js';
-import { loadGame, saveGame, triggerSave, onStatChange, registerAchievementHooks } from './save-manager.js';
+import { restoreHighlightedQuest } from './quest-highlight.js';
+import { getActiveQuests } from './quest-engine.js';
+import { loadGame, saveGame, triggerSave, onStatChange, registerAchievementHooks, registerBreedHooks, applyPendingBreedRestore, registerCaptureHooks, applyPendingCapturedRestore } from './save-manager.js';
 import { checkAchievements, onAchievementUnlock, getAchievementSaveData, restoreAchievements } from './achievements.js';
 
 // Shared dragon registry — all dragons accessible across tabs
@@ -48,8 +50,18 @@ function initTabs() {
 
       btn.classList.add('active');
       document.getElementById(`tab-${target}`).classList.add('active');
+
+      // Persist active tab
+      setSetting('active-tab', target);
     });
   });
+
+  // Restore saved tab (if not the default)
+  const savedTab = getSetting('active-tab');
+  if (savedTab && savedTab !== 'generate') {
+    const targetBtn = document.querySelector(`.tab-btn[data-tab="${savedTab}"]`);
+    if (targetBtn) targetBtn.click();
+  }
 }
 
 // Apply theme from settings
@@ -58,6 +70,46 @@ function applyTheme(theme) {
     document.body.classList.add('light-mode');
   } else {
     document.body.classList.remove('light-mode');
+  }
+}
+
+// Initialize placeholder tabs (Shop, Inventory, Skills) with "Coming Soon" UI
+function initPlaceholderTabs() {
+  const placeholders = [
+    { id: 'tab-shop', name: 'Shop', icon: '🏪', desc: 'Buy and sell items, eggs, and upgrades.' },
+    { id: 'tab-inventory', name: 'Inventory', icon: '🎒', desc: 'View your collected items and resources.' },
+    { id: 'tab-skills', name: 'Skills', icon: '⚡', desc: 'Train and improve your dragon-keeping abilities.' },
+  ];
+
+  for (const { id, name, icon, desc } of placeholders) {
+    const panel = document.getElementById(id);
+    if (!panel) continue;
+    panel.innerHTML = '';
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'placeholder-tab';
+
+    const iconEl = document.createElement('div');
+    iconEl.className = 'placeholder-icon';
+    iconEl.textContent = icon;
+    wrapper.appendChild(iconEl);
+
+    const titleEl = document.createElement('div');
+    titleEl.className = 'placeholder-title';
+    titleEl.textContent = name;
+    wrapper.appendChild(titleEl);
+
+    const badge = document.createElement('div');
+    badge.className = 'placeholder-badge';
+    badge.textContent = 'Coming Soon';
+    wrapper.appendChild(badge);
+
+    const descEl = document.createElement('div');
+    descEl.className = 'placeholder-desc';
+    descEl.textContent = desc;
+    wrapper.appendChild(descEl);
+
+    panel.appendChild(wrapper);
   }
 }
 
@@ -70,10 +122,18 @@ function init() {
   applyTheme(getSetting('theme'));
   onSettingChange('theme', applyTheme);
 
-  // Register achievement hooks (breaks circular dependency: save-manager <-> achievements)
+  // Art style change: reload page to re-render all sprites with the new style
+  onSettingChange('art-style', () => {
+    window.location.reload();
+  });
+
+  // Register hooks (breaks circular dependencies: save-manager <-> UI modules)
   registerAchievementHooks(getAchievementSaveData, restoreAchievements);
+  registerBreedHooks(getParentAId, getParentBId, restoreBreedParents);
+  registerCaptureHooks(getCapturedDragonIds, restoreCapturedDragons);
 
   // Load saved game state (restores dragons, stables, quests, stats, ID counters, achievements)
+  // Breed parents + captured dragons are deferred (stored as IDs, applied after UI init)
   const hadSave = loadGame(registry);
   if (hadSave) {
     console.log('Restored game from save');
@@ -86,7 +146,15 @@ function init() {
   initQuestsTab(document.getElementById('tab-quests'), registry);
   initAlmanacTab(document.getElementById('tab-almanac'), registry);
   initOptionsTab(document.getElementById('tab-options'));
+  initPlaceholderTabs();
   initQuestWidget();
+
+  // Apply deferred restores (breed parents + captured dragons) after UI init
+  applyPendingCapturedRestore(registry);
+  applyPendingBreedRestore(registry);
+
+  // Restore pinned quest from saved setting (after quests + widget are initialized)
+  restoreHighlightedQuest(getActiveQuests());
 
   // Wire auto-save: save whenever stables change (covers add/remove/release-all)
   // Quest completion and refresh already call triggerSave() directly

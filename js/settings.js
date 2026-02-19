@@ -4,9 +4,12 @@ const STORAGE_KEY = 'dragon-keeper-settings';
 
 const DEFAULTS = {
   'theme': 'dark',
+  'art-style': 'drawn',        // 'drawn' = hand-drawn PNGs, 'pixel' = legacy pixel art
   'quest-halos': true,
   'quest-genotype-highlight': true,
   'pinned-quest-widget': true,
+  'active-tab': 'generate',
+  'pinned-quest-id': null,
 };
 
 let settings = { ...DEFAULTS };

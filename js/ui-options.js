@@ -25,6 +25,15 @@ export function initOptionsTab(container) {
     })
   );
 
+  wrapper.appendChild(
+    makeToggle('Art Style', 'Switch between hand-drawn and pixel art sprites', 'art-style', {
+      onLabel: 'Pixel',
+      offLabel: 'Drawn',
+      isOn: () => getSetting('art-style') === 'pixel',
+      toggle: (isOn) => setSetting('art-style', isOn ? 'pixel' : 'drawn'),
+    })
+  );
+
   // --- Quest Features ---
   wrapper.appendChild(el('div', 'options-section-header', 'Quest Features'));
 

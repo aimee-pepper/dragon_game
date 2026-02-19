@@ -1,0 +1,2 @@
+[2/18/2026, 11:49:24 AM] layer "tail_whip_s_o.png": Duplicate path: tail_whip_s_o.png
+[2/18/2026, 11:49:24 AM] layer "tail_normal_s_o.png": Duplicate path: tail_normal_s_o.png

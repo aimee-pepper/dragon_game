@@ -1,5 +1,5 @@
 // Quest highlighting — graduated halo brightness based on allele match quality
-import { getSetting } from './settings.js';
+import { getSetting, setSetting } from './settings.js';
 import { checkDragonMeetsQuest, getRequirementStatus } from './quest-engine.js';
 import { GENE_DEFS, TRIANGLE_DEFS, COLOR_NAMES, FINISH_NAMES, ELEMENT_NAMES } from './gene-config.js';
 
@@ -12,7 +12,26 @@ export function getHighlightedQuest() {
 
 export function setHighlightedQuest(quest) {
   highlightedQuest = quest;
+  setSetting('pinned-quest-id', quest?.id ?? null);
   for (const cb of highlightListeners) cb(quest);
+}
+
+/**
+ * Restore highlighted quest from persisted setting.
+ * Call after quests have been loaded/initialized.
+ */
+export function restoreHighlightedQuest(activeQuests) {
+  const savedId = getSetting('pinned-quest-id');
+  if (savedId == null) return;
+  const quest = activeQuests.find(q => q.id === savedId);
+  if (quest) {
+    highlightedQuest = quest;
+    // Notify listeners so UI updates (but don't re-save the setting)
+    for (const cb of highlightListeners) cb(quest);
+  } else {
+    // Quest no longer active — clear stale setting
+    setSetting('pinned-quest-id', null);
+  }
 }
 
 export function onHighlightChange(cb) {

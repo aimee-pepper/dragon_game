@@ -1,0 +1,1113 @@
+// Canvas-based dragon sprite renderer
+// Composites PNG layers with color blending and transparency
+//
+// Color pipeline per layer:
+//   1. Load greyscale PNG art (artist's luminance painting)
+//   2. Apply dragon color via HSL 'color' blend mode
+//      (takes hue+saturation from dragon, preserves luminance from art)
+//   3. Adjust luminance: lighten for bellies/membranes, darken for outlines
+//   4. Two-pass compositing based on finish opacity gene
+//
+// Multi-pass compositing model (4-pass):
+//   Layer A — Full dragon base art (offscreen, composited at layerAAlpha):
+//     - ALL layers (fills + outlines + details) rendered in z-order at α=1.0
+//     - Produces the complete dragon as a flat image
+//     - Composited onto final canvas at layerAAlpha (halved when fade exists)
+//   Layer A2 — Fade layer (wing/leg fade variants):
+//     - Same render as Layer A but using wingfade_*/legfade_* PNGs
+//     - These PNGs have painted-in transparency gradients at limb/body junctions
+//     - Composited at same layerAAlpha — stacking with Layer A softens edges
+//     - For non-transparent dragons (bodyAlpha=1.0), both layers render at full
+//   Fixed details — Face details (eyes, mouth, etc.) at full opacity:
+//     - Layers with colorMode 'fixed' drawn directly at α=1.0
+//     - No color correction — uses original PNG art colors
+//     - Sits above the transparent body, below the outline overlay
+//   Layer B — Outline overlay (pixel-processed):
+//     - Base + fade mask layers re-rendered: fills as white, outlines as black
+//     - White pixels made transparent, black pixels → 50% grey
+//     - Grey pixels get dragon color via darken luminance shift
+//     - Overlaid at α=1.0 so outlines "punch through" the transparency
+//   Result: outlines stay crisp over transparent bodies, soft blending at limb
+//           junctions, face details keep their original colors
+
+import {
+  ASSET_TABLE,
+  resolveAssetsForPhenotype,
+  COLOR_ADJUSTMENTS,
+  WING_TRANSPARENCY,
+  BODY_TRANSPARENCY,
+  SPRITE_WIDTH,
+  SPRITE_HEIGHT,
+  SPRITE_WIDTH_COMPACT,
+  SPRITE_HEIGHT_COMPACT,
+  getFinishEffect,
+  getAnchor,
+} from './sprite-config.js';
+import { classifyLevel } from './gene-config.js';
+
+// ============================================================
+// ASSET CACHE — loaded PNGs stored by filename
+// ============================================================
+const assetCache = new Map();
+const loadingPromises = new Map();
+const ASSET_BASE_PATH = 'assets/sprites/';
+
+/**
+ * Load a sprite PNG and cache it.
+ * Returns an HTMLImageElement (or null if not found).
+ */
+export function loadSpriteAsset(filename) {
+  const fullname = filename.endsWith('.png') ? filename : filename + '.png';
+
+  if (assetCache.has(fullname)) {
+    return Promise.resolve(assetCache.get(fullname));
+  }
+  if (loadingPromises.has(fullname)) {
+    return loadingPromises.get(fullname);
+  }
+
+  const promise = new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      assetCache.set(fullname, img);
+      loadingPromises.delete(fullname);
+      resolve(img);
+    };
+    img.onerror = () => {
+      // Asset not found — that's OK, just means this part doesn't have art yet
+      assetCache.set(fullname, null);
+      loadingPromises.delete(fullname);
+      resolve(null);
+    };
+    img.src = ASSET_BASE_PATH + fullname;
+  });
+
+  loadingPromises.set(fullname, promise);
+  return promise;
+}
+
+/**
+ * Preload all assets for a given set of resolved asset entries.
+ * Returns a Map<filename, HTMLImageElement|null>
+ */
+export async function preloadAssets(assetEntries) {
+  const assetMap = new Map();
+  const promises = [];
+
+  for (const entry of assetEntries) {
+    const fullname = entry.filename + '.png';
+    if (assetMap.has(fullname)) continue; // skip duplicates (same PNG at different z-levels)
+
+    promises.push(
+      loadSpriteAsset(fullname).then(img => {
+        assetMap.set(fullname, img);
+      })
+    );
+  }
+
+  await Promise.all(promises);
+  return assetMap;
+}
+
+/**
+ * Preload all assets for a phenotype (convenience wrapper).
+ * Resolves which assets the phenotype needs, then preloads them.
+ */
+export async function preloadDragonAssets(phenotype) {
+  const entries = resolveAssetsForPhenotype(phenotype);
+  return preloadAssets(entries);
+}
+
+// ============================================================
+// COLOR BLENDING UTILITIES
+// ============================================================
+
+/** Convert RGB (0-255) to HSL (h: 0-360, s: 0-1, l: 0-1) */
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  let h, s;
+  const l = (max + min) / 2;
+
+  if (max === min) {
+    h = s = 0;
+  } else {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+      case g: h = ((b - r) / d + 2) / 6; break;
+      case b: h = ((r - g) / d + 4) / 6; break;
+    }
+  }
+  return { h: h * 360, s, l };
+}
+
+/** Convert HSL to RGB (returns 0-255 values) */
+function hslToRgb(h, s, l) {
+  h /= 360;
+  let r, g, b;
+  if (s === 0) {
+    r = g = b = l;
+  } else {
+    const hue2rgb = (p, q, t) => {
+      if (t < 0) t += 1;
+      if (t > 1) t -= 1;
+      if (t < 1/6) return p + (q - p) * 6 * t;
+      if (t < 1/2) return q;
+      if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+      return p;
+    };
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r = hue2rgb(p, q, h + 1/3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1/3);
+  }
+  return {
+    r: Math.round(r * 255),
+    g: Math.round(g * 255),
+    b: Math.round(b * 255),
+  };
+}
+
+/**
+ * Apply color blend to greyscale pixel data.
+ * Uses the Photoshop "Color" blend approach:
+ *   Result = HSL(dragonHue, dragonSat, artLuminance + luminanceShift)
+ *
+ * @param {ImageData} imageData - pixel data to modify in place
+ * @param {object} dragonRgb - { r, g, b } dragon's base color (0-255)
+ * @param {number} luminanceShift - how much to shift luminance (-1 to 1)
+ */
+function applyColorBlend(imageData, dragonRgb, luminanceShift = 0) {
+  const dragonHsl = rgbToHsl(dragonRgb.r, dragonRgb.g, dragonRgb.b);
+  const data = imageData.data;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const a = data[i + 3];
+    if (a === 0) continue; // skip fully transparent pixels
+
+    // Get luminance from the greyscale art pixel
+    // (for greyscale art, r=g=b, but handle any art gracefully)
+    const artR = data[i];
+    const artG = data[i + 1];
+    const artB = data[i + 2];
+    const artHsl = rgbToHsl(artR, artG, artB);
+
+    // Use dragon's hue + saturation, art's luminance (+ shift)
+    let targetL = artHsl.l + luminanceShift;
+    targetL = Math.max(0, Math.min(1, targetL)); // clamp
+
+    const result = hslToRgb(dragonHsl.h, dragonHsl.s, targetL);
+    data[i]     = result.r;
+    data[i + 1] = result.g;
+    data[i + 2] = result.b;
+    // alpha stays the same
+  }
+}
+
+// ============================================================
+// MAIN RENDER FUNCTION
+// ============================================================
+
+/**
+ * Render a dragon sprite to a canvas element.
+ * Uses the data-driven ASSET_TABLE + resolveAssetsForPhenotype()
+ * to determine which layers to render.
+ *
+ * @param {object} phenotype - from resolveFullPhenotype()
+ * @param {object} options
+ * @param {boolean} options.compact - render at half size
+ * @param {boolean} options.animated - enable finish shimmer effects
+ * @returns {Promise<HTMLCanvasElement>} the rendered sprite canvas
+ */
+export async function renderDragonSprite(phenotype, options = {}) {
+  const { compact = false, animated = false } = options;
+
+  const width = compact ? SPRITE_WIDTH_COMPACT : SPRITE_WIDTH;
+  const height = compact ? SPRITE_HEIGHT_COMPACT : SPRITE_HEIGHT;
+
+  // Create output canvas
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  canvas.className = 'dragon-sprite-canvas';
+  const ctx = canvas.getContext('2d');
+
+  // Resolve which assets this dragon needs
+  const matchedAssets = resolveAssetsForPhenotype(phenotype);
+
+  // ── Fade layer setup ──
+  // Fade variants of wings and legs have painted-in transparency gradients
+  // where limbs meet the body, creating a natural soft blend.
+  // Map: base filename → fade filename (same anchor positions)
+  const FADE_PREFIX_MAP = {
+    'wing_': 'wingfade_',
+    'leg_': 'legfade_',
+  };
+
+  function getFadeFilename(baseFilename) {
+    for (const [prefix, fadePrefix] of Object.entries(FADE_PREFIX_MAP)) {
+      if (baseFilename.startsWith(prefix)) {
+        return fadePrefix + baseFilename.slice(prefix.length);
+      }
+    }
+    return null; // not a wing/leg layer — no fade variant
+  }
+
+  // Build list of fade filenames we need
+  const fadeFilenames = new Set();
+  for (const asset of matchedAssets) {
+    const fadeName = getFadeFilename(asset.filename);
+    if (fadeName) fadeFilenames.add(fadeName);
+  }
+
+  // Preload all needed PNGs (base + fade)
+  const fadeEntries = [...fadeFilenames].map(f => ({ filename: f }));
+  const assetMap = await preloadAssets([...matchedAssets, ...fadeEntries]);
+
+  // Get dragon's base color
+  const dragonRgb = phenotype.color.rgb;
+
+  // Get opacity tier from finish for transparency calculations
+  // finish.levels[0] is the opacity axis of the finish triangle
+  const opacityLevel = classifyLevel(phenotype.finish.levels[0]);
+  const bodyAlpha = BODY_TRANSPARENCY[opacityLevel];
+  const wingAlpha = WING_TRANSPARENCY[opacityLevel];
+
+  // For 4-pass compositing: halve opacity for non-max dragons.
+  // Layer A (base) + Layer A2 (fade) each get half the opacity,
+  // so they stack to approximately the original value.
+  // Fully-opaque dragons (bodyAlpha=1.0) stay at 1.0 — no halving.
+  const hasFadeLayers = fadeFilenames.size > 0;
+  const layerAAlpha = (hasFadeLayers && bodyAlpha < 1.0) ? bodyAlpha * 0.5 : bodyAlpha;
+
+  // Determine body variant for anchor lookups
+  const bodyTypeName = phenotype.traits.body_type?.name?.toLowerCase() || 'normal';
+  const bodyVariant = { 'serpentine': 'sinuous', 'normal': 'standard', 'bulky': 'bulky' }[bodyTypeName] || 'standard';
+
+  // Determine wing/limb counts for config-aware anchor lookups
+  // Gene values: frame_wings 2=two(2w), 3=four(4w), 4=six(6w)
+  //              frame_limbs 1=two(2l), 2=four(4l), 3=six(6l)
+  const wingGeneVal = phenotype.traits.frame_wings?.rounded ?? 2;
+  const limbGeneVal = phenotype.traits.frame_limbs?.rounded ?? 2;
+  const WING_COUNT_MAP = { 2: 2, 3: 4, 4: 6 };
+  const LIMB_COUNT_MAP = { 1: 2, 2: 4, 3: 6 };
+  const actualWingCount = WING_COUNT_MAP[wingGeneVal] || 2;
+  const actualLimbCount = LIMB_COUNT_MAP[limbGeneVal] || 4;
+
+  // ── Pre-scan: build rotation pivot map for wing/leg groups ──
+  // For groups with rotation (wings, legs), all layers rotate around the
+  // group anchor point. The group anchor is the _o (outline) layer position,
+  // which has model offset (0,0) — i.e. the true attachment point.
+  // We use outer_o as the canonical pivot for each (layerGroup, pair) combo.
+  const groupPivots = {};
+  for (const asset of matchedAssets) {
+    if (!asset.pair) continue;
+    // Build the same anchor context that the render loop will use
+    const pivotCtx = {};
+    if (asset.gene === 'wing') {
+      pivotCtx.pair = asset.pair;
+      pivotCtx.bodyType = bodyVariant;
+      pivotCtx.wingCount = actualWingCount;
+    } else if (asset.gene === 'leg') {
+      pivotCtx.pair = asset.pair;
+      pivotCtx.bodyType = bodyVariant;
+      pivotCtx.limbCount = actualLimbCount;
+    }
+    const pivotAnchor = getAnchor(asset.filename, pivotCtx);
+    const rot = pivotAnchor.rot || 0;
+    if (Math.abs(rot) < 0.01) continue;
+
+    const groupKey = `${asset.layerGroup}:p${asset.pair}`;
+    // Use _o layers as pivot (they have 0,0 model offset = true group position)
+    if (!groupPivots[groupKey] && asset.filename.endsWith('_o')) {
+      let px = pivotAnchor.x;
+      let py = pivotAnchor.y;
+      // Horn chaining would apply here too, but horns don't have pairs/rotation
+      groupPivots[groupKey] = { x: px, y: py, rot };
+    }
+  }
+
+  // ── Pre-process all layers: color-blend, compute anchors, build mask versions ──
+  const processedLayers = [];
+  for (const asset of matchedAssets) {
+    const fullname = asset.filename + '.png';
+    const img = assetMap.get(fullname);
+    if (!img) continue; // no asset loaded (file doesn't exist yet)
+
+    // Create offscreen canvas for this layer's color processing
+    const offscreen = document.createElement('canvas');
+    offscreen.width = img.width;
+    offscreen.height = img.height;
+    const offCtx = offscreen.getContext('2d');
+    offCtx.drawImage(img, 0, 0);
+
+    // Apply color blend (unless 'fixed' layer like eyes/mouth)
+    if (asset.colorMode !== 'fixed') {
+      const imageData = offCtx.getImageData(0, 0, offscreen.width, offscreen.height);
+      const adjustment = COLOR_ADJUSTMENTS[asset.colorMode];
+      const shift = adjustment ? adjustment.luminanceShift : 0;
+      applyColorBlend(imageData, dragonRgb, shift);
+      offCtx.putImageData(imageData, 0, 0);
+    }
+
+    // Build anchor context based on asset type
+    const anchorCtx = {};
+    if (asset.gene === 'wing') {
+      anchorCtx.pair = asset.pair;
+      anchorCtx.bodyType = bodyVariant;
+      anchorCtx.wingCount = actualWingCount;
+    } else if (asset.gene === 'leg') {
+      anchorCtx.pair = asset.pair;
+      anchorCtx.bodyType = bodyVariant;
+      anchorCtx.limbCount = actualLimbCount;
+    } else if (asset.gene === 'head' || asset.gene === 'tail' || asset.gene === 'spines') {
+      anchorCtx.bodyType = bodyVariant;
+    }
+
+    const anchor = getAnchor(asset.filename, anchorCtx);
+    let anchorX = anchor.x;
+    let anchorY = anchor.y;
+    const rotation = anchor.rot || 0;
+
+    // Horn chaining: horns are stored as offsets from head position
+    if (asset.gene === 'horns') {
+      const headAnchor = getAnchor('head_o', { bodyType: bodyVariant });
+      anchorX += headAnchor.x;
+      anchorY += headAnchor.y;
+    }
+
+    // Classify layer type for multi-pass rendering:
+    //   'outline' = colored outlines (opacityMode 'opaque', colorMode != 'fixed')
+    //   'fixed'   = face details like eyes/mouth (colorMode 'fixed') — no color correction
+    //   'fill'    = body/wing fills (everything else)
+    const isOutline = asset.opacityMode === 'opaque' && asset.colorMode !== 'fixed';
+    const isFixedDetail = asset.colorMode === 'fixed';
+
+    // Build mask canvas for Layer B (white-fill / black-outline trick).
+    // EVERY layer gets a mask: fills + fixed details → solid white, outlines → solid black.
+    // When composited in z-order, white fills paint over black outlines beneath,
+    // so only truly-visible outlines survive. Then white→transparent, black→colored.
+    const maskCanvas = document.createElement('canvas');
+    maskCanvas.width = img.width;
+    maskCanvas.height = img.height;
+    const maskCtx = maskCanvas.getContext('2d');
+    maskCtx.drawImage(img, 0, 0);
+    const maskData = maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
+    if (isOutline) {
+      // Outlines → solid black (0,0,0), preserving original alpha
+      for (let i = 0; i < maskData.data.length; i += 4) {
+        if (maskData.data[i + 3] === 0) continue;
+        maskData.data[i]     = 0;
+        maskData.data[i + 1] = 0;
+        maskData.data[i + 2] = 0;
+      }
+    } else {
+      // Fills + fixed details → solid white (255,255,255), preserving original alpha
+      // Fixed details become white so they erase outlines beneath in Layer B,
+      // and then get made transparent — they render separately without color correction.
+      for (let i = 0; i < maskData.data.length; i += 4) {
+        if (maskData.data[i + 3] === 0) continue;
+        maskData.data[i]     = 255;
+        maskData.data[i + 1] = 255;
+        maskData.data[i + 2] = 255;
+      }
+    }
+    maskCtx.putImageData(maskData, 0, 0);
+
+    processedLayers.push({ asset, offscreen, maskCanvas, anchorX, anchorY, rotation, isOutline, isFixedDetail });
+  }
+
+  // ── Pre-process fade layers (Layer A2): wing/leg fade variants ──
+  // These use the same color, anchor, and mask logic as their base counterparts,
+  // but load the fade PNG (which has painted-in transparency gradients).
+  const fadeLayers = [];
+  for (const asset of matchedAssets) {
+    const fadeName = getFadeFilename(asset.filename);
+    if (!fadeName) continue; // not a wing/leg layer
+
+    const fullname = fadeName + '.png';
+    const img = assetMap.get(fullname);
+    if (!img) continue; // fade PNG not available
+
+    // Color-blend the fade layer the same way as the base
+    const offscreen = document.createElement('canvas');
+    offscreen.width = img.width;
+    offscreen.height = img.height;
+    const offCtx = offscreen.getContext('2d');
+    offCtx.drawImage(img, 0, 0);
+
+    if (asset.colorMode !== 'fixed') {
+      const imageData = offCtx.getImageData(0, 0, offscreen.width, offscreen.height);
+      const adjustment = COLOR_ADJUSTMENTS[asset.colorMode];
+      const shift = adjustment ? adjustment.luminanceShift : 0;
+      applyColorBlend(imageData, dragonRgb, shift);
+      offCtx.putImageData(imageData, 0, 0);
+    }
+
+    // Use the SAME anchor as the base asset (fade files share positioning)
+    const anchorCtx = {};
+    if (asset.gene === 'wing') {
+      anchorCtx.pair = asset.pair;
+      anchorCtx.bodyType = bodyVariant;
+      anchorCtx.wingCount = actualWingCount;
+    } else if (asset.gene === 'leg') {
+      anchorCtx.pair = asset.pair;
+      anchorCtx.bodyType = bodyVariant;
+      anchorCtx.limbCount = actualLimbCount;
+    }
+    const anchor = getAnchor(asset.filename, anchorCtx); // base filename for anchor lookup
+    const anchorX = anchor.x;
+    const anchorY = anchor.y;
+    const rotation = anchor.rot || 0;
+
+    const isOutline = asset.opacityMode === 'opaque' && asset.colorMode !== 'fixed';
+    const isFixedDetail = asset.colorMode === 'fixed';
+
+    // Build mask for Layer B (same logic as base)
+    const maskCanvas = document.createElement('canvas');
+    maskCanvas.width = img.width;
+    maskCanvas.height = img.height;
+    const maskCtx = maskCanvas.getContext('2d');
+    maskCtx.drawImage(img, 0, 0);
+    const maskData = maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
+    if (isOutline) {
+      for (let i = 0; i < maskData.data.length; i += 4) {
+        if (maskData.data[i + 3] === 0) continue;
+        maskData.data[i] = 0; maskData.data[i + 1] = 0; maskData.data[i + 2] = 0;
+      }
+    } else {
+      for (let i = 0; i < maskData.data.length; i += 4) {
+        if (maskData.data[i + 3] === 0) continue;
+        maskData.data[i] = 255; maskData.data[i + 1] = 255; maskData.data[i + 2] = 255;
+      }
+    }
+    maskCtx.putImageData(maskData, 0, 0);
+
+    fadeLayers.push({ asset, offscreen, maskCanvas, anchorX, anchorY, rotation, isOutline, isFixedDetail });
+  }
+
+  // ── Shared draw helper: draws a canvas onto a target context at position ──
+  function drawToCtx(targetCtx, sourceCanvas, layer, alpha) {
+    const { asset, anchorX, anchorY, rotation } = layer;
+    const groupKey = asset.pair ? `${asset.layerGroup}:p${asset.pair}` : null;
+    const groupPivot = groupKey ? groupPivots[groupKey] : null;
+    const hasRot = Math.abs(rotation) > 0.01;
+
+    targetCtx.save();
+    targetCtx.globalAlpha = alpha;
+
+    if (compact) {
+      const scaleX = width / SPRITE_WIDTH;
+      const scaleY = height / SPRITE_HEIGHT;
+      if (groupPivot) {
+        const px = groupPivot.x * scaleX;
+        const py = groupPivot.y * scaleY;
+        targetCtx.translate(px, py);
+        targetCtx.rotate(groupPivot.rot * Math.PI / 180);
+        targetCtx.translate(-px, -py);
+        targetCtx.drawImage(sourceCanvas,
+          anchorX * scaleX, anchorY * scaleY,
+          sourceCanvas.width * scaleX, sourceCanvas.height * scaleY);
+      } else if (hasRot) {
+        const cx = anchorX * scaleX + sourceCanvas.width * scaleX / 2;
+        const cy = anchorY * scaleY + sourceCanvas.height * scaleY / 2;
+        targetCtx.translate(cx, cy);
+        targetCtx.rotate(rotation * Math.PI / 180);
+        targetCtx.drawImage(sourceCanvas,
+          -sourceCanvas.width * scaleX / 2, -sourceCanvas.height * scaleY / 2,
+          sourceCanvas.width * scaleX, sourceCanvas.height * scaleY);
+      } else {
+        targetCtx.drawImage(sourceCanvas,
+          anchorX * scaleX, anchorY * scaleY,
+          sourceCanvas.width * scaleX, sourceCanvas.height * scaleY);
+      }
+    } else {
+      if (groupPivot) {
+        targetCtx.translate(groupPivot.x, groupPivot.y);
+        targetCtx.rotate(groupPivot.rot * Math.PI / 180);
+        targetCtx.translate(-groupPivot.x, -groupPivot.y);
+        targetCtx.drawImage(sourceCanvas, anchorX, anchorY);
+      } else if (hasRot) {
+        const cx = anchorX + sourceCanvas.width / 2;
+        const cy = anchorY + sourceCanvas.height / 2;
+        targetCtx.translate(cx, cy);
+        targetCtx.rotate(rotation * Math.PI / 180);
+        targetCtx.drawImage(sourceCanvas, -sourceCanvas.width / 2, -sourceCanvas.height / 2);
+      } else {
+        targetCtx.drawImage(sourceCanvas, anchorX, anchorY);
+      }
+    }
+
+    targetCtx.restore();
+  }
+
+  // ── Layer A: Full dragon (base art) ──
+  // Render ALL layers in z-order at α=1.0 onto offscreen canvas,
+  // then composite at layerAAlpha (halved when fade layers exist, full otherwise).
+  const layerA = document.createElement('canvas');
+  layerA.width = width;
+  layerA.height = height;
+  const layerACtx = layerA.getContext('2d');
+
+  for (const layer of processedLayers) {
+    drawToCtx(layerACtx, layer.offscreen, layer, 1.0);
+  }
+
+  ctx.save();
+  ctx.globalAlpha = layerAAlpha;
+  ctx.drawImage(layerA, 0, 0);
+  ctx.restore();
+
+  // ── Layer A2: Fade layer (wing/leg fade variants) ──
+  // Same render process as Layer A, but using fade PNGs that have painted-in
+  // transparency gradients where wings/legs meet the body.
+  // Composited at the same halved opacity — stacking with Layer A approximates
+  // the original bodyAlpha with a softer blend at limb junctions.
+  if (fadeLayers.length > 0) {
+    const layerA2 = document.createElement('canvas');
+    layerA2.width = width;
+    layerA2.height = height;
+    const layerA2Ctx = layerA2.getContext('2d');
+
+    for (const layer of fadeLayers) {
+      drawToCtx(layerA2Ctx, layer.offscreen, layer, 1.0);
+    }
+
+    ctx.save();
+    ctx.globalAlpha = layerAAlpha;
+    ctx.drawImage(layerA2, 0, 0);
+    ctx.restore();
+  }
+
+  // ── Fixed details pass: face details (eyes, mouth) at full opacity, no color correction ──
+  // Drawn AFTER Layers A/A2 (so they sit on top of the transparent body) but BEFORE Layer B
+  // (so outlines still overlay on top). These use the original PNG colors as-is.
+  for (const layer of processedLayers) {
+    if (layer.isFixedDetail) {
+      drawToCtx(ctx, layer.offscreen, layer, 1.0);
+    }
+  }
+
+  // ── Layer B: Outline overlay (white-fill / black-outline extraction) ──
+  // Render ALL mask layers (base + fade) in z-order: fills are white, outlines are black.
+  // The z-order compositing naturally handles overlap — white fills on top
+  // erase black outlines beneath. Only truly-visible outlines survive.
+  const layerB = document.createElement('canvas');
+  layerB.width = width;
+  layerB.height = height;
+  const layerBCtx = layerB.getContext('2d');
+
+  for (const layer of processedLayers) {
+    drawToCtx(layerBCtx, layer.maskCanvas, layer, 1.0);
+  }
+  // Include fade layer masks so their outlines also punch through
+  for (const layer of fadeLayers) {
+    drawToCtx(layerBCtx, layer.maskCanvas, layer, 1.0);
+  }
+
+  // Pixel-process Layer B:
+  //   White pixels (fills) → fully transparent
+  //   Dark pixels (surviving outlines) → 50% grey → dragon color with darken shift
+  const layerBData = layerBCtx.getImageData(0, 0, width, height);
+  const bData = layerBData.data;
+  for (let i = 0; i < bData.length; i += 4) {
+    if (bData[i + 3] === 0) continue; // skip transparent
+    const brightness = bData[i] + bData[i + 1] + bData[i + 2];
+    if (brightness > 384) {
+      // White-ish pixel (fill area) → make fully transparent
+      bData[i + 3] = 0;
+    } else {
+      // Dark pixel (outline) → set to uniform 50% grey for color blend
+      bData[i]     = 128;
+      bData[i + 1] = 128;
+      bData[i + 2] = 128;
+    }
+  }
+  // Apply dragon color with darken luminance shift to surviving outline pixels
+  const darkenShift = COLOR_ADJUSTMENTS.darken.luminanceShift;
+  applyColorBlend(layerBData, dragonRgb, darkenShift);
+  layerBCtx.putImageData(layerBData, 0, 0);
+
+  ctx.drawImage(layerB, 0, 0);
+
+  // Auto-crop transparent margins for efficient display
+  const croppedCanvas = autoCrop(canvas, 8); // 8px padding
+
+  // Add finish shimmer effect if animated
+  if (animated) {
+    const effect = getFinishEffect(phenotype.finish.displayName);
+    if (effect) {
+      startShimmerAnimation(croppedCanvas, effect, dragonRgb);
+    }
+  }
+
+  return croppedCanvas;
+}
+
+/**
+ * Auto-crop transparent margins from a canvas.
+ * Scans for the bounding box of non-transparent pixels and returns
+ * a new canvas trimmed to that region plus padding.
+ */
+function autoCrop(canvas, padding = 0) {
+  const ctx = canvas.getContext('2d');
+  const { width, height } = canvas;
+  const imageData = ctx.getImageData(0, 0, width, height);
+  const data = imageData.data;
+
+  let minX = width, minY = height, maxX = 0, maxY = 0;
+  let hasContent = false;
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const alpha = data[(y * width + x) * 4 + 3];
+      if (alpha > 0) {
+        hasContent = true;
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+
+  if (!hasContent) return canvas; // nothing drawn, return as-is
+
+  // Add padding
+  minX = Math.max(0, minX - padding);
+  minY = Math.max(0, minY - padding);
+  maxX = Math.min(width - 1, maxX + padding);
+  maxY = Math.min(height - 1, maxY + padding);
+
+  const cropW = maxX - minX + 1;
+  const cropH = maxY - minY + 1;
+
+  const cropped = document.createElement('canvas');
+  cropped.width = cropW;
+  cropped.height = cropH;
+  cropped.className = canvas.className;
+  const cropCtx = cropped.getContext('2d');
+  cropCtx.drawImage(canvas, minX, minY, cropW, cropH, 0, 0, cropW, cropH);
+
+  return cropped;
+}
+
+/**
+ * Render a dragon sprite synchronously using already-cached assets.
+ * Falls back to async render if assets aren't cached.
+ * Returns a wrapper div immediately (canvas fills in when ready).
+ */
+export function renderDragonSpriteSync(phenotype, options = {}) {
+  const { compact = false } = options;
+  const width = compact ? SPRITE_WIDTH_COMPACT : SPRITE_WIDTH;
+  const height = compact ? SPRITE_HEIGHT_COMPACT : SPRITE_HEIGHT;
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'dragon-sprite-wrapper';
+  wrapper.style.width = width + 'px';
+  wrapper.style.height = height + 'px';
+
+  // Start async render, append canvas when done
+  renderDragonSprite(phenotype, options).then(canvas => {
+    wrapper.appendChild(canvas);
+  });
+
+  return wrapper;
+}
+
+// ============================================================
+// SHIMMER / FINISH ANIMATION SYSTEM
+// ============================================================
+
+export function startShimmerAnimation(canvas, effect, dragonRgb) {
+  const ctx = canvas.getContext('2d');
+  const { width, height } = canvas;
+
+  // Capture the static render as a base image
+  const baseImageData = ctx.getImageData(0, 0, width, height);
+
+  let animFrame;
+  let startTime = performance.now();
+
+  function animate(time) {
+    const elapsed = (time - startTime) / 1000;
+
+    // Restore base image
+    ctx.putImageData(baseImageData, 0, 0);
+
+    switch (effect.type) {
+      case 'gradient_sweep':
+        renderGradientSweep(ctx, width, height, elapsed, effect, dragonRgb);
+        break;
+      case 'shine_pulse':
+        renderShinePulse(ctx, width, height, elapsed, effect);
+        break;
+      case 'hue_shift':
+        renderHueShift(ctx, width, height, elapsed, effect, dragonRgb);
+        break;
+      case 'sparkle':
+        renderSparkle(ctx, width, height, elapsed, effect);
+        break;
+      case 'opacity_pulse':
+        renderOpacityPulse(ctx, width, height, elapsed, effect);
+        break;
+    }
+
+    animFrame = requestAnimationFrame(animate);
+  }
+
+  animFrame = requestAnimationFrame(animate);
+
+  // Store cleanup function on canvas for disposal
+  canvas._stopAnimation = () => {
+    if (animFrame) cancelAnimationFrame(animFrame);
+  };
+}
+
+// --- Shimmer effect renderers ---
+
+function renderGradientSweep(ctx, w, h, time, effect, dragonRgb) {
+  const phase = (time * effect.speed) % 1;
+  const x = phase * w * 1.5 - w * 0.25;
+
+  ctx.save();
+  ctx.globalCompositeOperation = effect.blendMode;
+  ctx.globalAlpha = effect.intensity;
+
+  const grad = ctx.createLinearGradient(x - 80, 0, x + 80, h);
+  grad.addColorStop(0, 'transparent');
+  grad.addColorStop(0.5, 'rgba(255, 255, 255, 1)');
+  grad.addColorStop(1, 'transparent');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+
+  ctx.restore();
+}
+
+function renderShinePulse(ctx, w, h, time, effect) {
+  const pulse = (Math.sin(time * effect.speed * Math.PI * 2) + 1) / 2;
+
+  ctx.save();
+  ctx.globalCompositeOperation = effect.blendMode;
+  ctx.globalAlpha = pulse * effect.intensity;
+  ctx.fillStyle = 'white';
+  ctx.fillRect(0, 0, w, h);
+  ctx.restore();
+}
+
+function renderHueShift(ctx, w, h, time, effect, dragonRgb) {
+  const dragonHsl = rgbToHsl(dragonRgb.r, dragonRgb.g, dragonRgb.b);
+  const shift = Math.sin(time * effect.speed * Math.PI * 2) * effect.hueRange;
+  const shiftedHue = (dragonHsl.h + shift + 360) % 360;
+  const shiftedRgb = hslToRgb(shiftedHue, dragonHsl.s, 0.5);
+
+  const grad = ctx.createLinearGradient(0, 0, w, h);
+  grad.addColorStop(0, `rgba(${shiftedRgb.r}, ${shiftedRgb.g}, ${shiftedRgb.b}, 0.3)`);
+  grad.addColorStop(1, 'transparent');
+
+  ctx.save();
+  ctx.globalCompositeOperation = effect.blendMode;
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+  ctx.restore();
+}
+
+function renderSparkle(ctx, w, h, time, effect) {
+  ctx.save();
+  ctx.globalCompositeOperation = effect.blendMode;
+
+  // Deterministic sparkle positions based on count
+  for (let i = 0; i < effect.count; i++) {
+    const phase = (time * effect.speed + i / effect.count) % 1;
+    const sparkle = Math.max(0, Math.sin(phase * Math.PI));
+
+    // Pseudo-random but deterministic positions
+    const px = ((i * 137.5) % w);
+    const py = ((i * 89.3 + 50) % h);
+
+    ctx.globalAlpha = sparkle * effect.intensity;
+    ctx.fillStyle = 'white';
+    ctx.beginPath();
+    ctx.arc(px, py, 2 + sparkle * 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+function renderOpacityPulse(ctx, w, h, time, effect) {
+  const [minA, maxA] = effect.range;
+  const pulse = (Math.sin(time * effect.speed * Math.PI * 2) + 1) / 2;
+  const targetAlpha = minA + pulse * (maxA - minA);
+
+  // Dim the entire canvas
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-in';
+  ctx.globalAlpha = targetAlpha;
+  ctx.fillStyle = 'white';
+  ctx.fillRect(0, 0, w, h);
+  ctx.restore();
+}
+
+// ============================================================
+// DEBUG / TEST HARNESS
+// ============================================================
+
+/**
+ * Render a test dragon with a solid color to validate the pipeline.
+ * Uses procedural shapes (no PNGs needed) to test:
+ *   - HSL color blend with lighten/darken luminance shifts
+ *   - Wing membrane transparency (stacks when overlapping)
+ *   - Body opacity from finish gene
+ *   - Fixed-color layer (eyes)
+ */
+export function renderTestSprite(dragonRgb, opacityLevel = 3) {
+  const canvas = document.createElement('canvas');
+  canvas.width = SPRITE_WIDTH;
+  canvas.height = SPRITE_HEIGHT;
+  const ctx = canvas.getContext('2d');
+
+  const bodyAlpha = BODY_TRANSPARENCY[opacityLevel];
+  const wingAlpha = WING_TRANSPARENCY[opacityLevel];
+
+  // Simulate a dragon with colored rectangles
+  const dragonHsl = rgbToHsl(dragonRgb.r, dragonRgb.g, dragonRgb.b);
+
+  // Helper: get HSL color with luminance shift
+  const getColor = (luminanceShift) => {
+    const l = Math.max(0, Math.min(1, 0.5 + luminanceShift));
+    const rgb = hslToRgb(dragonHsl.h, dragonHsl.s, l);
+    return `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+  };
+
+  const baseColor = getColor(0);
+  const lightColor = getColor(COLOR_ADJUSTMENTS.lighten.luminanceShift);
+  const darkColor = getColor(COLOR_ADJUSTMENTS.darken.luminanceShift);
+
+  // BG wing (membrane - transparent)
+  ctx.save();
+  ctx.globalAlpha = wingAlpha;
+  ctx.fillStyle = lightColor;
+  ctx.fillRect(200, 30, 180, 120);
+  ctx.restore();
+
+  // BG wing outline
+  ctx.strokeStyle = darkColor;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(200, 30, 180, 120);
+
+  // Body fill
+  ctx.save();
+  ctx.globalAlpha = bodyAlpha;
+  ctx.fillStyle = baseColor;
+  ctx.beginPath();
+  ctx.ellipse(220, 220, 120, 90, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Belly fill
+  ctx.save();
+  ctx.globalAlpha = bodyAlpha;
+  ctx.fillStyle = lightColor;
+  ctx.beginPath();
+  ctx.ellipse(220, 260, 80, 40, 0, 0, Math.PI);
+  ctx.fill();
+  ctx.restore();
+
+  // Body outline (always opaque)
+  ctx.strokeStyle = darkColor;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.ellipse(220, 220, 120, 90, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Head
+  ctx.save();
+  ctx.globalAlpha = bodyAlpha;
+  ctx.fillStyle = baseColor;
+  ctx.beginPath();
+  ctx.ellipse(130, 140, 50, 40, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.strokeStyle = darkColor;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.ellipse(130, 140, 50, 40, -0.3, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Eyes (fixed - always opaque, no tint)
+  ctx.fillStyle = '#ffcc00';
+  ctx.beginPath();
+  ctx.arc(115, 132, 5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#111';
+  ctx.beginPath();
+  ctx.arc(115, 132, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // FG wing (membrane - transparent, overlaps body)
+  ctx.save();
+  ctx.globalAlpha = wingAlpha;
+  ctx.fillStyle = lightColor;
+  ctx.fillRect(170, 60, 200, 140);
+  ctx.restore();
+
+  // FG wing outline
+  ctx.strokeStyle = darkColor;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(170, 60, 200, 140);
+
+  // Tail
+  ctx.save();
+  ctx.globalAlpha = bodyAlpha;
+  ctx.fillStyle = baseColor;
+  ctx.beginPath();
+  ctx.moveTo(340, 230);
+  ctx.quadraticCurveTo(430, 240, 460, 300);
+  ctx.quadraticCurveTo(440, 310, 420, 300);
+  ctx.quadraticCurveTo(400, 260, 330, 250);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  ctx.strokeStyle = darkColor;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(340, 230);
+  ctx.quadraticCurveTo(430, 240, 460, 300);
+  ctx.quadraticCurveTo(440, 310, 420, 300);
+  ctx.quadraticCurveTo(400, 260, 330, 250);
+  ctx.closePath();
+  ctx.stroke();
+
+  // Legs
+  for (const lx of [170, 280]) {
+    ctx.save();
+    ctx.globalAlpha = bodyAlpha;
+    ctx.fillStyle = baseColor;
+    ctx.fillRect(lx - 12, 280, 24, 60);
+    ctx.restore();
+
+    ctx.strokeStyle = darkColor;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(lx - 12, 280, 24, 60);
+  }
+
+  // Label
+  ctx.fillStyle = '#888';
+  ctx.font = '11px monospace';
+  ctx.fillText(`Test Sprite | Opacity: ${opacityLevel} | Body \u03B1: ${bodyAlpha} | Wing \u03B1: ${wingAlpha}`, 10, SPRITE_HEIGHT - 10);
+
+  canvas.className = 'dragon-sprite-canvas';
+  return canvas;
+}
+
+/**
+ * Create an interactive test panel for previewing the color pipeline.
+ * Shows the test dragon in multiple colors and opacity levels.
+ */
+export function createTestPanel() {
+  const panel = document.createElement('div');
+  panel.className = 'sprite-test-panel';
+  panel.style.cssText = 'padding: 16px; display: flex; flex-wrap: wrap; gap: 16px; justify-content: center;';
+
+  const testColors = [
+    { name: 'Red', rgb: { r: 220, g: 40, b: 40 } },
+    { name: 'Blue', rgb: { r: 40, g: 80, b: 220 } },
+    { name: 'Green', rgb: { r: 40, g: 180, b: 60 } },
+    { name: 'Gold', rgb: { r: 220, g: 180, b: 40 } },
+    { name: 'Purple', rgb: { r: 160, g: 40, b: 200 } },
+    { name: 'Cyan', rgb: { r: 40, g: 200, b: 220 } },
+    { name: 'White', rgb: { r: 240, g: 240, b: 240 } },
+    { name: 'Black', rgb: { r: 30, g: 30, b: 30 } },
+  ];
+
+  // Render each color at different opacity levels
+  for (const color of testColors) {
+    for (const opacity of [0, 1, 2, 3]) {
+      const box = document.createElement('div');
+      box.style.cssText = 'text-align: center; background: rgba(0,0,0,0.3); border-radius: 8px; padding: 8px;';
+
+      const label = document.createElement('div');
+      label.style.cssText = 'color: #aaa; font-size: 11px; margin-bottom: 4px;';
+      label.textContent = `${color.name} / Opacity ${opacity}`;
+      box.appendChild(label);
+
+      const sprite = renderTestSprite(color.rgb, opacity);
+      sprite.style.cssText = 'width: 200px; height: 150px;';
+      box.appendChild(sprite);
+
+      panel.appendChild(box);
+    }
+  }
+
+  return panel;
+}
+
+/**
+ * Render a dragon from a full phenotype using actual PNG assets.
+ * This is the main entry point for the game to render dragons.
+ * Returns a promise resolving to the canvas, or a placeholder
+ * if no PNGs are available yet.
+ *
+ * @param {object} phenotype - from resolveFullPhenotype()
+ * @param {object} options
+ * @param {boolean} options.compact - render at half size (256x192)
+ * @param {boolean} options.animated - enable finish shimmer effects
+ * @param {boolean} options.fallbackToTest - if true, fall back to test sprite when no PNGs
+ * @returns {Promise<HTMLCanvasElement>}
+ */
+export async function renderDragon(phenotype, options = {}) {
+  const { compact = false, animated = false, fallbackToTest = true } = options;
+
+  // Try to render with real PNGs
+  const canvas = await renderDragonSprite(phenotype, { compact, animated });
+
+  // Check if anything was actually drawn (canvas might be blank if no PNGs exist)
+  const ctx = canvas.getContext('2d');
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  let hasPixels = false;
+  for (let i = 3; i < imageData.data.length; i += 4) {
+    if (imageData.data[i] > 0) { hasPixels = true; break; }
+  }
+
+  if (!hasPixels && fallbackToTest) {
+    // No PNGs available yet — fall back to procedural test sprite
+    const testCanvas = renderTestSprite(phenotype.color.rgb, classifyLevel(phenotype.finish.levels[0]));
+    if (compact) {
+      // Resize to compact dimensions
+      const compactCanvas = document.createElement('canvas');
+      compactCanvas.width = SPRITE_WIDTH_COMPACT;
+      compactCanvas.height = SPRITE_HEIGHT_COMPACT;
+      const compCtx = compactCanvas.getContext('2d');
+      compCtx.drawImage(testCanvas, 0, 0, SPRITE_WIDTH_COMPACT, SPRITE_HEIGHT_COMPACT);
+      compactCanvas.className = 'dragon-sprite-canvas';
+      return compactCanvas;
+    }
+    return testCanvas;
+  }
+
+  return canvas;
+}
+
+/**
+ * Debug utility: list all assets that would be used for a phenotype.
+ * Useful for verifying gene → asset resolution without PNGs.
+ */
+export function debugAssetList(phenotype) {
+  const matched = resolveAssetsForPhenotype(phenotype);
+  console.group(`Dragon Asset List (${matched.length} layers)`);
+  for (const asset of matched) {
+    const modStr = asset.modifier ? ` [${asset.modifier}]` : '';
+    console.log(
+      `z${String(asset.z).padStart(2, '0')} | ${asset.filename.padEnd(28)} | ${asset.colorMode.padEnd(7)} | ${asset.opacityMode.padEnd(6)} | ${asset.layerGroup}${modStr}`
+    );
+  }
+  console.groupEnd();
+  return matched;
+}

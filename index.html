@@ -11,23 +11,33 @@
 <body>
   <header>
     <h1>Dragon Keeper</h1>
-    <nav id="main-nav">
+    <nav id="header-nav">
       <button data-tab="generate" class="tab-btn active">Capture</button>
       <button data-tab="breed" class="tab-btn">Breed</button>
       <button data-tab="stables" class="tab-btn">Stables</button>
-      <button data-tab="quests" class="tab-btn">Quests</button>
-      <button data-tab="almanac" class="tab-btn">Almanac</button>
-      <button data-tab="options" class="tab-btn">⚙</button>
+      <button data-tab="shop" class="tab-btn">Shop</button>
     </nav>
   </header>
   <main id="app">
     <section id="tab-generate" class="tab-panel active"></section>
     <section id="tab-breed" class="tab-panel"></section>
     <section id="tab-stables" class="tab-panel"></section>
+    <section id="tab-shop" class="tab-panel"></section>
     <section id="tab-quests" class="tab-panel"></section>
     <section id="tab-almanac" class="tab-panel"></section>
+    <section id="tab-inventory" class="tab-panel"></section>
+    <section id="tab-skills" class="tab-panel"></section>
     <section id="tab-options" class="tab-panel"></section>
   </main>
+  <footer id="footer-bar">
+    <nav id="footer-nav">
+      <button data-tab="quests" class="tab-btn">Quests</button>
+      <button data-tab="almanac" class="tab-btn">Almanac</button>
+      <button data-tab="inventory" class="tab-btn">Inventory</button>
+      <button data-tab="skills" class="tab-btn">Skills</button>
+      <button data-tab="options" class="tab-btn">⚙</button>
+    </nav>
+  </footer>
   <script type="module" src="js/app.js"></script>
 </body>
 </html>

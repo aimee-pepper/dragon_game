@@ -1,6 +1,8 @@
 // Dragon card UI component
 import { GENE_DEFS, TRIANGLE_DEFS, DARK_ENERGY_PHENOTYPE } from './gene-config.js';
-import { renderDragonSprite } from './ui-dragon-sprite.js';
+import { renderDragonSprite as renderLegacySprite } from './ui-dragon-sprite.js';
+import { renderDragon, startShimmerAnimation } from './sprite-renderer.js';
+import { QUEST_SPARKLE_EFFECT } from './sprite-config.js';
 import { getSetting } from './settings.js';
 
 // Create a DOM element helper
@@ -45,8 +47,37 @@ export function renderDragonCard(dragon, options = {}) {
   const visual = el('div', 'card-visual');
 
   if (!hideSprite) {
-    const sprite = renderDragonSprite(p, compact);
-    visual.appendChild(sprite);
+    // Show legacy pixel-art sprite immediately (no async delay)
+    const legacySprite = renderLegacySprite(p, compact);
+    visual.appendChild(legacySprite);
+
+    // Attempt async PNG-based render — if PNGs exist, swap in the canvas sprite
+    // Skip if user prefers pixel art
+    if (getSetting('art-style') !== 'pixel') {
+      renderDragon(p, { compact, fallbackToTest: false }).then(canvas => {
+        // Check if the PNG render produced actual content
+        const ctx = canvas.getContext('2d');
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        let hasPixels = false;
+        for (let i = 3; i < imageData.data.length; i += 4) {
+          if (imageData.data[i] > 0) { hasPixels = true; break; }
+        }
+        if (hasPixels) {
+          // PNGs are available — replace legacy sprite with canvas sprite
+          canvas.className = 'dragon-sprite-canvas';
+          canvas.style.width = '100%';
+          canvas.style.maxWidth = compact ? '256px' : '512px';
+          canvas.style.height = 'auto';
+          legacySprite.replaceWith(canvas);
+
+          // Quest sparkle: if this card fully matches the pinned quest, add sparkle animation
+          if (card.classList.contains('quest-halo-5') && p.color?.rgb) {
+            startShimmerAnimation(canvas, QUEST_SPARKLE_EFFECT, p.color.rgb);
+          }
+        }
+        // Otherwise keep legacy sprite — no visual change
+      });
+    }
   }
 
   const info = el('div', 'visual-info');

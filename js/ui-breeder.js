@@ -2,6 +2,8 @@
 import { Dragon } from './dragon.js';
 import { renderDragonCard, renderPickerItem, renderGenotypeSection } from './ui-card.js';
 import { renderDragonSprite } from './ui-dragon-sprite.js';
+import { renderDragon } from './sprite-renderer.js';
+import { getSetting } from './settings.js';
 import { addToStables, getStabledDragons } from './ui-stables.js';
 import { openFamilyTree } from './ui-family-tree.js';
 import { applyQuestHalo, onHighlightChange, getHighlightedQuest } from './quest-highlight.js';
@@ -105,9 +107,26 @@ function renderParentSummary(container, which, dragon) {
   const p = dragon.phenotype;
   const wrapper = el('div', 'parent-summary');
 
-  // Compact sprite
+  // Compact sprite — show legacy immediately, swap in PNG asynchronously
   const sprite = renderDragonSprite(p, true);
+  sprite.classList.add('parent-sprite');
   wrapper.appendChild(sprite);
+
+  // Async PNG sprite swap (unless pixel art mode is preferred)
+  if (getSetting('art-style') !== 'pixel') {
+    renderDragon(p, { compact: true, fallbackToTest: false }).then(canvas => {
+      const ctx = canvas.getContext('2d');
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      let hasPixels = false;
+      for (let i = 3; i < imageData.data.length; i += 4) {
+        if (imageData.data[i] > 0) { hasPixels = true; break; }
+      }
+      if (hasPixels) {
+        canvas.className = 'parent-sprite-canvas';
+        sprite.replaceWith(canvas);
+      }
+    });
+  }
 
   // Name + color label
   const colorLabel = p.color.specialtyName ||
@@ -324,4 +343,23 @@ function openPicker(which) {
 // Allow external code to set parents (used by generator tab's "use as parent" feature)
 export function setParentExternal(which, dragon) {
   setParent(which, dragon);
+}
+
+// ── Persistence helpers ──
+
+export function getParentAId() {
+  return parentA?.id ?? null;
+}
+
+export function getParentBId() {
+  return parentB?.id ?? null;
+}
+
+/**
+ * Restore breed parents from saved dragon objects.
+ * Call after initBreedTab() so containers exist.
+ */
+export function restoreBreedParents(dragonA, dragonB) {
+  if (dragonA) setParent('A', dragonA);
+  if (dragonB) setParent('B', dragonB);
 }

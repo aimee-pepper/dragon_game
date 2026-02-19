@@ -1,8 +1,18 @@
 // Family tree visualization popup — Classic Bottom-Up Pedigree
 // Subject at bottom, ancestors fan out above in rows.
 // All generations visible at once — no expand/collapse.
+//
+// Visual rules:
+//   - Solid lines = direct parent connections
+//   - Dotted lines + reduced opacity = reference (repeat) nodes
+//   - First appearance of a dragon = full opacity
+//   - Subsequent appearances = smaller portrait, lower opacity, dotted border
+//   - Parent portraits slightly smaller than child at depth 0
+//   - Sire/Dam labels on direct parents of the subject
 import { renderDragonSprite } from './ui-dragon-sprite.js';
+import { renderDragon } from './sprite-renderer.js';
 import { renderDragonCard } from './ui-card.js';
+import { getSetting } from './settings.js';
 
 const MAX_DEPTH = 6;
 
@@ -29,6 +39,7 @@ function buildAncestorTree(dragon, registry, depth = 0, occurrences = null) {
     parentB: null,
     isReference: false,
     firstNodeId: null,
+    occurrenceIndex: 0, // 0 = first, 1+ = subsequent
   };
 
   if (occurrences.has(dragon.id)) {
@@ -36,10 +47,11 @@ function buildAncestorTree(dragon, registry, depth = 0, occurrences = null) {
     entry.count++;
     node.isReference = true;
     node.firstNodeId = entry.firstNodeId;
+    node.occurrenceIndex = entry.count;
     return { tree: node, occurrences };
   }
 
-  occurrences.set(dragon.id, { count: 1, firstNodeId: nodeId });
+  occurrences.set(dragon.id, { count: 0, firstNodeId: nodeId });
 
   if (depth >= MAX_DEPTH || !dragon.parentIds) {
     return { tree: node, occurrences };
@@ -85,6 +97,18 @@ export function openFamilyTree(dragon, registry) {
   treeContainer.appendChild(renderPedigreeNode(tree, registry, 0));
   panel.appendChild(treeContainer);
 
+  // Line legend
+  const lineLegend = el('div', 'tree-line-legend');
+  const solidItem = el('span', 'tree-line-legend-item');
+  solidItem.appendChild(el('span', 'tree-line-solid'));
+  solidItem.appendChild(document.createTextNode(' Direct parent'));
+  lineLegend.appendChild(solidItem);
+  const dottedItem = el('span', 'tree-line-legend-item');
+  dottedItem.appendChild(el('span', 'tree-line-dotted'));
+  dottedItem.appendChild(document.createTextNode(' Repeat ancestor'));
+  lineLegend.appendChild(dottedItem);
+  panel.appendChild(lineLegend);
+
   // Generation legend
   const legend = renderGenerationLegend(dragon.generation);
   if (legend) panel.appendChild(legend);
@@ -116,12 +140,6 @@ export function openFamilyTree(dragon, registry) {
  *   [Parent A]  [Parent B]
  *        └────┬────┘
  *          [Dragon]
- *
- * Structure (DOM order, top to bottom):
- *   .ped-family
- *     .ped-parents (two .ped-family subtrees side by side)
- *     .ped-vline (vertical connector)
- *     .ped-child (the dragon node)
  */
 function renderPedigreeNode(node, registry, depth) {
   const family = el('div', 'ped-family');
@@ -132,16 +150,36 @@ function renderPedigreeNode(node, registry, depth) {
   if (hasParents) {
     const parents = el('div', 'ped-parents');
 
-    if (node.parentA) {
-      parents.appendChild(renderPedigreeNode(node.parentA, registry, depth + 1));
-    } else {
-      parents.appendChild(renderPedUnknown());
-    }
+    // Determine if either parent is a reference (repeat) — use dotted connectors
+    const parentAIsRef = node.parentA?.isReference;
+    const parentBIsRef = node.parentB?.isReference;
 
-    if (node.parentB) {
-      parents.appendChild(renderPedigreeNode(node.parentB, registry, depth + 1));
+    // Parent A branch
+    const branchA = el('div', 'ped-branch');
+    if (depth === 0) branchA.appendChild(el('div', 'ped-parent-label', 'Sire'));
+    if (node.parentA) {
+      branchA.appendChild(renderPedigreeNode(node.parentA, registry, depth + 1));
     } else {
-      parents.appendChild(renderPedUnknown());
+      branchA.appendChild(renderPedUnknown());
+    }
+    // Add connector style class
+    if (parentAIsRef) branchA.classList.add('ped-branch-dotted');
+    parents.appendChild(branchA);
+
+    // Parent B branch
+    const branchB = el('div', 'ped-branch');
+    if (depth === 0) branchB.appendChild(el('div', 'ped-parent-label', 'Dam'));
+    if (node.parentB) {
+      branchB.appendChild(renderPedigreeNode(node.parentB, registry, depth + 1));
+    } else {
+      branchB.appendChild(renderPedUnknown());
+    }
+    if (parentBIsRef) branchB.classList.add('ped-branch-dotted');
+    parents.appendChild(branchB);
+
+    // Use dotted horizontal bar if BOTH parents are references
+    if (parentAIsRef && parentBIsRef) {
+      parents.classList.add('ped-parents-dotted');
     }
 
     family.appendChild(parents);
@@ -156,7 +194,7 @@ function renderPedigreeNode(node, registry, depth) {
   if (node.isReference) {
     childWrapper.appendChild(renderPedRefContent(node, registry));
   } else {
-    childWrapper.appendChild(renderPedDragonContent(node, registry));
+    childWrapper.appendChild(renderPedDragonContent(node, registry, depth));
   }
 
   family.appendChild(childWrapper);
@@ -178,22 +216,58 @@ function renderPedUnknown() {
 }
 
 /**
+ * Render a compact dragon sprite with async PNG swap.
+ * Returns the sprite element (will be swapped when PNG loads).
+ */
+function renderSprite(phenotype, cssClass) {
+  const usePixelArt = getSetting('art-style') === 'pixel';
+
+  const sprite = renderDragonSprite(phenotype, true);
+  sprite.classList.add(cssClass);
+
+  // Skip PNG swap if user prefers pixel art
+  if (usePixelArt) return sprite;
+
+  // Async PNG sprite swap
+  renderDragon(phenotype, { compact: true, fallbackToTest: false }).then(canvas => {
+    const ctx = canvas.getContext('2d');
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    let hasPixels = false;
+    for (let i = 3; i < imageData.data.length; i += 4) {
+      if (imageData.data[i] > 0) { hasPixels = true; break; }
+    }
+    if (hasPixels) {
+      canvas.className = `${cssClass}-canvas`;
+      sprite.replaceWith(canvas);
+    }
+  });
+
+  return sprite;
+}
+
+/**
  * Render dragon content for a pedigree node.
  */
-function renderPedDragonContent(node, registry) {
+function renderPedDragonContent(node, registry, depth) {
   const nodeEl = el('div', 'ped-node');
   nodeEl.setAttribute('data-node-id', node.nodeId);
+  nodeEl.setAttribute('data-dragon-id', node.dragon.id);
 
   const genClass = 'tree-gen-' + Math.min(node.dragon.generation, 5);
   nodeEl.classList.add(genClass);
+
+  // Depth-based sizing: subject (depth 0) is larger, parents are slightly smaller
+  if (depth === 0) {
+    nodeEl.classList.add('ped-node-subject');
+  } else if (depth >= 3) {
+    nodeEl.classList.add('ped-node-distant');
+  }
 
   if (node.dragon.generation === 0 && !node.dragon.parentIds) {
     nodeEl.classList.add('ped-node-wild');
   }
 
-  const sprite = renderDragonSprite(node.dragon.phenotype, true);
-  sprite.classList.add('ped-sprite');
-  nodeEl.appendChild(sprite);
+  nodeEl.appendChild(renderSprite(node.dragon.phenotype, 'ped-sprite'));
 
   nodeEl.appendChild(el('div', 'ped-node-name', node.dragon.name));
   nodeEl.appendChild(el('div', 'ped-node-gen', `Gen ${node.dragon.generation}`));
@@ -208,6 +282,7 @@ function renderPedDragonContent(node, registry) {
 
 /**
  * Render a reference node (duplicate ancestor).
+ * Smaller portrait, reduced opacity, dotted border.
  */
 function renderPedRefContent(node, registry) {
   const nodeEl = el('div', 'ped-node ped-ref');
@@ -221,15 +296,14 @@ function renderPedRefContent(node, registry) {
     nodeEl.classList.add('ped-node-wild');
   }
 
-  const sprite = renderDragonSprite(node.dragon.phenotype, true);
-  sprite.classList.add('ped-sprite');
-  nodeEl.appendChild(sprite);
+  nodeEl.appendChild(renderSprite(node.dragon.phenotype, 'ped-sprite'));
 
   nodeEl.appendChild(el('div', 'ped-node-name', node.dragon.name));
   nodeEl.appendChild(el('div', 'ped-ref-label', '↗ see above'));
 
   nodeEl.addEventListener('click', (e) => {
     e.stopPropagation();
+    // Flash-highlight the first occurrence
     const firstNode = document.querySelector(`[data-node-id="${node.firstNodeId}"]`);
     if (firstNode) {
       firstNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
