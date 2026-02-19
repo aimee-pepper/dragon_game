@@ -52,6 +52,53 @@ const assetCache = new Map();
 const loadingPromises = new Map();
 const ASSET_BASE_PATH = 'assets/sprites/';
 
+// ============================================================
+// RENDER CACHE — flat final images keyed on phenotype fingerprint
+// ============================================================
+// Once a dragon is rendered through the full compositing pipeline,
+// we cache the final cropped canvas. Subsequent render requests
+// for the same phenotype+size just clone the cached image.
+const renderCache = new Map();
+
+/**
+ * Generate a stable cache key from a phenotype + render options.
+ * Two phenotypes with identical visual properties produce the same key.
+ */
+function getRenderCacheKey(phenotype, compact) {
+  const rgb = phenotype.color.rgb;
+  const fLevels = phenotype.finish.levels;
+  const traits = phenotype.traits;
+
+  // Build a compact string from all visually-relevant properties
+  const parts = [
+    compact ? 'c' : 'f',
+    rgb.r, rgb.g, rgb.b,
+    fLevels[0].toFixed(2), fLevels[1].toFixed(2), fLevels[2].toFixed(2),
+  ];
+
+  // Add all trait rounded values (these determine which assets are used)
+  for (const key of Object.keys(traits).sort()) {
+    const t = traits[key];
+    if (t && t.rounded != null) parts.push(key, t.rounded);
+  }
+
+  return parts.join('|');
+}
+
+/**
+ * Clear the render cache (e.g. when art style changes).
+ */
+export function clearRenderCache() {
+  renderCache.clear();
+}
+
+// ============================================================
+// RENDER QUEUE — serialize renders to limit peak memory
+// ============================================================
+// Only one dragon composites at a time, preventing multiple sets of
+// temp canvases from coexisting in memory (critical for mobile).
+let renderQueueTail = Promise.resolve();
+
 /**
  * Load a sprite PNG and cache it.
  * Returns an HTMLImageElement (or null if not found).
@@ -223,7 +270,65 @@ function applyColorBlend(imageData, dragonRgb, luminanceShift = 0) {
  * @param {boolean} options.animated - enable finish shimmer effects
  * @returns {Promise<HTMLCanvasElement>} the rendered sprite canvas
  */
+// In-flight render promises for deduplication — if two callers request
+// the same dragon before the first render completes, they share the promise.
+const inflightRenders = new Map();
+
 export async function renderDragonSprite(phenotype, options = {}) {
+  const { compact = false, animated = false } = options;
+
+  const cacheKey = getRenderCacheKey(phenotype, compact);
+
+  // Fast path: return a clone of the cached flat image
+  if (renderCache.has(cacheKey)) {
+    return _cloneCachedCanvas(cacheKey, phenotype, animated);
+  }
+
+  // Deduplicate: if this exact render is already in-flight, wait for it
+  if (inflightRenders.has(cacheKey)) {
+    await inflightRenders.get(cacheKey);
+    return _cloneCachedCanvas(cacheKey, phenotype, animated);
+  }
+
+  // Queue the render so only one composites at a time (limits peak memory)
+  const renderPromise = new Promise((resolve, reject) => {
+    renderQueueTail = renderQueueTail.then(async () => {
+      try {
+        const canvas = await _renderDragonSpriteImpl(phenotype, options);
+        resolve(canvas);
+      } catch (e) {
+        reject(e);
+      }
+    });
+  });
+
+  inflightRenders.set(cacheKey, renderPromise);
+  try {
+    const result = await renderPromise;
+    return result;
+  } finally {
+    inflightRenders.delete(cacheKey);
+  }
+}
+
+function _cloneCachedCanvas(cacheKey, phenotype, animated) {
+  const cached = renderCache.get(cacheKey);
+  const clone = document.createElement('canvas');
+  clone.width = cached.width;
+  clone.height = cached.height;
+  clone.className = 'dragon-sprite-canvas';
+  clone.getContext('2d').drawImage(cached, 0, 0);
+
+  if (animated) {
+    const effect = getFinishEffect(phenotype.finish.displayName);
+    if (effect) {
+      startShimmerAnimation(clone, effect, phenotype.color.rgb);
+    }
+  }
+  return clone;
+}
+
+async function _renderDragonSpriteImpl(phenotype, options = {}) {
   const { compact = false, animated = false } = options;
 
   const width = compact ? SPRITE_WIDTH_COMPACT : SPRITE_WIDTH;
@@ -627,18 +732,56 @@ export async function renderDragonSprite(phenotype, options = {}) {
 
   ctx.drawImage(offscreenComp, 0, 0);
 
+  // ── Cleanup: release all temp canvases to free memory ──
+  // Critical for mobile where canvas memory is severely limited.
+  // The per-layer offscreens, masks, and fade canvases are no longer
+  // needed once compositing is complete.
+  for (const layer of processedLayers) {
+    layer.offscreen.width = 0;
+    layer.offscreen.height = 0;
+    layer.offscreen = null;
+    layer.maskCanvas.width = 0;
+    layer.maskCanvas.height = 0;
+    layer.maskCanvas = null;
+  }
+  for (const layer of fadeLayers) {
+    layer.offscreen.width = 0;
+    layer.offscreen.height = 0;
+    layer.offscreen = null;
+  }
+  // Release the shared offscreen compositor
+  offscreenComp.width = 0;
+  offscreenComp.height = 0;
+
   // Auto-crop transparent margins for efficient display
   const croppedCanvas = autoCrop(canvas, 8); // 8px padding
+
+  // Release the uncropped output canvas
+  canvas.width = 0;
+  canvas.height = 0;
+
+  // Cache the flat result for future requests
+  const cacheKey = getRenderCacheKey(phenotype, compact);
+  renderCache.set(cacheKey, croppedCanvas);
+
+  // Return a clone so the cached copy stays pristine
+  // (callers may modify the returned canvas, e.g. adding animation)
+  const result = document.createElement('canvas');
+  result.width = croppedCanvas.width;
+  result.height = croppedCanvas.height;
+  result.className = 'dragon-sprite-canvas';
+  const resultCtx = result.getContext('2d');
+  resultCtx.drawImage(croppedCanvas, 0, 0);
 
   // Add finish shimmer effect if animated
   if (animated) {
     const effect = getFinishEffect(phenotype.finish.displayName);
     if (effect) {
-      startShimmerAnimation(croppedCanvas, effect, dragonRgb);
+      startShimmerAnimation(result, effect, dragonRgb);
     }
   }
 
-  return croppedCanvas;
+  return result;
 }
 
 /**
