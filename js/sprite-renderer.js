@@ -9,14 +9,15 @@
 //   4. Two-pass compositing based on finish opacity gene
 //
 // Multi-pass compositing model:
-//   Layer A — Full dragon (base + fade interleaved, at layerAAlpha):
-//     - Base layers + fade variants (wingfade/legfade) merged in z-order
+//   Layer A — Full dragon with base wing/leg art (at layerAAlpha):
+//     - ALL layers rendered in z-order at α=1.0, composited at layerAAlpha
+//   Layer A2 — Full dragon with fade wing/leg art (at layerAAlpha):
+//     - Same complete z-ordered stack, but wing/leg slots swapped to fade PNGs
 //     - Fade PNGs have painted-in transparency gradients at limb/body junctions
-//     - Both base and fade render interleaved so z-order is preserved
-//       (e.g. BG leg fade still renders behind the body, not on top)
-//     - For non-transparent dragons (bodyAlpha=1.0), layerAAlpha stays 1.0
-//     - For transparent dragons, layerAAlpha = bodyAlpha * 0.5 since base+fade
-//       stack to approximate the original bodyAlpha with softer limb blending
+//     - Non-wing/non-leg layers (body, head, tail, etc.) are identical to Layer A
+//     - Stacking Layer A + A2 each at half bodyAlpha ≈ original bodyAlpha
+//       but with softer blending at limb/body junctions
+//     - For fully-opaque dragons (bodyAlpha=1.0), both layers stay at 1.0
 //   Fixed details — Face details (eyes, mouth, etc.) at full opacity:
 //     - Layers with colorMode 'fixed' drawn directly at α=1.0
 //     - No color correction — uses original PNG art colors
@@ -544,23 +545,30 @@ export async function renderDragonSprite(phenotype, options = {}) {
     targetCtx.restore();
   }
 
-  // ── Merge base + fade layers into unified z-ordered list ──
-  // Fade layers must interleave with base layers at the same z-positions
-  // so that z-order is respected (e.g. BG leg fade stays behind body).
-  // Each fade layer is inserted immediately after its matching base layer.
-  const allLayers = [];
-  for (const layer of processedLayers) {
-    allLayers.push(layer);
-    // Find the matching fade layer (same asset) and insert it right after
-    const fadeLayer = fadeLayers.find(fl =>
-      fl.asset === layer.asset
-    );
-    if (fadeLayer) {
-      allLayers.push(fadeLayer);
-    }
+  // ── Build fade-substituted layer list for Layer A2 ──
+  // Layer A2 is a full re-render of the entire dragon, but with wing/leg
+  // layers swapped to their fade equivalents. Non-wing/non-leg layers
+  // (body, head, tail, horns, spines) stay identical in both passes.
+  // This preserves correct z-ordering within Layer A2.
+  const fadeLayerMap = new Map(); // asset reference → fade layer data
+  for (const fl of fadeLayers) {
+    fadeLayerMap.set(fl.asset, fl);
   }
 
-  // ── Layer A: Full dragon (base + fade interleaved) ──
+  const layerA2Layers = [];
+  for (const layer of processedLayers) {
+    const fadeLayer = fadeLayerMap.get(layer.asset);
+    if (fadeLayer) {
+      // Swap this wing/leg layer for its fade equivalent
+      layerA2Layers.push(fadeLayer);
+    } else {
+      // Keep non-wing/non-leg layers as-is (body, head, tail, etc.)
+      layerA2Layers.push(layer);
+    }
+  }
+  const hasFadeContent = fadeLayers.length > 0;
+
+  // ── Layer A: Full dragon with base wing/leg art ──
   // Render ALL layers in z-order at α=1.0 onto offscreen canvas,
   // then composite at layerAAlpha (halved when fade layers exist, full otherwise).
   const layerA = document.createElement('canvas');
@@ -568,7 +576,7 @@ export async function renderDragonSprite(phenotype, options = {}) {
   layerA.height = height;
   const layerACtx = layerA.getContext('2d');
 
-  for (const layer of allLayers) {
+  for (const layer of processedLayers) {
     drawToCtx(layerACtx, layer.offscreen, layer, 1.0);
   }
 
@@ -577,8 +585,29 @@ export async function renderDragonSprite(phenotype, options = {}) {
   ctx.drawImage(layerA, 0, 0);
   ctx.restore();
 
+  // ── Layer A2: Full dragon with fade wing/leg art ──
+  // Same full stack as Layer A, but wing/leg slots use the fade PNGs
+  // (which have painted-in transparency gradients at limb/body junctions).
+  // Composited at same layerAAlpha — stacking with Layer A approximates
+  // the original bodyAlpha with a softer blend at limb junctions.
+  if (hasFadeContent) {
+    const layerA2 = document.createElement('canvas');
+    layerA2.width = width;
+    layerA2.height = height;
+    const layerA2Ctx = layerA2.getContext('2d');
+
+    for (const layer of layerA2Layers) {
+      drawToCtx(layerA2Ctx, layer.offscreen, layer, 1.0);
+    }
+
+    ctx.save();
+    ctx.globalAlpha = layerAAlpha;
+    ctx.drawImage(layerA2, 0, 0);
+    ctx.restore();
+  }
+
   // ── Fixed details pass: face details (eyes, mouth) at full opacity, no color correction ──
-  // Drawn AFTER Layer A (so they sit on top of the transparent body) but BEFORE Layer B
+  // Drawn AFTER Layers A/A2 (so they sit on top of the transparent body) but BEFORE Layer B
   // (so outlines still overlay on top). These use the original PNG colors as-is.
   for (const layer of processedLayers) {
     if (layer.isFixedDetail) {
@@ -587,7 +616,8 @@ export async function renderDragonSprite(phenotype, options = {}) {
   }
 
   // ── Layer B: Outline overlay (white-fill / black-outline extraction) ──
-  // Render ALL mask layers (base + fade) in z-order: fills are white, outlines are black.
+  // Render ALL mask layers in z-order: fills are white, outlines are black.
+  // Uses base layers for masks (fade layers share the same outline shapes).
   // The z-order compositing naturally handles overlap — white fills on top
   // erase black outlines beneath. Only truly-visible outlines survive.
   const layerB = document.createElement('canvas');
@@ -595,7 +625,7 @@ export async function renderDragonSprite(phenotype, options = {}) {
   layerB.height = height;
   const layerBCtx = layerB.getContext('2d');
 
-  for (const layer of allLayers) {
+  for (const layer of processedLayers) {
     drawToCtx(layerBCtx, layer.maskCanvas, layer, 1.0);
   }
 
