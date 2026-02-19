@@ -188,6 +188,15 @@ function init() {
 
   // Initial save to persist the registry reference
   saveGame(registry);
+
+  // Dismiss loading screen after a frame so the DOM has painted
+  requestAnimationFrame(() => {
+    const loader = document.getElementById('loading-screen');
+    if (loader) {
+      loader.classList.add('fade-out');
+      loader.addEventListener('transitionend', () => loader.remove());
+    }
+  });
 }
 
 // Achievement unlock toast notification — queued to show one at a time

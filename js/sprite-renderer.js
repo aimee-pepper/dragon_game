@@ -653,83 +653,101 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     }
   }
 
-  // ── Layer A: Full dragon with base wing/leg art ──
-  // Render ALL layers in z-order at α=1.0 onto a shared offscreen canvas,
-  // then composite at layerAAlpha (halved when fade layers exist, full otherwise).
-  // We reuse this canvas for Layer A2 to save memory on mobile.
+  // ============================================================
+  // 4-LAYER COMPOSITING PIPELINE
+  // ============================================================
+  // Layer 1: Full dragon, base PNGs, color + transparency
+  // Layer 2: Outlines only, base PNGs, color only (full opacity)
+  // Layer 3: Full dragon, fade PNGs swapped in, color + transparency
+  //          (skipped for fully-opaque dragons)
+  // Face details: eyes/mouth at full opacity, no color correction
+  // Layer 4: Outline treatment — z-order-aware fill removal + darken color
+  //
+  // Layer 2 is the key addition: by rendering all outlines at full opacity
+  // between the transparent fills (Layer 1) and the fade pass (Layer 3),
+  // transparent dragons naturally show overlapping outlines through their
+  // fills. Opaque dragons' Layer 1 fills sit on top of Layer 2's outlines,
+  // hiding them as expected.
+
   const offscreenComp = document.createElement('canvas');
   offscreenComp.width = width;
   offscreenComp.height = height;
   const offscreenCompCtx = offscreenComp.getContext('2d');
 
+  // ── Layer 1: Full dragon with base art, at body transparency ──
   for (const layer of processedLayers) {
     drawToCtx(offscreenCompCtx, layer.offscreen, layer, 1.0);
   }
-
   ctx.save();
   ctx.globalAlpha = layerAAlpha;
   ctx.drawImage(offscreenComp, 0, 0);
   ctx.restore();
 
-  // ── Layer A2: Full dragon with fade wing/leg art ──
-  // Same full stack as Layer A, but wing/leg slots use the fade PNGs
-  // (which have painted-in transparency gradients at limb/body junctions).
-  // Reuses the same offscreen canvas (cleared) to avoid extra memory allocation.
+  // ── Layer 2: Outlines only, base PNGs, at full opacity ──
+  // Only for transparent dragons (bodyAlpha < 1.0).
+  // Renders all outline layers at α=1.0 so they show through the
+  // semi-transparent fills from Layer 1. Opaque dragons skip this
+  // entirely — their fills fully cover everything and Layer 4 handles
+  // the clean surface outlines.
+  if (bodyAlpha < 1.0) {
+    offscreenCompCtx.clearRect(0, 0, width, height);
+    for (const layer of processedLayers) {
+      if (layer.isOutline) {
+        drawToCtx(offscreenCompCtx, layer.offscreen, layer, 1.0);
+      }
+    }
+    ctx.drawImage(offscreenComp, 0, 0);
+  }
+
+  // ── Layer 3: Full dragon with fade PNGs, at body transparency ──
+  // Same full z-ordered stack as Layer 1, but wing/leg slots swapped
+  // to fade PNGs (painted-in transparency gradients at limb/body junctions).
+  // Skipped for fully-opaque dragons (fade art would add unwanted transparency).
   if (needsFadePass) {
     offscreenCompCtx.clearRect(0, 0, width, height);
-
     for (const layer of layerA2Layers) {
       drawToCtx(offscreenCompCtx, layer.offscreen, layer, 1.0);
     }
-
     ctx.save();
     ctx.globalAlpha = layerAAlpha;
     ctx.drawImage(offscreenComp, 0, 0);
     ctx.restore();
   }
 
-  // ── Fixed details pass: face details (eyes, mouth) at full opacity, no color correction ──
-  // Drawn AFTER Layers A/A2 (so they sit on top of the transparent body) but BEFORE Layer B
-  // (so outlines still overlay on top). These use the original PNG colors as-is.
+  // ── Face details: eyes, mouth at full opacity, no color correction ──
   for (const layer of processedLayers) {
     if (layer.isFixedDetail) {
       drawToCtx(ctx, layer.offscreen, layer, 1.0);
     }
   }
 
-  // ── Layer B: Outline overlay (white-fill / black-outline extraction) ──
-  // Render ALL mask layers in z-order: fills are white, outlines are black.
-  // Uses base layers for masks (fade layers share the same outline shapes).
-  // Reuses the shared offscreen canvas to save memory.
+  // ── Layer 4: Outline treatment — z-order-aware fill removal + darken ──
+  // Render ALL mask layers in z-order: fills as white, outlines as black.
+  // White fills paint over black outlines beneath, so only surface outlines
+  // survive. Then white→transparent, surviving dark→colored with darken shift.
   offscreenCompCtx.clearRect(0, 0, width, height);
-
   for (const layer of processedLayers) {
     drawToCtx(offscreenCompCtx, layer.maskCanvas, layer, 1.0);
   }
 
-  // Pixel-process Layer B:
-  //   White pixels (fills) → fully transparent
-  //   Dark pixels (surviving outlines) → 50% grey → dragon color with darken shift
   const layerBData = offscreenCompCtx.getImageData(0, 0, width, height);
   const bData = layerBData.data;
   for (let i = 0; i < bData.length; i += 4) {
-    if (bData[i + 3] === 0) continue; // skip transparent
+    if (bData[i + 3] === 0) continue;
     const brightness = bData[i] + bData[i + 1] + bData[i + 2];
     if (brightness > 384) {
-      // White-ish pixel (fill area) → make fully transparent
+      // White-ish pixel (fill area) → fully transparent
       bData[i + 3] = 0;
     } else {
-      // Dark pixel (outline) → set to uniform 50% grey for color blend
+      // Dark pixel (outline) → uniform 50% grey for color blend
       bData[i]     = 128;
       bData[i + 1] = 128;
       bData[i + 2] = 128;
     }
   }
-  // Apply dragon color with darken luminance shift to surviving outline pixels
   const darkenShift = COLOR_ADJUSTMENTS.darken.luminanceShift;
   applyColorBlend(layerBData, dragonRgb, darkenShift);
   offscreenCompCtx.putImageData(layerBData, 0, 0);
-
   ctx.drawImage(offscreenComp, 0, 0);
 
   // ── Cleanup: release all temp canvases to free memory ──
