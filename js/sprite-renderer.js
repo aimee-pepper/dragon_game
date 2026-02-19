@@ -280,9 +280,12 @@ export async function renderDragonSprite(phenotype, options = {}) {
   // For 4-pass compositing: halve opacity for non-max dragons.
   // Layer A (base) + Layer A2 (fade) each get half the opacity,
   // so they stack to approximately the original value.
-  // Fully-opaque dragons (bodyAlpha=1.0) stay at 1.0 — no halving.
+  // Fully-opaque dragons (bodyAlpha=1.0): skip Layer A2 entirely —
+  // the fade art has painted-in transparency that would incorrectly
+  // show through on opaque dragons.
   const hasFadeLayers = fadeFilenames.size > 0;
-  const layerAAlpha = (hasFadeLayers && bodyAlpha < 1.0) ? bodyAlpha * 0.5 : bodyAlpha;
+  const needsFadePass = hasFadeLayers && bodyAlpha < 1.0;
+  const layerAAlpha = needsFadePass ? bodyAlpha * 0.5 : bodyAlpha;
 
   // Determine body variant for anchor lookups
   const bodyTypeName = phenotype.traits.body_type?.name?.toLowerCase() || 'normal';
@@ -422,8 +425,9 @@ export async function renderDragonSprite(phenotype, options = {}) {
   }
 
   // ── Pre-process fade layers (Layer A2): wing/leg fade variants ──
-  // These use the same color, anchor, and mask logic as their base counterparts,
+  // These use the same color + anchor logic as their base counterparts,
   // but load the fade PNG (which has painted-in transparency gradients).
+  // No mask canvases needed — Layer B uses base masks only (same outlines).
   const fadeLayers = [];
   for (const asset of matchedAssets) {
     const fadeName = getFadeFilename(asset.filename);
@@ -448,46 +452,17 @@ export async function renderDragonSprite(phenotype, options = {}) {
       offCtx.putImageData(imageData, 0, 0);
     }
 
-    // Use the SAME anchor as the base asset (fade files share positioning)
-    const anchorCtx = {};
-    if (asset.gene === 'wing') {
-      anchorCtx.pair = asset.pair;
-      anchorCtx.bodyType = bodyVariant;
-      anchorCtx.wingCount = actualWingCount;
-    } else if (asset.gene === 'leg') {
-      anchorCtx.pair = asset.pair;
-      anchorCtx.bodyType = bodyVariant;
-      anchorCtx.limbCount = actualLimbCount;
-    }
-    const anchor = getAnchor(asset.filename, anchorCtx); // base filename for anchor lookup
-    const anchorX = anchor.x;
-    const anchorY = anchor.y;
-    const rotation = anchor.rot || 0;
-
-    const isOutline = asset.opacityMode === 'opaque' && asset.colorMode !== 'fixed';
-    const isFixedDetail = asset.colorMode === 'fixed';
-
-    // Build mask for Layer B (same logic as base)
-    const maskCanvas = document.createElement('canvas');
-    maskCanvas.width = img.width;
-    maskCanvas.height = img.height;
-    const maskCtx = maskCanvas.getContext('2d');
-    maskCtx.drawImage(img, 0, 0);
-    const maskData = maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
-    if (isOutline) {
-      for (let i = 0; i < maskData.data.length; i += 4) {
-        if (maskData.data[i + 3] === 0) continue;
-        maskData.data[i] = 0; maskData.data[i + 1] = 0; maskData.data[i + 2] = 0;
-      }
-    } else {
-      for (let i = 0; i < maskData.data.length; i += 4) {
-        if (maskData.data[i + 3] === 0) continue;
-        maskData.data[i] = 255; maskData.data[i + 1] = 255; maskData.data[i + 2] = 255;
-      }
-    }
-    maskCtx.putImageData(maskData, 0, 0);
-
-    fadeLayers.push({ asset, offscreen, maskCanvas, anchorX, anchorY, rotation, isOutline, isFixedDetail });
+    // Reuse anchor + rotation from the matching base processedLayer
+    const baseLayer = processedLayers.find(pl => pl.asset === asset);
+    fadeLayers.push({
+      asset,
+      offscreen,
+      anchorX: baseLayer.anchorX,
+      anchorY: baseLayer.anchorY,
+      rotation: baseLayer.rotation,
+      isOutline: baseLayer.isOutline,
+      isFixedDetail: baseLayer.isFixedDetail,
+    });
   }
 
   // ── Shared draw helper: draws a canvas onto a target context at position ──
@@ -566,43 +541,39 @@ export async function renderDragonSprite(phenotype, options = {}) {
       layerA2Layers.push(layer);
     }
   }
-  const hasFadeContent = fadeLayers.length > 0;
 
   // ── Layer A: Full dragon with base wing/leg art ──
-  // Render ALL layers in z-order at α=1.0 onto offscreen canvas,
+  // Render ALL layers in z-order at α=1.0 onto a shared offscreen canvas,
   // then composite at layerAAlpha (halved when fade layers exist, full otherwise).
-  const layerA = document.createElement('canvas');
-  layerA.width = width;
-  layerA.height = height;
-  const layerACtx = layerA.getContext('2d');
+  // We reuse this canvas for Layer A2 to save memory on mobile.
+  const offscreenComp = document.createElement('canvas');
+  offscreenComp.width = width;
+  offscreenComp.height = height;
+  const offscreenCompCtx = offscreenComp.getContext('2d');
 
   for (const layer of processedLayers) {
-    drawToCtx(layerACtx, layer.offscreen, layer, 1.0);
+    drawToCtx(offscreenCompCtx, layer.offscreen, layer, 1.0);
   }
 
   ctx.save();
   ctx.globalAlpha = layerAAlpha;
-  ctx.drawImage(layerA, 0, 0);
+  ctx.drawImage(offscreenComp, 0, 0);
   ctx.restore();
 
   // ── Layer A2: Full dragon with fade wing/leg art ──
   // Same full stack as Layer A, but wing/leg slots use the fade PNGs
   // (which have painted-in transparency gradients at limb/body junctions).
-  // Composited at same layerAAlpha — stacking with Layer A approximates
-  // the original bodyAlpha with a softer blend at limb junctions.
-  if (hasFadeContent) {
-    const layerA2 = document.createElement('canvas');
-    layerA2.width = width;
-    layerA2.height = height;
-    const layerA2Ctx = layerA2.getContext('2d');
+  // Reuses the same offscreen canvas (cleared) to avoid extra memory allocation.
+  if (needsFadePass) {
+    offscreenCompCtx.clearRect(0, 0, width, height);
 
     for (const layer of layerA2Layers) {
-      drawToCtx(layerA2Ctx, layer.offscreen, layer, 1.0);
+      drawToCtx(offscreenCompCtx, layer.offscreen, layer, 1.0);
     }
 
     ctx.save();
     ctx.globalAlpha = layerAAlpha;
-    ctx.drawImage(layerA2, 0, 0);
+    ctx.drawImage(offscreenComp, 0, 0);
     ctx.restore();
   }
 
@@ -618,21 +589,17 @@ export async function renderDragonSprite(phenotype, options = {}) {
   // ── Layer B: Outline overlay (white-fill / black-outline extraction) ──
   // Render ALL mask layers in z-order: fills are white, outlines are black.
   // Uses base layers for masks (fade layers share the same outline shapes).
-  // The z-order compositing naturally handles overlap — white fills on top
-  // erase black outlines beneath. Only truly-visible outlines survive.
-  const layerB = document.createElement('canvas');
-  layerB.width = width;
-  layerB.height = height;
-  const layerBCtx = layerB.getContext('2d');
+  // Reuses the shared offscreen canvas to save memory.
+  offscreenCompCtx.clearRect(0, 0, width, height);
 
   for (const layer of processedLayers) {
-    drawToCtx(layerBCtx, layer.maskCanvas, layer, 1.0);
+    drawToCtx(offscreenCompCtx, layer.maskCanvas, layer, 1.0);
   }
 
   // Pixel-process Layer B:
   //   White pixels (fills) → fully transparent
   //   Dark pixels (surviving outlines) → 50% grey → dragon color with darken shift
-  const layerBData = layerBCtx.getImageData(0, 0, width, height);
+  const layerBData = offscreenCompCtx.getImageData(0, 0, width, height);
   const bData = layerBData.data;
   for (let i = 0; i < bData.length; i += 4) {
     if (bData[i + 3] === 0) continue; // skip transparent
@@ -650,9 +617,9 @@ export async function renderDragonSprite(phenotype, options = {}) {
   // Apply dragon color with darken luminance shift to surviving outline pixels
   const darkenShift = COLOR_ADJUSTMENTS.darken.luminanceShift;
   applyColorBlend(layerBData, dragonRgb, darkenShift);
-  layerBCtx.putImageData(layerBData, 0, 0);
+  offscreenCompCtx.putImageData(layerBData, 0, 0);
 
-  ctx.drawImage(layerB, 0, 0);
+  ctx.drawImage(offscreenComp, 0, 0);
 
   // Auto-crop transparent margins for efficient display
   const croppedCanvas = autoCrop(canvas, 8); // 8px padding
