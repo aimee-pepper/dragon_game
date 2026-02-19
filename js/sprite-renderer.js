@@ -8,16 +8,15 @@
 //   3. Adjust luminance: lighten for bellies/membranes, darken for outlines
 //   4. Two-pass compositing based on finish opacity gene
 //
-// Multi-pass compositing model (4-pass):
-//   Layer A — Full dragon base art (offscreen, composited at layerAAlpha):
-//     - ALL layers (fills + outlines + details) rendered in z-order at α=1.0
-//     - Produces the complete dragon as a flat image
-//     - Composited onto final canvas at layerAAlpha (halved when fade exists)
-//   Layer A2 — Fade layer (wing/leg fade variants):
-//     - Same render as Layer A but using wingfade_*/legfade_* PNGs
-//     - These PNGs have painted-in transparency gradients at limb/body junctions
-//     - Composited at same layerAAlpha — stacking with Layer A softens edges
-//     - For non-transparent dragons (bodyAlpha=1.0), both layers render at full
+// Multi-pass compositing model:
+//   Layer A — Full dragon (base + fade interleaved, at layerAAlpha):
+//     - Base layers + fade variants (wingfade/legfade) merged in z-order
+//     - Fade PNGs have painted-in transparency gradients at limb/body junctions
+//     - Both base and fade render interleaved so z-order is preserved
+//       (e.g. BG leg fade still renders behind the body, not on top)
+//     - For non-transparent dragons (bodyAlpha=1.0), layerAAlpha stays 1.0
+//     - For transparent dragons, layerAAlpha = bodyAlpha * 0.5 since base+fade
+//       stack to approximate the original bodyAlpha with softer limb blending
 //   Fixed details — Face details (eyes, mouth, etc.) at full opacity:
 //     - Layers with colorMode 'fixed' drawn directly at α=1.0
 //     - No color correction — uses original PNG art colors
@@ -545,7 +544,23 @@ export async function renderDragonSprite(phenotype, options = {}) {
     targetCtx.restore();
   }
 
-  // ── Layer A: Full dragon (base art) ──
+  // ── Merge base + fade layers into unified z-ordered list ──
+  // Fade layers must interleave with base layers at the same z-positions
+  // so that z-order is respected (e.g. BG leg fade stays behind body).
+  // Each fade layer is inserted immediately after its matching base layer.
+  const allLayers = [];
+  for (const layer of processedLayers) {
+    allLayers.push(layer);
+    // Find the matching fade layer (same asset) and insert it right after
+    const fadeLayer = fadeLayers.find(fl =>
+      fl.asset === layer.asset
+    );
+    if (fadeLayer) {
+      allLayers.push(fadeLayer);
+    }
+  }
+
+  // ── Layer A: Full dragon (base + fade interleaved) ──
   // Render ALL layers in z-order at α=1.0 onto offscreen canvas,
   // then composite at layerAAlpha (halved when fade layers exist, full otherwise).
   const layerA = document.createElement('canvas');
@@ -553,7 +568,7 @@ export async function renderDragonSprite(phenotype, options = {}) {
   layerA.height = height;
   const layerACtx = layerA.getContext('2d');
 
-  for (const layer of processedLayers) {
+  for (const layer of allLayers) {
     drawToCtx(layerACtx, layer.offscreen, layer, 1.0);
   }
 
@@ -562,29 +577,8 @@ export async function renderDragonSprite(phenotype, options = {}) {
   ctx.drawImage(layerA, 0, 0);
   ctx.restore();
 
-  // ── Layer A2: Fade layer (wing/leg fade variants) ──
-  // Same render process as Layer A, but using fade PNGs that have painted-in
-  // transparency gradients where wings/legs meet the body.
-  // Composited at the same halved opacity — stacking with Layer A approximates
-  // the original bodyAlpha with a softer blend at limb junctions.
-  if (fadeLayers.length > 0) {
-    const layerA2 = document.createElement('canvas');
-    layerA2.width = width;
-    layerA2.height = height;
-    const layerA2Ctx = layerA2.getContext('2d');
-
-    for (const layer of fadeLayers) {
-      drawToCtx(layerA2Ctx, layer.offscreen, layer, 1.0);
-    }
-
-    ctx.save();
-    ctx.globalAlpha = layerAAlpha;
-    ctx.drawImage(layerA2, 0, 0);
-    ctx.restore();
-  }
-
   // ── Fixed details pass: face details (eyes, mouth) at full opacity, no color correction ──
-  // Drawn AFTER Layers A/A2 (so they sit on top of the transparent body) but BEFORE Layer B
+  // Drawn AFTER Layer A (so they sit on top of the transparent body) but BEFORE Layer B
   // (so outlines still overlay on top). These use the original PNG colors as-is.
   for (const layer of processedLayers) {
     if (layer.isFixedDetail) {
@@ -601,11 +595,7 @@ export async function renderDragonSprite(phenotype, options = {}) {
   layerB.height = height;
   const layerBCtx = layerB.getContext('2d');
 
-  for (const layer of processedLayers) {
-    drawToCtx(layerBCtx, layer.maskCanvas, layer, 1.0);
-  }
-  // Include fade layer masks so their outlines also punch through
-  for (const layer of fadeLayers) {
+  for (const layer of allLayers) {
     drawToCtx(layerBCtx, layer.maskCanvas, layer, 1.0);
   }
 
