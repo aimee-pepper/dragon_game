@@ -228,6 +228,7 @@
     <button id="copyAnchorsBtn">📋 Copy All</button>
     <button id="exportPartsBtn" class="secondary">💾 Export by Part</button>
     <button id="resetBtn" class="secondary">↩ Reset Batch</button>
+    <button id="importBtn" class="secondary" style="background:#5a6a3a;color:#e0e8d0;">⬇ Import from sprite-config</button>
   </div>
 
   <div class="main-layout">
@@ -274,6 +275,8 @@
   </div>
 
   <script type="module">
+    import { ANCHORS as IMPORTED_ANCHORS } from './js/sprite-config.js';
+
     // ============================================================
     // PLACEMENT TOOL v5
     //   — THREE-LEVEL ANCHORS:
@@ -2248,6 +2251,161 @@
       else if (selectedModelId) selectModelLayer(selectedModelId);
       else if (selectedLayerId) selectLayer(selectedLayerId);
       buildLayerList(); render();
+    });
+
+    // ── Import from sprite-config ANCHORS ──
+    document.getElementById('importBtn').addEventListener('click', () => {
+      if (!confirm('Import all positions from sprite-config.js ANCHORS?\nThis will overwrite any unsaved changes.')) return;
+
+      const A = IMPORTED_ANCHORS;
+      let count = 0;
+
+      // Body layers: flat layerOffsets (no group)
+      for (const layer of LAYERS.body || []) {
+        const val = A[layer.id];
+        if (val) { layerOffsets[layer.id] = { x: val.x, y: val.y }; count++; }
+      }
+
+      // Head, tail, vestigial: split ANCHORS[id:bt] → groupAnchors[gKey] + layerOffsets[id]
+      // Strategy: For each group, use the first layer's anchor as the group position,
+      // then compute offsets for remaining layers relative to that.
+      for (const batchName of ['head', 'tail', 'vestigial']) {
+        for (const bt of BODY_TYPES) {
+          // Group layers by their link group
+          const groups = {};
+          for (const layer of (LAYERS[batchName] || [])) {
+            const group = getLinkGroup(layer.id);
+            const key = group || layer.id;
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(layer);
+          }
+
+          for (const [groupName, groupLayers] of Object.entries(groups)) {
+            // Find anchor for first layer in group to use as group position
+            const firstLayer = groupLayers[0];
+            const firstVal = A[firstLayer.id + ':' + bt];
+            if (!firstVal) continue;
+
+            const gKey = groupAnchorKeyFor(groupName, batchName, bt, currentWingCount, currentLimbCount);
+            groupAnchors[gKey] = { x: firstVal.x, y: firstVal.y, rot: firstVal.rot || 0 };
+
+            // Set layerOffsets as delta from group (0,0 for first, diff for others)
+            for (const layer of groupLayers) {
+              const val = A[layer.id + ':' + bt];
+              if (val) {
+                layerOffsets[layer.id] = {
+                  x: val.x - firstVal.x,
+                  y: val.y - firstVal.y,
+                };
+                count++;
+              }
+            }
+          }
+        }
+      }
+
+      // Horns: chained to head, no body type in key
+      const hornGroups = {};
+      for (const layer of (LAYERS.horns || [])) {
+        const group = getLinkGroup(layer.id);
+        const key = group || layer.id;
+        if (!hornGroups[key]) hornGroups[key] = [];
+        hornGroups[key].push(layer);
+      }
+      for (const [groupName, groupLayers] of Object.entries(hornGroups)) {
+        const firstLayer = groupLayers[0];
+        const firstVal = A[firstLayer.id];
+        if (!firstVal) continue;
+
+        groupAnchors[groupName] = { x: firstVal.x, y: firstVal.y };
+        for (const layer of groupLayers) {
+          const val = A[layer.id];
+          if (val) {
+            layerOffsets[layer.id] = {
+              x: val.x - firstVal.x,
+              y: val.y - firstVal.y,
+            };
+            count++;
+          }
+        }
+      }
+
+      // Wings: ANCHORS[file:pN:bt:Xw] → groupAnchors + modelOffsets
+      for (const wc of [2, 4, 6]) {
+        const maxPair = wingCountToMaxPair(wc);
+        for (const bt of BODY_TYPES) {
+          for (const [modelName, model] of Object.entries(WING_MODELS)) {
+            for (let p = 1; p <= maxPair; p++) {
+              const gKey = groupAnchorKeyFor(modelName + ':p' + p, 'wings', bt, wc, currentLimbCount);
+              // Use first model layer to determine group position
+              const firstMl = model.layers[0];
+              const firstVal = A[`${firstMl.file}:p${p}:${bt}:${wc}w`];
+              if (!firstVal) continue;
+
+              const mOff = modelOffsets[firstMl.modelId] || { x: 0, y: 0 };
+              groupAnchors[gKey] = {
+                x: firstVal.x - mOff.x,
+                y: firstVal.y - mOff.y,
+                rot: firstVal.rot || 0,
+              };
+              count++;
+
+              // Set model offsets from remaining layers (only on first pair/bt to avoid overwriting)
+              if (p === 1 && bt === 'standard') {
+                for (const ml of model.layers) {
+                  const val = A[`${ml.file}:p${p}:${bt}:${wc}w`];
+                  if (val) {
+                    modelOffsets[ml.modelId] = {
+                      x: val.x - groupAnchors[gKey].x,
+                      y: val.y - groupAnchors[gKey].y,
+                    };
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Legs: same pattern as wings
+      for (const lc of [2, 4, 6]) {
+        const maxPair = limbCountToMaxPair(lc);
+        for (const bt of BODY_TYPES) {
+          for (const [modelName, model] of Object.entries(LEG_MODELS)) {
+            for (let p = 1; p <= maxPair; p++) {
+              const gKey = groupAnchorKeyFor(modelName + ':p' + p, 'legs', bt, currentWingCount, lc);
+              const firstMl = model.layers[0];
+              const firstVal = A[`${firstMl.file}:p${p}:${bt}:${lc}l`];
+              if (!firstVal) continue;
+
+              const mOff = modelOffsets[firstMl.modelId] || { x: 0, y: 0 };
+              groupAnchors[gKey] = {
+                x: firstVal.x - mOff.x,
+                y: firstVal.y - mOff.y,
+              };
+              count++;
+
+              if (p === 1 && bt === 'standard') {
+                for (const ml of model.layers) {
+                  const val = A[`${ml.file}:p${p}:${bt}:${lc}l`];
+                  if (val) {
+                    modelOffsets[ml.modelId] = {
+                      x: val.x - groupAnchors[gKey].x,
+                      y: val.y - groupAnchors[gKey].y,
+                    };
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      saveAnchors();
+      buildLayerList();
+      render();
+      statusBar.innerHTML = `<strong style="color:#6a8a72;">✓ Imported ${count} anchor positions from sprite-config.js</strong>`;
+      setTimeout(buildLayerList, 3000);
     });
 
     // ── Toggles ──

@@ -509,6 +509,11 @@ export function initLayerVisualizer(container) {
   // ── Recomposite: rebuilds from raw data with current settings ──
   function recomposite() {
     if (!currentData) return;
+    console.log('[LayerViz] recomposite called —', {
+      l1fills: layerSettings.layer1.fills, l1out: layerSettings.layer1.outlines,
+      l2out: layerSettings.layer2.outlines, l3fills: layerSettings.layer3.fills,
+      face: layerSettings.face.fills, l4out: layerSettings.layer4.outlines,
+    });
     const { processedLayers, layerA2Layers, dragonHsl, needsFadePass } = currentData;
     const alpha = currentAlphaOverride !== null ? currentAlphaOverride : currentData.bodyAlpha;
     const w = SPRITE_WIDTH, h = SPRITE_HEIGHT;
