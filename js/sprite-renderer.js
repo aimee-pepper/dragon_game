@@ -686,10 +686,14 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
       }
     }
 
-    // Layer 3: Full dragon with fade PNGs — fills cover outlines
-    // where opaque, let them peek through where faded
+    // Layer 3: Fade fills only (no outlines) — fade fills cover Layer 2
+    // outlines where opaque, let them peek through where faded.
+    // Fade outline PNGs are nearly empty art, so we skip them here;
+    // Layer 2's base outlines are the ones we want visible.
     for (const layer of layerA2Layers) {
-      drawToCtx(offscreenCompCtx, layer.offscreen, layer, 1.0);
+      if (!layer.isOutline) {
+        drawToCtx(offscreenCompCtx, layer.offscreen, layer, 1.0);
+      }
     }
   }
 
