@@ -449,7 +449,7 @@ export function resolveAssetsForPhenotype(phenotype) {
 export const COLOR_ADJUSTMENTS = {
   base:    { luminanceShift: 0,    saturationShift: 0 },
   lighten: { luminanceShift: 0.15, saturationShift: 0 },      // belly, wing inner membrane — 15% lighter
-  darken:  { luminanceShift: -0.25, saturationShift: 0.76, outlineLumCorrection: 0.22 },  // outlines — 25% darker, sat+lum corrections for Layer 2 match
+  darken:  { luminanceShift: -0.25, saturationShift: 0.76 },  // outlines — 25% darker, sat boost for Layer 2 color match
   horn:    { luminanceShift: -0.10, saturationShift: 0 },      // horn fills — subtle darken, between base and outline
   fixed:   null,                                                // no color processing (eyes, mouth)
 };

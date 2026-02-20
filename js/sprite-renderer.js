@@ -451,8 +451,7 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
       const adjustment = COLOR_ADJUSTMENTS[asset.colorMode];
       const lumShift = adjustment ? adjustment.luminanceShift : 0;
       const satShift = adjustment ? (adjustment.saturationShift || 0) : 0;
-      const lumCorrection = adjustment ? (adjustment.outlineLumCorrection || 0) : 0;
-      applyColorBlend(imageData, dragonRgb, lumShift + lumCorrection, satShift);
+      applyColorBlend(imageData, dragonRgb, lumShift, satShift);
       offCtx.putImageData(imageData, 0, 0);
     }
 
@@ -551,8 +550,7 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
       const adjustment = COLOR_ADJUSTMENTS[asset.colorMode];
       const lumShift = adjustment ? adjustment.luminanceShift : 0;
       const satShift = adjustment ? (adjustment.saturationShift || 0) : 0;
-      const lumCorrection = adjustment ? (adjustment.outlineLumCorrection || 0) : 0;
-      applyColorBlend(imageData, dragonRgb, lumShift + lumCorrection, satShift);
+      applyColorBlend(imageData, dragonRgb, lumShift, satShift);
       offCtx.putImageData(imageData, 0, 0);
     }
 
