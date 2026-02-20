@@ -666,7 +666,7 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
   // For transparent dragons:
   //   Layer 1: Fills only, base PNGs (no outlines — avoids double-drawing)
   //   Layer 2: Outlines only, base PNGs
-  //   Layer 3: Fade fills only (no outlines — fade outline PNGs are empty)
+  //   Layer 3: Fade fills only (no outlines)
   // For opaque dragons:
   //   Layer 1: Full dragon (fills + outlines), base PNGs
   //
@@ -681,17 +681,15 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
       }
     }
 
-    // Layer 2: Outlines only at full opacity — these sit on top of
-    // Layer 1's fills, and will show through wherever Layer 3's
-    // fade fills have transparency gradients
+    // Layer 2: Outlines only at full opacity — these show through
+    // wherever Layer 3's fade fills have transparency gradients
     for (const layer of processedLayers) {
       if (layer.isOutline) {
         drawToCtx(offscreenCompCtx, layer.offscreen, layer, 1.0);
       }
     }
 
-    // Layer 3: Fade fills only (no outlines) — fade fills cover Layer 2
-    // outlines where opaque, let them peek through where faded
+    // Layer 3: Fade fills only (no outlines)
     for (const layer of layerA2Layers) {
       if (!layer.isOutline) {
         drawToCtx(offscreenCompCtx, layer.offscreen, layer, 1.0);
