@@ -77,6 +77,7 @@ export function initOptionsTab(container) {
       secretBuffer = secretBuffer.slice(-SECRET.length);
     }
     if (secretBuffer === SECRET) {
+      e.preventDefault(); // Stop the final 't' from typing into the input
       consoleLine.classList.add('revealed');
       consoleInput.focus();
       secretBuffer = '';
