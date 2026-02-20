@@ -6,8 +6,10 @@
 // them for the connecting lines.
 //
 // When a dragon appears multiple times (shared ancestor / inbreeding),
-// the LAST (deepest) instance is "primary" (full opacity + full size)
-// and earlier appearances are "echo" (smaller, translucent, dotted border).
+// the SHALLOWEST instance (closest to the subject) is "primary"
+// (full opacity + full size) and deeper appearances are "echo"
+// (smaller, translucent, dotted border). Wavy colored lines connect
+// all instances of the same dragon for visual tracing.
 //
 // Sire/Dam labels appear on the direct parents of the subject dragon.
 
@@ -84,13 +86,14 @@ function markPrimaryInstances(allNodes) {
     if (nodes.length === 1) {
       nodes[0].isPrimary = true;
     } else {
-      let deepest = nodes[0];
+      // Shallowest instance (closest to subject) is primary
+      let shallowest = nodes[0];
       for (let i = 1; i < nodes.length; i++) {
-        if (nodes[i].depth > deepest.depth) deepest = nodes[i];
+        if (nodes[i].depth < shallowest.depth) shallowest = nodes[i];
       }
       for (const n of nodes) {
-        n.isPrimary = (n === deepest);
-        if (!n.isPrimary) n.primaryNodeId = deepest.nodeId;
+        n.isPrimary = (n === shallowest);
+        if (!n.isPrimary) n.primaryNodeId = shallowest.nodeId;
       }
     }
   }
@@ -239,6 +242,64 @@ function drawConnectors(svg, node) {
   if (node.parentB) drawConnectors(svg, node.parentB);
 }
 
+// ─── Wavy Duplicate Connector Lines ─────────────────────────
+// When a dragon appears multiple times, draw a wavy (sinusoidal)
+// path between each pair of instances, colored in their gen color.
+
+function drawDuplicateLinks(svg, allNodes) {
+  for (const [, nodes] of allNodes) {
+    if (nodes.length < 2) continue;
+
+    // Sort by depth so we connect shallowest → deepest in order
+    const sorted = [...nodes].sort((a, b) => a.depth - b.depth);
+    const genIdx = Math.min(sorted[0].dragon.generation, 5);
+    const color = GEN_COLORS[genIdx];
+
+    // Connect each consecutive pair
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const from = sorted[i];
+      const to = sorted[i + 1];
+
+      const x1 = from.x + from.w / 2;
+      const y1 = from.y + from.h / 2;
+      const x2 = to.x + to.w / 2;
+      const y2 = to.y + to.h / 2;
+
+      // Build a wavy SVG path (sinusoidal)
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const waves = Math.max(3, Math.round(dist / 40)); // ~1 wave per 40px
+      const amplitude = 8; // wave amplitude in px
+
+      // Unit perpendicular vector
+      const px = -dy / dist;
+      const py = dx / dist;
+
+      let d = `M ${x1} ${y1}`;
+      const steps = waves * 8; // smooth curve
+      for (let s = 1; s <= steps; s++) {
+        const t = s / steps;
+        const lx = x1 + dx * t;
+        const ly = y1 + dy * t;
+        const wave = Math.sin(t * waves * Math.PI * 2) * amplitude;
+        const fx = lx + px * wave;
+        const fy = ly + py * wave;
+        d += ` L ${fx.toFixed(1)} ${fy.toFixed(1)}`;
+      }
+
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', d);
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke', color);
+      path.setAttribute('stroke-width', '1.5');
+      path.setAttribute('stroke-dasharray', '4,2');
+      path.setAttribute('opacity', '0.5');
+      svg.appendChild(path);
+    }
+  }
+}
+
 // ─── DOM Node Cards ─────────────────────────────────────────
 
 function renderNodeCard(node, registry, treeOverlay) {
@@ -311,7 +372,7 @@ function renderNodeCard(node, registry, treeOverlay) {
 
   // Echo hint
   if (!node.isPrimary) {
-    card.appendChild(el('div', 'ped-echo-label', '↗ see above'));
+    card.appendChild(el('div', 'ped-echo-label', '↙ see below'));
   }
 
   // Click
@@ -385,6 +446,7 @@ export function openFamilyTree(dragon, registry) {
   // SVG line layer (behind cards)
   const svg = createSVG(stageW, stageH);
   drawConnectors(svg, tree);
+  drawDuplicateLinks(svg, allNodes);
   stage.appendChild(svg);
 
   // Sire / Dam labels (only for subject's direct parents)
