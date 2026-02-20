@@ -737,10 +737,11 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
       // White-ish pixel (fill area) → fully transparent
       bData[i + 3] = 0;
     } else {
-      // Dark pixel (outline) → uniform 50% grey for color blend
-      bData[i]     = 128;
-      bData[i + 1] = 128;
-      bData[i + 2] = 128;
+      // Dark pixel (outline) → match source art luminance (102/255 = 40%)
+      // so Layer 4 outlines color-blend identically to Layers 1-3 outlines
+      bData[i]     = 102;
+      bData[i + 1] = 102;
+      bData[i + 2] = 102;
     }
   }
   const darkenShift = COLOR_ADJUSTMENTS.darken.luminanceShift;
