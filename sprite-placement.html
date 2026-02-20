@@ -1,0 +1,2274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dragon Sprite Placement Tool</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #1e1a16;
+      color: #d4cdc4;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      padding: 12px;
+      overflow-x: hidden;
+    }
+    h1 { text-align: center; margin-bottom: 4px; color: #c4a265; font-size: 20px; }
+    .subtitle { text-align: center; color: #8a7e72; margin-bottom: 12px; font-size: 13px; }
+
+    .toolbar {
+      display: flex; gap: 8px; align-items: center; justify-content: center;
+      flex-wrap: wrap; margin-bottom: 8px; padding: 8px;
+      background: #2a2420; border-radius: 8px; border: 1px solid #3d3530;
+    }
+    .toolbar-row {
+      display: flex; gap: 8px; align-items: center; justify-content: center;
+      flex-wrap: wrap; margin-bottom: 8px; padding: 6px 8px;
+      background: #2a2420; border-radius: 8px; border: 1px solid #3d3530;
+    }
+    .toolbar label, .toolbar-row label { font-size: 12px; color: #8a7e72; }
+    .toolbar select, .toolbar input, .toolbar-row select, .toolbar-row input {
+      background: #1e1a16; color: #d4cdc4; border: 1px solid #3d3530;
+      border-radius: 4px; padding: 4px 8px; font-size: 12px;
+    }
+    .toolbar select, .toolbar-row select { min-width: 100px; }
+    button {
+      background: #c4a265; color: #1e1a16; border: none;
+      padding: 6px 14px; border-radius: 6px; cursor: pointer;
+      font-weight: bold; font-size: 12px; white-space: nowrap;
+    }
+    button:hover { background: #d4b275; }
+    button.secondary { background: #3d3530; color: #d4cdc4; }
+    button.secondary:hover { background: #4d4540; }
+    .sep { width: 1px; height: 24px; background: #3d3530; }
+
+    .main-layout {
+      display: flex; gap: 12px; height: calc(100vh - 180px); min-height: 500px;
+    }
+
+    /* Canvas area */
+    .canvas-container {
+      flex: 1; position: relative; overflow: hidden;
+      background: repeating-conic-gradient(#1a1a1a 0% 25%, #222 0% 50%) 50% / 20px 20px;
+      border: 2px solid #3d3530; border-radius: 8px;
+    }
+    #compositeCanvas {
+      position: absolute; top: 0; left: 0;
+      transform-origin: 0 0; cursor: grab;
+    }
+    #compositeCanvas.dragging { cursor: grabbing; }
+
+    /* Side panel */
+    .side-panel {
+      width: 340px; min-width: 300px;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+
+    .layer-list {
+      flex: 1; overflow-y: auto;
+      background: #2a2420; border: 1px solid #3d3530; border-radius: 8px;
+      padding: 6px;
+    }
+    .layer-item {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 6px; border-radius: 6px; cursor: pointer;
+      font-size: 12px; border: 1px solid transparent;
+      transition: background 0.1s;
+    }
+    .layer-item:hover { background: #3d3530; }
+    .layer-item.selected { background: #3d3530; border-color: #c4a265; }
+    .layer-item.missing { opacity: 0.4; }
+    .layer-item .layer-icon {
+      width: 28px; height: 28px; border-radius: 4px;
+      background: #1a1715; border: 1px solid #3d3530;
+    }
+    .layer-item .layer-name {
+      flex: 1; color: #d4cdc4; font-size: 11px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .layer-item .layer-pos { color: #8a7e72; font-family: monospace; font-size: 10px; }
+    .layer-item .layer-vis {
+      width: 20px; height: 20px; display: flex; align-items: center;
+      justify-content: center; cursor: pointer; border-radius: 4px; font-size: 13px;
+    }
+    .layer-item .layer-vis:hover { background: #4d4540; }
+    .layer-group-header {
+      font-size: 10px; color: #6a5a4a; text-transform: uppercase;
+      letter-spacing: 1px; padding: 6px 6px 2px; margin-top: 4px;
+      border-top: 1px solid #2d2825; cursor: pointer;
+    }
+    .layer-group-header:first-child { border-top: none; margin-top: 0; }
+    .layer-group-header.selected-group {
+      background: #3d3530; border-radius: 4px; color: #c4a265;
+      border: 1px solid #c4a265; padding: 5px 6px;
+    }
+    .layer-group-header .group-pos {
+      float: right; font-family: monospace; font-size: 9px; color: #6a8a72;
+    }
+    .model-section-header {
+      font-size: 10px; color: #8a6a8a; text-transform: uppercase;
+      letter-spacing: 1px; padding: 4px 6px 2px; margin-top: 4px;
+      border-top: 1px dashed #3d3530;
+    }
+
+    /* Position editor */
+    .pos-editor {
+      background: #2a2420; border: 1px solid #3d3530; border-radius: 8px;
+      padding: 10px;
+    }
+    .pos-editor h3 { color: #c4a265; font-size: 13px; margin-bottom: 6px; }
+    .pos-editor .chain-info {
+      font-size: 10px; color: #6a8a72; margin-bottom: 6px;
+      padding: 4px 6px; background: #1a2a1a; border-radius: 4px;
+    }
+    .pos-row { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; }
+    .pos-row label { width: 18px; color: #8a7e72; font-size: 12px; font-weight: bold; }
+    .pos-row input[type="number"] {
+      width: 70px; background: #1e1a16; color: #d4cdc4;
+      border: 1px solid #3d3530; border-radius: 4px;
+      padding: 3px 6px; font-size: 12px; font-family: monospace;
+    }
+    .pos-row .nudge {
+      padding: 2px 6px; font-size: 10px; background: #3d3530; color: #d4cdc4;
+      border: none; border-radius: 4px; cursor: pointer;
+    }
+    .pos-row .nudge:hover { background: #4d4540; }
+    .rot-row { display: none; } /* shown only for rotatable groups */
+    .rot-row.visible { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; }
+    .rot-row label { width: 18px; color: #8a7e72; font-size: 12px; font-weight: bold; }
+    .rot-row input[type="range"] {
+      flex: 1; accent-color: #c4a265;
+    }
+    .rot-row .rot-value {
+      font-family: monospace; font-size: 11px; color: #d4cdc4; min-width: 40px; text-align: right;
+    }
+
+    .output-box {
+      background: #1a1715; border: 1px solid #3d3530; border-radius: 8px;
+      padding: 8px; max-height: 180px; overflow-y: auto;
+      font-family: 'SF Mono', 'Fira Code', monospace; font-size: 10px;
+      line-height: 1.4; color: #8a7e72; white-space: pre;
+    }
+
+    .zoom-indicator {
+      position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.7);
+      color: #c4a265; padding: 4px 8px; border-radius: 4px; font-size: 12px;
+      font-family: monospace; pointer-events: none; z-index: 10;
+    }
+
+    .tab-row { display: flex; gap: 3px; flex-wrap: wrap; }
+    .tab-btn {
+      padding: 4px 10px; border-radius: 4px; font-size: 11px;
+      cursor: pointer; background: #3d3530; color: #8a7e72;
+      border: 1px solid transparent;
+    }
+    .tab-btn:hover { color: #d4cdc4; }
+    .tab-btn.active { background: #c4a265; color: #1e1a16; }
+
+    .body-type-tabs .tab-btn.active { background: #6a8a72; color: #1e1a16; }
+    .config-tabs .tab-btn.active { background: #6a6a8a; color: #1e1a16; }
+
+    .status-bar {
+      text-align: center; font-size: 11px; color: #8a7e72;
+      padding: 4px; background: #2a2420; border-radius: 4px;
+    }
+    .status-bar strong { color: #c4a265; }
+  </style>
+</head>
+<body>
+  <h1>🐉 Sprite Placement Tool</h1>
+  <p class="subtitle">Click group headers to move groups. Click model layers to adjust offsets. Arrow keys nudge (Shift = 10px). G = toggle group mode.</p>
+
+  <!-- Toolbar row 1: batch + body type -->
+  <div class="toolbar">
+    <label>Batch:</label>
+    <div class="tab-row" id="batchTabs">
+      <div class="tab-btn active" data-batch="body">Body</div>
+      <div class="tab-btn" data-batch="head">Head</div>
+      <div class="tab-btn" data-batch="legs">Legs</div>
+      <div class="tab-btn" data-batch="tail">Tail</div>
+      <div class="tab-btn" data-batch="wings">Wings</div>
+      <div class="tab-btn" data-batch="vestigial">Vest Wings</div>
+      <div class="tab-btn" data-batch="horns">Horns</div>
+      <div class="tab-btn" data-batch="all">All</div>
+    </div>
+    <span class="sep"></span>
+    <label>Body:</label>
+    <div class="tab-row body-type-tabs" id="bodyTypeTabs">
+      <div class="tab-btn active" data-body="standard">Standard</div>
+      <div class="tab-btn" data-body="sinuous">Sinuous</div>
+      <div class="tab-btn" data-body="bulky">Bulky</div>
+    </div>
+  </div>
+
+  <!-- Toolbar row 2: config tabs (shown for wings/legs batches) -->
+  <div class="toolbar-row" id="configRow" style="display:none;">
+    <label id="wingCountLabel" style="display:none;">Wings:</label>
+    <div class="tab-row config-tabs" id="wingCountTabs" style="display:none;">
+      <div class="tab-btn active" data-wings="2">2</div>
+      <div class="tab-btn" data-wings="4">4</div>
+      <div class="tab-btn" data-wings="6">6</div>
+    </div>
+    <label id="limbCountLabel" style="display:none;">Limbs:</label>
+    <div class="tab-row config-tabs" id="limbCountTabs" style="display:none;">
+      <div class="tab-btn" data-limbs="2">2</div>
+      <div class="tab-btn active" data-limbs="4">4</div>
+      <div class="tab-btn" data-limbs="6">6</div>
+    </div>
+  </div>
+
+  <!-- Toolbar row 3: display options -->
+  <div class="toolbar-row">
+    <label>Color:</label>
+    <input type="color" id="tintColor" value="#4488cc" style="width:36px;height:26px;border:1px solid #3d3530;border-radius:4px;">
+    <label><input type="checkbox" id="showTint" checked> Tint</label>
+    <label><input type="checkbox" id="showGhost" checked> Ghost body</label>
+    <label><input type="checkbox" id="showAllLayers" checked> Show all</label>
+    <span class="sep"></span>
+    <button id="copyAnchorsBtn">📋 Copy All</button>
+    <button id="exportPartsBtn" class="secondary">💾 Export by Part</button>
+    <button id="resetBtn" class="secondary">↩ Reset Batch</button>
+  </div>
+
+  <div class="main-layout">
+    <div class="canvas-container" id="canvasContainer">
+      <canvas id="compositeCanvas"></canvas>
+      <div class="zoom-indicator" id="zoomIndicator">100%</div>
+    </div>
+
+    <div class="side-panel">
+      <div class="status-bar" id="statusBar">Select a batch to begin placement</div>
+
+      <div class="layer-list" id="layerList"></div>
+
+      <div class="pos-editor" id="posEditor">
+        <h3 id="posEditorTitle">No layer selected</h3>
+        <div class="chain-info" id="chainInfo" style="display:none;"></div>
+        <div class="pos-row">
+          <label>X:</label>
+          <input type="number" id="posX" value="0" step="1">
+          <button class="nudge" data-dx="-10" data-dy="0">◀10</button>
+          <button class="nudge" data-dx="-1" data-dy="0">◀1</button>
+          <button class="nudge" data-dx="1" data-dy="0">1▶</button>
+          <button class="nudge" data-dx="10" data-dy="0">10▶</button>
+        </div>
+        <div class="pos-row">
+          <label>Y:</label>
+          <input type="number" id="posY" value="0" step="1">
+          <button class="nudge" data-dx="0" data-dy="-10">▲10</button>
+          <button class="nudge" data-dx="0" data-dy="-1">▲1</button>
+          <button class="nudge" data-dx="0" data-dy="1">1▼</button>
+          <button class="nudge" data-dx="0" data-dy="10">10▼</button>
+        </div>
+        <div class="rot-row" id="rotRow">
+          <label>R:</label>
+          <input type="range" id="rotSlider" min="-180" max="180" value="0" step="1">
+          <span class="rot-value" id="rotValue">0°</span>
+          <button class="nudge" id="rotReset">0°</button>
+        </div>
+        <div style="font-size:10px;color:#6a6a5a;margin-top:4px;" id="posInfo"></div>
+      </div>
+
+      <div class="output-box" id="outputBox">// Click "Copy Anchors" to export</div>
+    </div>
+  </div>
+
+  <script type="module">
+    // ============================================================
+    // PLACEMENT TOOL v5
+    //   — THREE-LEVEL ANCHORS:
+    //     groupAnchors (per body-type × config × pair)
+    //     modelOffsets  (shared across all pairs for wings/legs)
+    //     layerOffsets  (for non-model layers: body, head, tail, horns, vest)
+    //   — MODEL-BASED wings/legs: position layers once, reuse for all pairs
+    //   — CONFIG-AWARE: wing count and limb count affect group anchor keys
+    //   — GROUP ROTATION: rotation at group level for wings
+    //   — GHOST HEAD: for horns batch
+    // ============================================================
+
+    const SPRITE_WIDTH = 2752;
+    const SPRITE_HEIGHT = 2064;
+    const ASSET_BASE = 'assets/sprites/';
+    const BODY_TYPES = ['standard', 'sinuous', 'bulky'];
+
+    // ── Model definitions for wings and legs ──
+    // These define the layers within a model. Offsets are shared across all pairs.
+    const WING_MODELS = {
+      wing_bg: {
+        label: 'BG Wing Model',
+        layers: [
+          { modelId: 'wing_bg_model:inner_f', file: 'wing_bg_inner_f', label: 'BG Inner Fill' },
+          { modelId: 'wing_bg_model:inner_o', file: 'wing_bg_inner_o', label: 'BG Inner Outline' },
+          { modelId: 'wing_bg_model:outer_f', file: 'wing_bg_outer_f', label: 'BG Outer Fill' },
+          { modelId: 'wing_bg_model:outer_o', file: 'wing_bg_outer_o', label: 'BG Outer Outline' },
+        ],
+      },
+      wing_fg: {
+        label: 'FG Wing Model',
+        layers: [
+          { modelId: 'wing_fg_model:inner_f', file: 'wing_fg_inner_f', label: 'FG Inner Fill' },
+          { modelId: 'wing_fg_model:inner_o', file: 'wing_fg_inner_o', label: 'FG Inner Outline' },
+          { modelId: 'wing_fg_model:outer_f', file: 'wing_fg_outer_f', label: 'FG Outer Fill' },
+          { modelId: 'wing_fg_model:outer_o', file: 'wing_fg_outer_o', label: 'FG Outer Outline' },
+        ],
+      },
+    };
+
+    const LEG_MODELS = {
+      leg_bg: {
+        label: 'BG Leg Model',
+        layers: [
+          { modelId: 'leg_bg_model:f', file: 'leg_bg_f', label: 'BG Leg Fill' },
+          { modelId: 'leg_bg_model:o', file: 'leg_bg_o', label: 'BG Leg Outline' },
+        ],
+      },
+      leg_fg: {
+        label: 'FG Leg Model',
+        layers: [
+          { modelId: 'leg_fg_model:f', file: 'leg_fg_f', label: 'FG Leg Fill' },
+          { modelId: 'leg_fg_model:o', file: 'leg_fg_o', label: 'FG Leg Outline' },
+        ],
+      },
+    };
+
+    // MODEL_BATCHES: batches that use the model system (wings, legs)
+    const MODEL_BATCHES = new Set(['wings', 'legs']);
+
+    // ── Non-model layer definitions ──
+    const LAYERS = {
+      body: [
+        { id: 'body_stan_bf', file: 'body_stan_bf' },
+        { id: 'body_stan_mf', file: 'body_stan_mf' },
+        { id: 'body_stan_o',  file: 'body_stan_o' },
+        { id: 'body_sin_bf',  file: 'body_sin_bf' },
+        { id: 'body_sin_mf',  file: 'body_sin_mf' },
+        { id: 'body_sin_o',   file: 'body_sin_o' },
+        { id: 'body_bulk_bf', file: 'body_bulk_bf' },
+        { id: 'body_bulk_mf', file: 'body_bulk_mf' },
+        { id: 'body_bulk_o',  file: 'body_bulk_o' },
+      ],
+      head: [
+        { id: 'head_f', file: 'head_f' },
+        { id: 'head_o', file: 'head_o' },
+        { id: 'head_d', file: 'head_d' },
+      ],
+      tail: [
+        { id: 'tail_normal_s_f', file: 'tail_normal_s_f' }, { id: 'tail_normal_s_o', file: 'tail_normal_s_o' },
+        { id: 'tail_normal_m_f', file: 'tail_normal_m_f' }, { id: 'tail_normal_m_o', file: 'tail_normal_m_o' },
+        { id: 'tail_normal_l_f', file: 'tail_normal_l_f' }, { id: 'tail_normal_l_o', file: 'tail_normal_l_o' },
+        { id: 'tail_whip_s_f', file: 'tail_whip_s_f' }, { id: 'tail_whip_s_o', file: 'tail_whip_s_o' },
+        { id: 'tail_whip_m_f', file: 'tail_whip_m_f' }, { id: 'tail_whip_m_o', file: 'tail_whip_m_o' },
+        { id: 'tail_whip_l_f', file: 'tail_whip_l_f' }, { id: 'tail_whip_l_o', file: 'tail_whip_l_o' },
+        { id: 'tail_heavy_s_f', file: 'tail_heavy_s_f' }, { id: 'tail_heavy_s_o', file: 'tail_heavy_s_o' },
+        { id: 'tail_heavy_m_f', file: 'tail_heavy_m_f' }, { id: 'tail_heavy_m_o', file: 'tail_heavy_m_o' },
+        { id: 'tail_heavy_l_f', file: 'tail_heavy_l_f' }, { id: 'tail_heavy_l_o', file: 'tail_heavy_l_o' },
+      ],
+      vestigial: [
+        { id: 'wing_bg_vest_inner_f', file: 'wing_bg_vest_inner_f' },
+        { id: 'wing_bg_vest_outer_f', file: 'wing_bg_vest_outer_f' },
+        { id: 'wing_bg_vest_outer_o', file: 'wing_bg_vest_outer_o' },
+        { id: 'wing_fg_vest_inner_f', file: 'wing_fg_vest_inner_f' },
+        { id: 'wing_fg_vest_outer_f', file: 'wing_fg_vest_outer_f' },
+        { id: 'wing_fg_vest_outer_o', file: 'wing_fg_vest_outer_o' },
+      ],
+      horns: [
+        { id: 'horns_bg_sm_for_f', file: 'horns_bg_sm_for_f' }, { id: 'horns_bg_sm_for_o', file: 'horns_bg_sm_for_o' },
+        { id: 'horns_bg_sm_up_f', file: 'horns_bg_sm_up_f' }, { id: 'horns_bg_sm_up_o', file: 'horns_bg_sm_up_o' },
+        { id: 'horns_bg_sm_back_f', file: 'horns_bg_sm_back_f' }, { id: 'horns_bg_sm_back_o', file: 'horns_bg_sm_back_o' },
+        { id: 'horns_bg_gn_for_f', file: 'horns_bg_gn_for_f' }, { id: 'horns_bg_gn_for_o', file: 'horns_bg_gn_for_o' },
+        { id: 'horns_bg_gn_up_f', file: 'horns_bg_gn_up_f' }, { id: 'horns_bg_gn_up_o', file: 'horns_bg_gn_up_o' },
+        { id: 'horns_bg_gn_back_f', file: 'horns_bg_gn_back_f' }, { id: 'horns_bg_gn_back_o', file: 'horns_bg_gn_back_o' },
+        { id: 'horns_bg_kn_for_f', file: 'horns_bg_kn_for_f' }, { id: 'horns_bg_kn_for_o', file: 'horns_bg_kn_for_o' },
+        { id: 'horns_bg_kn_up_f', file: 'horns_bg_kn_up_f' }, { id: 'horns_bg_kn_up_o', file: 'horns_bg_kn_up_o' },
+        { id: 'horns_bg_kn_back_f', file: 'horns_bg_kn_back_f' }, { id: 'horns_bg_kn_back_o', file: 'horns_bg_kn_back_o' },
+        { id: 'horns_fg_sm_for_f', file: 'horns_fg_sm_for_f' }, { id: 'horns_fg_sm_for_o', file: 'horns_fg_sm_for_o' },
+        { id: 'horns_fg_sm_up_f', file: 'horns_fg_sm_up_f' }, { id: 'horns_fg_sm_up_o', file: 'horns_fg_sm_up_o' },
+        { id: 'horns_fg_sm_back_f', file: 'horns_fg_sm_back_f' }, { id: 'horns_fg_sm_back_o', file: 'horns_fg_sm_back_o' },
+        { id: 'horns_fg_gn_for_f', file: 'horns_fg_gn_for_f' }, { id: 'horns_fg_gn_for_o', file: 'horns_fg_gn_for_o' },
+        { id: 'horns_fg_gn_up_f', file: 'horns_fg_gn_up_f' }, { id: 'horns_fg_gn_up_o', file: 'horns_fg_gn_up_o' },
+        { id: 'horns_fg_gn_back_f', file: 'horns_fg_gn_back_f' }, { id: 'horns_fg_gn_back_o', file: 'horns_fg_gn_back_o' },
+        { id: 'horns_fg_kn_for_f', file: 'horns_fg_kn_for_f' }, { id: 'horns_fg_kn_for_o', file: 'horns_fg_kn_for_o' },
+        { id: 'horns_fg_kn_up_f', file: 'horns_fg_kn_up_f' }, { id: 'horns_fg_kn_up_o', file: 'horns_fg_kn_up_o' },
+        { id: 'horns_fg_kn_back_f', file: 'horns_fg_kn_back_f' }, { id: 'horns_fg_kn_back_o', file: 'horns_fg_kn_back_o' },
+      ],
+    };
+
+    // ── Link groups for non-model layers ──
+    function getLinkGroup(layerId) {
+      if (layerId.startsWith('body_stan')) return 'body_stan';
+      if (layerId.startsWith('body_sin'))  return 'body_sin';
+      if (layerId.startsWith('body_bulk')) return 'body_bulk';
+      if (layerId.startsWith('head_'))     return 'head';
+      const tailMatch = layerId.match(/^(tail_\w+_[sml])_[fo]$/);
+      if (tailMatch) return tailMatch[1];
+      const hornMatch = layerId.match(/^(horns_[fb]g_\w+_\w+)_[fo]$/);
+      if (hornMatch) return hornMatch[1];
+      if (layerId.includes('vest')) {
+        return layerId.includes('_bg_') ? 'vest_bg' : 'vest_fg';
+      }
+      return null;
+    }
+
+    function getLinkedLayers(layerId) {
+      const group = getLinkGroup(layerId);
+      if (!group) return [layerId];
+      return getBatchLayers().filter(l => getLinkGroup(l.id) === group).map(l => l.id);
+    }
+
+    // Batch classification
+    const BODY_DEPENDENT = new Set(['head', 'legs', 'tail', 'wings', 'vestigial']);
+    const CHAINED_TO_HEAD = new Set(['horns']);
+
+    const GHOST_BODY_FILES = {
+      standard: ['body_stan_bf', 'body_stan_mf', 'body_stan_o'],
+      sinuous:  ['body_sin_bf', 'body_sin_mf', 'body_sin_o'],
+      bulky:    ['body_bulk_bf', 'body_bulk_mf', 'body_bulk_o'],
+    };
+    const GHOST_HEAD_FILES = ['head_f', 'head_o', 'head_d'];
+
+    // ── State ──
+    // Three-level anchor system:
+    //   groupAnchors[groupKey]   = {x, y, rot?}   — group position (body-type × config × pair)
+    //   modelOffsets[modelId]    = {x, y}          — offset within model (shared across pairs)
+    //   layerOffsets[layerId]    = {x, y}          — offset for non-model layers
+    const groupAnchors = {};
+    const modelOffsets = {};
+    const layerOffsets = {};
+    const images = {};
+    const visibility = {};
+    let groupMoveEnabled = true;
+    let currentBatch = 'body';
+    let currentBodyType = 'standard';
+    let currentWingCount = 2;
+    let currentLimbCount = 4;
+    let selectedLayerId = null;      // for non-model layers
+    let selectedModelId = null;      // for model layers (e.g. 'wing_bg_model:inner_f')
+    let selectedGroupId = null;      // for group headers (e.g. 'wing_bg:p1')
+    let zoom = 0.35;
+    let panX = 0, panY = 0;
+    let isDraggingLayer = false;
+    let isDraggingCanvas = false;
+    let dragStartX = 0, dragStartY = 0;
+    let dragStartAnchors = {};
+
+    // ── Key helpers ──
+    function groupAnchorKey(groupName) {
+      if (currentBatch === 'body') return groupName;
+      if (CHAINED_TO_HEAD.has(currentBatch)) return groupName;
+      if (currentBatch === 'wings') return groupName + ':' + currentBodyType + ':' + currentWingCount + 'w';
+      if (currentBatch === 'legs') return groupName + ':' + currentBodyType + ':' + currentLimbCount + 'l';
+      if (BODY_DEPENDENT.has(currentBatch)) return groupName + ':' + currentBodyType;
+      return groupName;
+    }
+
+    // For export / cross-batch resolution where we set batch/body temporarily
+    function groupAnchorKeyFor(groupName, batchName, bodyType, wingCount, limbCount) {
+      if (batchName === 'body') return groupName;
+      if (CHAINED_TO_HEAD.has(batchName)) return groupName;
+      if (batchName === 'wings') return groupName + ':' + bodyType + ':' + wingCount + 'w';
+      if (batchName === 'legs') return groupName + ':' + bodyType + ':' + limbCount + 'l';
+      if (BODY_DEPENDENT.has(batchName)) return groupName + ':' + bodyType;
+      return groupName;
+    }
+
+    function wingCountToMaxPair(wc) {
+      if (wc <= 1) return 0;
+      if (wc === 2) return 1;
+      if (wc === 4) return 2;
+      return 3;
+    }
+    function limbCountToMaxPair(lc) {
+      if (lc === 0) return 0;
+      if (lc === 2) return 1;
+      if (lc === 4) return 2;
+      return 3;
+    }
+
+    // Get active pairs for current config
+    function getActivePairs(batchName) {
+      if (batchName === 'wings') {
+        const max = wingCountToMaxPair(currentWingCount);
+        return Array.from({ length: max }, (_, i) => i + 1);
+      }
+      if (batchName === 'legs') {
+        const max = limbCountToMaxPair(currentLimbCount);
+        return Array.from({ length: max }, (_, i) => i + 1);
+      }
+      return [];
+    }
+
+    // Get the model definition for a batch
+    function getModels(batchName) {
+      if (batchName === 'wings') return WING_MODELS;
+      if (batchName === 'legs') return LEG_MODELS;
+      return null;
+    }
+
+    // Get all PNG files needed for a model batch
+    function getModelFiles(batchName) {
+      const models = getModels(batchName);
+      if (!models) return [];
+      const files = [];
+      for (const model of Object.values(models)) {
+        for (const ml of model.layers) {
+          if (!files.includes(ml.file)) files.push(ml.file);
+        }
+      }
+      return files;
+    }
+
+    // Resolve position for a model layer at a specific pair
+    function getModelResolvedPosition(modelId, groupName, pair) {
+      const gKey = groupAnchorKey(groupName + ':p' + pair);
+      const gPos = groupAnchors[gKey] || { x: 0, y: 0, rot: 0 };
+      const mOff = modelOffsets[modelId] || { x: 0, y: 0 };
+      return {
+        x: gPos.x + mOff.x,
+        y: gPos.y + mOff.y,
+        rot: gPos.rot || 0,
+      };
+    }
+
+    // Resolve position for non-model layers
+    function getResolvedPosition(layerId) {
+      const group = getLinkGroup(layerId);
+      const off = layerOffsets[layerId] || { x: 0, y: 0 };
+
+      if (currentBatch === 'body' || !group) {
+        return { x: off.x, y: off.y, rot: 0 };
+      }
+
+      const gKey = groupAnchorKey(group);
+      const gPos = groupAnchors[gKey] || { x: 0, y: 0 };
+
+      if (CHAINED_TO_HEAD.has(currentBatch) || layerId.startsWith('horns_')) {
+        const headGKey = 'head:' + currentBodyType;
+        const headGPos = groupAnchors[headGKey] || { x: 0, y: 0 };
+        const headOOff = layerOffsets['head_o'] || { x: 0, y: 0 };
+        const headX = headGPos.x + headOOff.x;
+        const headY = headGPos.y + headOOff.y;
+        return { x: headX + gPos.x + off.x, y: headY + gPos.y + off.y, rot: 0 };
+      }
+
+      return { x: gPos.x + off.x, y: gPos.y + off.y, rot: gPos.rot || 0 };
+    }
+
+    function isRotatableGroup(groupId) {
+      return groupId && (groupId.startsWith('wing_') || groupId.startsWith('vest_'));
+    }
+
+    // ── Get batch layers (non-model batches) ──
+    function getBatchLayers() {
+      if (currentBatch === 'body') {
+        const prefix = { standard: 'body_stan', sinuous: 'body_sin', bulky: 'body_bulk' }[currentBodyType];
+        return (LAYERS.body || []).filter(l => l.id.startsWith(prefix));
+      }
+      if (currentBatch === 'all') {
+        return Object.values(LAYERS).flat();
+      }
+      if (MODEL_BATCHES.has(currentBatch)) {
+        return []; // Model batches don't use LAYERS
+      }
+      return LAYERS[currentBatch] || [];
+    }
+
+    // ── Storage ──
+    const STORAGE_KEY = 'dragon-sprite-anchors-v5';
+    function loadSavedAnchors() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const data = JSON.parse(saved);
+          Object.assign(groupAnchors, data.groupAnchors || {});
+          Object.assign(modelOffsets, data.modelOffsets || {});
+          Object.assign(layerOffsets, data.layerOffsets || {});
+          return;
+        }
+
+        // Try v4 migration
+        const v4 = localStorage.getItem('dragon-sprite-anchors-v4');
+        if (v4) {
+          migrateFromV4(JSON.parse(v4));
+          console.log('Migrated v4 → v5 anchors');
+          saveAnchors();
+          return;
+        }
+
+        // Try v3 → v5 (skip v4)
+        const v3 = localStorage.getItem('dragon-sprite-anchors-v3');
+        if (v3) {
+          // First migrate to v4 format in temp, then v4 → v5
+          migrateFromV3ToV5(JSON.parse(v3));
+          console.log('Migrated v3 → v5 anchors');
+          saveAnchors();
+          return;
+        }
+      } catch (e) { console.error('loadSavedAnchors:', e); }
+    }
+
+    function migrateFromV4(v4Data) {
+      const v4GA = v4Data.groupAnchors || {};
+      const v4LO = v4Data.layerOffsets || {};
+
+      // 1. Copy body, head, tail, horn, vestigial data directly
+      for (const [key, val] of Object.entries(v4LO)) {
+        if (key.startsWith('body_') || key.startsWith('head_') ||
+            key.startsWith('tail_') || key.startsWith('horns_')) {
+          layerOffsets[key] = { ...val };
+        }
+        // Vestigial wing layer offsets
+        if (key.includes('vest')) {
+          layerOffsets[key] = { ...val };
+        }
+      }
+
+      for (const [key, val] of Object.entries(v4GA)) {
+        // Head, tail, horn, vestigial group anchors — copy directly
+        if (key.startsWith('head:') || key.startsWith('tail_') ||
+            key.startsWith('horns_') || key.startsWith('vest_')) {
+          groupAnchors[key] = { ...val };
+        }
+      }
+
+      // 2. Wing model offsets: take from p1 layer offsets (or 0,0 if not set)
+      for (const [modelName, model] of Object.entries(WING_MODELS)) {
+        for (const ml of model.layers) {
+          // Find the v4 layer offset for this layer's p1 version
+          // e.g., wing_bg_model:inner_f → look for wing_bg_inner_f:p1 in v4LO
+          const p1Key = ml.file + ':p1';
+          const p1Off = v4LO[p1Key] || { x: 0, y: 0 };
+          modelOffsets[ml.modelId] = { x: p1Off.x, y: p1Off.y };
+        }
+      }
+
+      // 3. Leg model offsets: take from p1 layer offsets
+      for (const [modelName, model] of Object.entries(LEG_MODELS)) {
+        for (const ml of model.layers) {
+          const p1Key = ml.file + ':p1';
+          const p1Off = v4LO[p1Key] || { x: 0, y: 0 };
+          modelOffsets[ml.modelId] = { x: p1Off.x, y: p1Off.y };
+        }
+      }
+
+      // 4. Wing group anchors: expand with config suffix
+      // v4 keys like 'wing_bg:p1:standard' → v5 'wing_bg:p1:standard:2w'
+      // Copy to all configs the pair is valid for, as starting points
+      for (const [key, val] of Object.entries(v4GA)) {
+        if (!key.startsWith('wing_')) continue;
+        if (key.startsWith('wing_bg_vest') || key.startsWith('wing_fg_vest')) continue; // vestigial handled above
+
+        // Parse: wing_bg:p1:standard or wing_fg:p2:bulky
+        const parts = key.split(':');
+        if (parts.length !== 3) continue;
+        const side = parts[0];  // wing_bg or wing_fg
+        const pair = parts[1];  // p1, p2, p3
+        const bt = parts[2];    // standard, sinuous, bulky
+        const pairNum = parseInt(pair.slice(1));
+
+        // Absorb p2/p3 layer offset differences into group anchor
+        // (model offsets come from p1, so for p2/p3 we need to adjust)
+        let adjustX = 0, adjustY = 0;
+        if (pairNum > 1) {
+          // Find the first model layer for this side
+          const model = WING_MODELS[side];
+          if (model && model.layers.length > 0) {
+            const firstML = model.layers[0];
+            const pNKey = firstML.file + ':' + pair;
+            const pNOff = v4LO[pNKey] || { x: 0, y: 0 };
+            const modelOff = modelOffsets[firstML.modelId] || { x: 0, y: 0 };
+            adjustX = pNOff.x - modelOff.x;
+            adjustY = pNOff.y - modelOff.y;
+          }
+        }
+
+        // Determine valid wing configs for this pair
+        const validConfigs = [];
+        if (pairNum === 1) validConfigs.push(2, 4, 6);
+        else if (pairNum === 2) validConfigs.push(4, 6);
+        else if (pairNum === 3) validConfigs.push(6);
+
+        // Extract any rotation from v4 layer offsets
+        let rot = 0;
+        const model = WING_MODELS[side];
+        if (model) {
+          for (const ml of model.layers) {
+            const pKey = ml.file + ':' + pair;
+            const pOff = v4LO[pKey];
+            if (pOff && pOff.rot) { rot = pOff.rot; break; }
+          }
+        }
+
+        for (const wc of validConfigs) {
+          const newKey = `${side}:${pair}:${bt}:${wc}w`;
+          if (!groupAnchors[newKey]) {
+            groupAnchors[newKey] = {
+              x: val.x + adjustX,
+              y: val.y + adjustY,
+              ...(rot ? { rot } : {}),
+            };
+          }
+        }
+      }
+
+      // 5. Leg group anchors: expand with config suffix
+      for (const [key, val] of Object.entries(v4GA)) {
+        if (!key.startsWith('leg_')) continue;
+        const parts = key.split(':');
+        if (parts.length !== 3) continue;
+        const side = parts[0];  // leg_bg or leg_fg
+        const pair = parts[1];  // p1, p2, p3
+        const bt = parts[2];    // body type
+        const pairNum = parseInt(pair.slice(1));
+
+        let adjustX = 0, adjustY = 0;
+        if (pairNum > 1) {
+          const model = LEG_MODELS[side];
+          if (model && model.layers.length > 0) {
+            const firstML = model.layers[0];
+            const pNKey = firstML.file + ':' + pair;
+            const pNOff = v4LO[pNKey] || { x: 0, y: 0 };
+            const modelOff = modelOffsets[firstML.modelId] || { x: 0, y: 0 };
+            adjustX = pNOff.x - modelOff.x;
+            adjustY = pNOff.y - modelOff.y;
+          }
+        }
+
+        const validConfigs = [];
+        if (pairNum === 1) validConfigs.push(2, 4, 6);
+        else if (pairNum === 2) validConfigs.push(4, 6);
+        else if (pairNum === 3) validConfigs.push(6);
+
+        for (const lc of validConfigs) {
+          const newKey = `${side}:${pair}:${bt}:${lc}l`;
+          if (!groupAnchors[newKey]) {
+            groupAnchors[newKey] = { x: val.x + adjustX, y: val.y + adjustY };
+          }
+        }
+      }
+    }
+
+    function migrateFromV3ToV5(flat) {
+      // Simple approach: just store body offsets and everything else as layerOffsets
+      for (const [key, pos] of Object.entries(flat)) {
+        if (key.startsWith('body_')) {
+          layerOffsets[key] = { ...pos };
+        }
+      }
+      // For everything else, we'd need v4-style migration first
+      // This is a minimal migration — main path is v4→v5
+    }
+
+    function saveAnchors() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          groupAnchors,
+          modelOffsets,
+          layerOffsets,
+        }));
+      } catch (e) {}
+    }
+
+    // ── DOM ──
+    const canvas = document.getElementById('compositeCanvas');
+    const ctx = canvas.getContext('2d');
+    const container = document.getElementById('canvasContainer');
+    const layerListEl = document.getElementById('layerList');
+    const posX = document.getElementById('posX');
+    const posY = document.getElementById('posY');
+    const posInfo = document.getElementById('posInfo');
+    const posEditorTitle = document.getElementById('posEditorTitle');
+    const chainInfoEl = document.getElementById('chainInfo');
+    const outputBox = document.getElementById('outputBox');
+    const statusBar = document.getElementById('statusBar');
+    const zoomIndicator = document.getElementById('zoomIndicator');
+
+    canvas.width = SPRITE_WIDTH;
+    canvas.height = SPRITE_HEIGHT;
+
+    // ── Images ──
+    function loadImage(filename) {
+      return new Promise(resolve => {
+        if (images[filename] !== undefined) { resolve(images[filename]); return; }
+        const img = new Image();
+        img.onload = () => { images[filename] = img; resolve(img); };
+        img.onerror = () => { images[filename] = null; resolve(null); };
+        img.src = ASSET_BASE + filename + '.png';
+      });
+    }
+
+    async function loadBatch(batchName) {
+      let filenames = [];
+
+      if (batchName === 'all') {
+        filenames = Object.values(LAYERS).flat().map(l => l.file);
+        // Also include model files
+        filenames.push(...getModelFiles('wings'), ...getModelFiles('legs'));
+      } else if (MODEL_BATCHES.has(batchName)) {
+        filenames = getModelFiles(batchName);
+      } else {
+        filenames = (LAYERS[batchName] || []).map(l => l.file);
+      }
+
+      filenames = [...new Set(filenames)];
+      const ghostFiles = (batchName !== 'body') ? (GHOST_BODY_FILES[currentBodyType] || []) : [];
+      // Ghost head files for horns
+      const ghostHeadFiles = (batchName === 'horns') ? GHOST_HEAD_FILES : [];
+      const allToLoad = [...new Set([...filenames, ...ghostFiles, ...ghostHeadFiles])];
+      await Promise.all(allToLoad.map(f => loadImage(f)));
+
+      // Set visibility for model layers
+      if (MODEL_BATCHES.has(batchName)) {
+        const models = getModels(batchName);
+        for (const model of Object.values(models)) {
+          for (const ml of model.layers) {
+            if (visibility[ml.modelId] === undefined) visibility[ml.modelId] = true;
+          }
+        }
+      }
+      // Non-model layers
+      const layers = (batchName === 'all') ? Object.values(LAYERS).flat() : (LAYERS[batchName] || []);
+      for (const l of layers) {
+        if (visibility[l.id] === undefined) visibility[l.id] = true;
+      }
+    }
+
+    // ── Config visibility ──
+    function updateConfigVisibility() {
+      const configRow = document.getElementById('configRow');
+      const wingLabel = document.getElementById('wingCountLabel');
+      const wingTabs = document.getElementById('wingCountTabs');
+      const limbLabel = document.getElementById('limbCountLabel');
+      const limbTabs = document.getElementById('limbCountTabs');
+
+      const showWings = currentBatch === 'wings';
+      const showLimbs = currentBatch === 'legs';
+
+      configRow.style.display = (showWings || showLimbs) ? '' : 'none';
+      wingLabel.style.display = showWings ? '' : 'none';
+      wingTabs.style.display = showWings ? '' : 'none';
+      limbLabel.style.display = showLimbs ? '' : 'none';
+      limbTabs.style.display = showLimbs ? '' : 'none';
+    }
+
+    // ── HSL tinting ──
+    function rgbToHsl(r, g, b) {
+      r /= 255; g /= 255; b /= 255;
+      const max = Math.max(r, g, b), min = Math.min(r, g, b);
+      let h, s; const l = (max + min) / 2;
+      if (max === min) { h = s = 0; } else {
+        const d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        switch (max) {
+          case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+          case g: h = ((b - r) / d + 2) / 6; break;
+          case b: h = ((r - g) / d + 4) / 6; break;
+        }
+      }
+      return { h: h * 360, s, l };
+    }
+    function hslToRgb(h, s, l) {
+      h /= 360; let r, g, b;
+      if (s === 0) { r = g = b = l; } else {
+        const hue2rgb = (p, q, t) => {
+          if (t < 0) t += 1; if (t > 1) t -= 1;
+          if (t < 1/6) return p + (q - p) * 6 * t;
+          if (t < 1/2) return q;
+          if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+          return p;
+        };
+        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        const p = 2 * l - q;
+        r = hue2rgb(p, q, h + 1/3); g = hue2rgb(p, q, h); b = hue2rgb(p, q, h - 1/3);
+      }
+      return { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255) };
+    }
+
+    const tintCache = new Map();
+    function tintImage(img, hexColor) {
+      const cacheKey = img.src + hexColor;
+      if (tintCache.has(cacheKey)) return tintCache.get(cacheKey);
+      const offscreen = document.createElement('canvas');
+      offscreen.width = img.width; offscreen.height = img.height;
+      const offCtx = offscreen.getContext('2d');
+      offCtx.drawImage(img, 0, 0);
+      const r = parseInt(hexColor.slice(1, 3), 16);
+      const g = parseInt(hexColor.slice(3, 5), 16);
+      const b = parseInt(hexColor.slice(5, 7), 16);
+      const dragonHsl = rgbToHsl(r, g, b);
+      const imageData = offCtx.getImageData(0, 0, offscreen.width, offscreen.height);
+      const data = imageData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] === 0) continue;
+        const artHsl = rgbToHsl(data[i], data[i+1], data[i+2]);
+        const result = hslToRgb(dragonHsl.h, dragonHsl.s, Math.max(0, Math.min(1, artHsl.l)));
+        data[i] = result.r; data[i+1] = result.g; data[i+2] = result.b;
+      }
+      offCtx.putImageData(imageData, 0, 0);
+      tintCache.set(cacheKey, offscreen);
+      return offscreen;
+    }
+
+    // ── Draw helpers ──
+    function drawImageAt(img, x, y, rot, alpha, isSelected, isGroupHighlight) {
+      if (!img) return;
+      const doTint = document.getElementById('showTint').checked;
+      const tintColor = document.getElementById('tintColor').value;
+      const hasRot = Math.abs(rot || 0) > 0.01;
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      const drawImg = doTint ? tintImage(img, tintColor) : img;
+
+      if (hasRot) {
+        const cx = x + img.width / 2, cy = y + img.height / 2;
+        ctx.translate(cx, cy);
+        ctx.rotate(rot * Math.PI / 180);
+        ctx.drawImage(drawImg, -img.width / 2, -img.height / 2);
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+      } else {
+        ctx.drawImage(drawImg, x, y);
+      }
+
+      if (isSelected || isGroupHighlight) {
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = isSelected ? '#c4a265' : '#8a7a50';
+        ctx.lineWidth = isSelected ? 3 : 2;
+        ctx.setLineDash(isSelected ? [8, 4] : [4, 4]);
+        if (hasRot) {
+          const cx = x + img.width / 2, cy = y + img.height / 2;
+          ctx.translate(cx, cy); ctx.rotate(rot * Math.PI / 180);
+          ctx.strokeRect(-img.width/2-1, -img.height/2-1, img.width+2, img.height+2);
+        } else {
+          ctx.strokeRect(x-1, y-1, img.width+2, img.height+2);
+        }
+        ctx.setLineDash([]);
+      }
+      ctx.restore();
+    }
+
+    // ── Render ──
+    function render() {
+      ctx.clearRect(0, 0, SPRITE_WIDTH, SPRITE_HEIGHT);
+      ctx.strokeStyle = '#3d3530'; ctx.lineWidth = 2;
+      ctx.strokeRect(0, 0, SPRITE_WIDTH, SPRITE_HEIGHT);
+      ctx.strokeStyle = 'rgba(100,80,60,0.3)'; ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(SPRITE_WIDTH/2,0); ctx.lineTo(SPRITE_WIDTH/2,SPRITE_HEIGHT);
+      ctx.moveTo(0,SPRITE_HEIGHT/2); ctx.lineTo(SPRITE_WIDTH,SPRITE_HEIGHT/2);
+      ctx.stroke();
+
+      const showGhost = document.getElementById('showGhost').checked;
+
+      // Ghost body
+      if (showGhost && currentBatch !== 'body') {
+        for (const gf of (GHOST_BODY_FILES[currentBodyType] || [])) {
+          const img = images[gf];
+          if (!img) continue;
+          const pos = layerOffsets[gf] || { x: 0, y: 0 };
+          ctx.save(); ctx.globalAlpha = 0.2;
+          ctx.drawImage(img, pos.x, pos.y);
+          ctx.restore();
+        }
+      }
+
+      // Ghost head (for horns batch)
+      if (showGhost && currentBatch === 'horns') {
+        const headGKey = 'head:' + currentBodyType;
+        const headGPos = groupAnchors[headGKey] || { x: 0, y: 0 };
+        for (const hf of GHOST_HEAD_FILES) {
+          const img = images[hf];
+          if (!img) continue;
+          const off = layerOffsets[hf] || { x: 0, y: 0 };
+          ctx.save(); ctx.globalAlpha = 0.3;
+          ctx.drawImage(img, headGPos.x + off.x, headGPos.y + off.y);
+          ctx.restore();
+        }
+      }
+
+      // Draw group anchor crosshair
+      if (selectedGroupId) {
+        const gKey = groupAnchorKey(selectedGroupId);
+        const gPos = groupAnchors[gKey] || { x: 0, y: 0 };
+        ctx.save();
+        ctx.strokeStyle = '#c4a265'; ctx.lineWidth = 2; ctx.globalAlpha = 0.8;
+        const cx = gPos.x, cy = gPos.y;
+        ctx.beginPath();
+        ctx.moveTo(cx - 30, cy); ctx.lineTo(cx + 30, cy);
+        ctx.moveTo(cx, cy - 30); ctx.lineTo(cx, cy + 30);
+        ctx.stroke();
+        ctx.beginPath(); ctx.arc(cx, cy, 8, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+      }
+
+      // Render model-based batches (wings, legs)
+      if (MODEL_BATCHES.has(currentBatch)) {
+        const models = getModels(currentBatch);
+        const pairs = getActivePairs(currentBatch);
+
+        for (const [modelName, model] of Object.entries(models)) {
+          for (const pair of pairs) {
+            const groupId = modelName + ':p' + pair;
+            const gKey = groupAnchorKey(groupId);
+            const gPos = groupAnchors[gKey] || { x: 0, y: 0, rot: 0 };
+            const groupRot = gPos.rot || 0;
+            const hasGroupRot = Math.abs(groupRot) > 0.01;
+
+            // Apply group rotation around the group anchor point
+            if (hasGroupRot) {
+              ctx.save();
+              ctx.translate(gPos.x, gPos.y);
+              ctx.rotate(groupRot * Math.PI / 180);
+              ctx.translate(-gPos.x, -gPos.y);
+            }
+
+            for (const ml of model.layers) {
+              if (visibility[ml.modelId] === false) continue;
+              const img = images[ml.file];
+              if (!img) continue;
+              const mOff = modelOffsets[ml.modelId] || { x: 0, y: 0 };
+              const drawX = gPos.x + mOff.x;
+              const drawY = gPos.y + mOff.y;
+
+              const isGroupSel = selectedGroupId === groupId;
+              const isModelSel = selectedModelId === ml.modelId;
+              let alpha = 1.0;
+              if (selectedGroupId && !isGroupSel) alpha = 0.35;
+              else if (selectedModelId && !isModelSel) alpha = 0.5;
+
+              drawImageAt(img, drawX, drawY, 0, alpha, isModelSel || isGroupSel, false);
+            }
+
+            if (hasGroupRot) {
+              ctx.restore();
+            }
+          }
+        }
+      }
+      // Render non-model layers
+      else if (currentBatch === 'all') {
+        // "All" view: render everything
+        const layers = Object.values(LAYERS).flat();
+        let allRotGroup = null;
+        for (const layer of layers) {
+          if (visibility[layer.id] === false) continue;
+          const img = images[layer.file];
+          if (!img) continue;
+          const pos = getResolvedPositionForAll(layer);
+
+          // Handle group rotation for vest wings etc.
+          const group = getLinkGroup(layer.id);
+          const layerRot = pos.rot || 0;
+          const rotId = (Math.abs(layerRot) > 0.01 && group) ? group : null;
+          if (rotId !== allRotGroup) {
+            if (allRotGroup) ctx.restore();
+            allRotGroup = rotId;
+            if (allRotGroup) {
+              const batchName = layer.id.includes('vest') ? 'vestigial' : 'body';
+              const gKey = groupAnchorKeyFor(group, batchName, currentBodyType, currentWingCount, currentLimbCount);
+              const gPos = groupAnchors[gKey] || { x: 0, y: 0, rot: 0 };
+              ctx.save();
+              ctx.translate(gPos.x, gPos.y);
+              ctx.rotate(layerRot * Math.PI / 180);
+              ctx.translate(-gPos.x, -gPos.y);
+            }
+          }
+
+          drawImageAt(img, pos.x, pos.y, 0, 1.0, false, false);
+        }
+        if (allRotGroup) ctx.restore();
+        // Also render wing/leg models for all view
+        for (const batchName of ['wings', 'legs']) {
+          const models = getModels(batchName);
+          const maxPair = batchName === 'wings' ? wingCountToMaxPair(currentWingCount) : limbCountToMaxPair(currentLimbCount);
+          for (const [modelName, model] of Object.entries(models)) {
+            for (let p = 1; p <= maxPair; p++) {
+              const gKey = groupAnchorKeyFor(modelName + ':p' + p, batchName, currentBodyType, currentWingCount, currentLimbCount);
+              const gPos = groupAnchors[gKey] || { x: 0, y: 0, rot: 0 };
+              const groupRot = gPos.rot || 0;
+              const hasGroupRot = Math.abs(groupRot) > 0.01;
+
+              if (hasGroupRot) {
+                ctx.save();
+                ctx.translate(gPos.x, gPos.y);
+                ctx.rotate(groupRot * Math.PI / 180);
+                ctx.translate(-gPos.x, -gPos.y);
+              }
+
+              for (const ml of model.layers) {
+                const img = images[ml.file];
+                if (!img) continue;
+                const mOff = modelOffsets[ml.modelId] || { x: 0, y: 0 };
+                drawImageAt(img, gPos.x + mOff.x, gPos.y + mOff.y, 0, 1.0, false, false);
+              }
+
+              if (hasGroupRot) {
+                ctx.restore();
+              }
+            }
+          }
+        }
+      }
+      else {
+        const layers = getBatchLayers();
+        // Group layers by their link group to apply group rotation correctly
+        let currentRotGroup = null;
+        let currentRotAngle = 0;
+        let rotGroupAnchor = null;
+
+        for (const layer of layers) {
+          if (visibility[layer.id] === false) continue;
+          if (!images[layer.file]) continue;
+
+          const group = getLinkGroup(layer.id);
+          const gKey = group ? groupAnchorKey(group) : null;
+          const gPos = gKey ? (groupAnchors[gKey] || { x: 0, y: 0, rot: 0 }) : null;
+          const layerGroupRot = (gPos && isRotatableGroup(group)) ? (gPos.rot || 0) : 0;
+
+          // Track rotation group transitions
+          const rotGroupId = (Math.abs(layerGroupRot) > 0.01) ? group : null;
+
+          if (rotGroupId !== currentRotGroup) {
+            // Close previous rotation group
+            if (currentRotGroup) ctx.restore();
+            currentRotGroup = rotGroupId;
+            // Open new rotation group
+            if (currentRotGroup) {
+              currentRotAngle = layerGroupRot;
+              rotGroupAnchor = gPos;
+              ctx.save();
+              ctx.translate(rotGroupAnchor.x, rotGroupAnchor.y);
+              ctx.rotate(currentRotAngle * Math.PI / 180);
+              ctx.translate(-rotGroupAnchor.x, -rotGroupAnchor.y);
+            }
+          }
+
+          const isSel = !selectedGroupId && layer.id === selectedLayerId;
+          const isGroupSel = selectedGroupId && group === selectedGroupId;
+          let alpha = 1.0;
+          if ((selectedLayerId || selectedGroupId) && !isSel && !isGroupSel) alpha = 0.35;
+          const pos = getResolvedPosition(layer.id);
+          const isLinked = !isSel && selectedLayerId && groupMoveEnabled && getLinkedLayers(selectedLayerId).includes(layer.id);
+          // Pass rot=0 since group rotation is applied via canvas transform
+          drawImageAt(images[layer.file], pos.x, pos.y, 0, alpha, isSel || isGroupSel, isLinked);
+        }
+        // Close any open rotation group
+        if (currentRotGroup) ctx.restore();
+      }
+
+      canvas.style.transform = `translate(${panX}px,${panY}px) scale(${zoom})`;
+      zoomIndicator.textContent = `${Math.round(zoom*100)}%`;
+    }
+
+    // For "All" view: resolve position with correct batch context
+    function getResolvedPositionForAll(layer) {
+      // Determine which batch this layer belongs to
+      let batchName = 'body';
+      if (layer.id.startsWith('head_')) batchName = 'head';
+      else if (layer.id.startsWith('tail_')) batchName = 'tail';
+      else if (layer.id.startsWith('horns_')) batchName = 'horns';
+      else if (layer.id.includes('vest')) batchName = 'vestigial';
+
+      const off = layerOffsets[layer.id] || { x: 0, y: 0 };
+      const group = getLinkGroup(layer.id);
+
+      if (batchName === 'body' || !group) {
+        return { x: off.x, y: off.y, rot: 0 };
+      }
+
+      const gKey = groupAnchorKeyFor(group, batchName, currentBodyType, currentWingCount, currentLimbCount);
+      const gPos = groupAnchors[gKey] || { x: 0, y: 0 };
+
+      if (CHAINED_TO_HEAD.has(batchName)) {
+        const headGKey = 'head:' + currentBodyType;
+        const headGPos = groupAnchors[headGKey] || { x: 0, y: 0 };
+        const headOOff = layerOffsets['head_o'] || { x: 0, y: 0 };
+        return { x: headGPos.x + headOOff.x + gPos.x + off.x, y: headGPos.y + headOOff.y + gPos.y + off.y, rot: 0 };
+      }
+
+      return { x: gPos.x + off.x, y: gPos.y + off.y, rot: gPos.rot || 0 };
+    }
+
+    // ── Layer list / sidebar ──
+    function getDisplayGroup(layerId) {
+      if (layerId.startsWith('head_'))             return 'Head';
+      if (layerId.startsWith('body_stan'))          return 'Standard Body';
+      if (layerId.startsWith('body_sin'))           return 'Sinuous Body';
+      if (layerId.startsWith('body_bulk'))          return 'Bulky Body';
+      if (layerId.startsWith('tail_normal'))        return 'Normal Tail';
+      if (layerId.startsWith('tail_whip'))          return 'Whip Tail';
+      if (layerId.startsWith('tail_heavy'))         return 'Heavy Tail';
+      if (layerId.startsWith('horns_bg_sm'))       return 'BG Smooth';
+      if (layerId.startsWith('horns_bg_gn'))       return 'BG Gnarled';
+      if (layerId.startsWith('horns_bg_kn'))       return 'BG Knobbed';
+      if (layerId.startsWith('horns_fg_sm'))       return 'FG Smooth';
+      if (layerId.startsWith('horns_fg_gn'))       return 'FG Gnarled';
+      if (layerId.startsWith('horns_fg_kn'))       return 'FG Knobbed';
+      if (layerId.includes('vest_bg'))             return 'BG Vestigial';
+      if (layerId.includes('vest_fg'))             return 'FG Vestigial';
+      return '';
+    }
+
+    function buildLayerList() {
+      layerListEl.innerHTML = '';
+
+      if (MODEL_BATCHES.has(currentBatch)) {
+        buildModelLayerList();
+      } else if (currentBatch === 'all') {
+        buildAllLayerList();
+      } else {
+        buildStandardLayerList();
+      }
+
+      updateStatusBar();
+    }
+
+    function buildModelLayerList() {
+      const models = getModels(currentBatch);
+      const pairs = getActivePairs(currentBatch);
+
+      for (const [modelName, model] of Object.entries(models)) {
+        // Group headers for each pair
+        for (const pair of pairs) {
+          const groupId = modelName + ':p' + pair;
+          const gKey = groupAnchorKey(groupId);
+          const gPos = groupAnchors[gKey] || { x: 0, y: 0, rot: 0 };
+
+          const h = document.createElement('div');
+          h.className = 'layer-group-header';
+          if (selectedGroupId === groupId) h.classList.add('selected-group');
+
+          const pairLabel = modelName.replace('wing_', '').replace('leg_', '').toUpperCase();
+          const nameSpan = document.createElement('span');
+          nameSpan.textContent = `${pairLabel} Pair ${pair}`;
+          h.appendChild(nameSpan);
+
+          const posSpan = document.createElement('span');
+          posSpan.className = 'group-pos';
+          posSpan.dataset.groupId = groupId;
+          posSpan.textContent = `${gPos.x},${gPos.y}` + (gPos.rot ? ` R${gPos.rot}` : '');
+          h.appendChild(posSpan);
+
+          h.addEventListener('click', () => selectGroup(groupId));
+          layerListEl.appendChild(h);
+        }
+
+        // Model section header
+        const mh = document.createElement('div');
+        mh.className = 'model-section-header';
+        mh.textContent = `── ${model.label} ──`;
+        layerListEl.appendChild(mh);
+
+        // Model layers
+        for (const ml of model.layers) {
+          const img = images[ml.file];
+          const item = document.createElement('div');
+          const isMLSel = selectedModelId === ml.modelId;
+          item.className = 'layer-item' + (img ? '' : ' missing') + (isMLSel ? ' selected' : '');
+
+          const thumb = document.createElement('canvas');
+          thumb.width = 28; thumb.height = 28; thumb.className = 'layer-icon';
+          if (img) {
+            const tCtx = thumb.getContext('2d');
+            const scale = Math.min(26/img.width, 26/img.height);
+            tCtx.drawImage(img, (28-img.width*scale)/2, (28-img.height*scale)/2, img.width*scale, img.height*scale);
+          }
+          item.appendChild(thumb);
+
+          const nameEl = document.createElement('span');
+          nameEl.className = 'layer-name';
+          nameEl.textContent = ml.label + (img ? '' : ' ⚠');
+          item.appendChild(nameEl);
+
+          const posEl = document.createElement('span');
+          posEl.className = 'layer-pos';
+          const mOff = modelOffsets[ml.modelId] || { x: 0, y: 0 };
+          posEl.textContent = `${mOff.x},${mOff.y}`;
+          item.appendChild(posEl);
+
+          const vis = document.createElement('span');
+          vis.className = 'layer-vis';
+          vis.textContent = visibility[ml.modelId] !== false ? '👁' : '🚫';
+          vis.addEventListener('click', (e) => {
+            e.stopPropagation();
+            visibility[ml.modelId] = !(visibility[ml.modelId] !== false);
+            buildLayerList(); render();
+          });
+          item.appendChild(vis);
+
+          item.addEventListener('click', () => selectModelLayer(ml.modelId));
+          layerListEl.appendChild(item);
+        }
+      }
+    }
+
+    function buildStandardLayerList() {
+      const layers = getBatchLayers();
+      let lastGroup = '';
+
+      for (const layer of layers) {
+        const group = getDisplayGroup(layer.id);
+
+        if (group && group !== lastGroup) {
+          const linkGroup = getLinkGroup(layer.id);
+          const h = document.createElement('div');
+          h.className = 'layer-group-header';
+          if (selectedGroupId && selectedGroupId === linkGroup) {
+            h.classList.add('selected-group');
+          }
+
+          const nameSpan = document.createElement('span');
+          nameSpan.textContent = group;
+          h.appendChild(nameSpan);
+
+          if (linkGroup && currentBatch !== 'body') {
+            const gKey = groupAnchorKey(linkGroup);
+            const gPos = groupAnchors[gKey] || { x: 0, y: 0 };
+            const posSpan = document.createElement('span');
+            posSpan.className = 'group-pos';
+            posSpan.textContent = `${gPos.x},${gPos.y}`;
+            h.appendChild(posSpan);
+          }
+
+          if (linkGroup && currentBatch !== 'body') {
+            h.style.cursor = 'pointer';
+            const gId = linkGroup;
+            h.addEventListener('click', () => selectGroup(gId));
+          }
+
+          layerListEl.appendChild(h);
+          lastGroup = group;
+        }
+
+        const img = images[layer.file];
+        const item = document.createElement('div');
+        const isLayerSel = !selectedGroupId && layer.id === selectedLayerId;
+        item.className = 'layer-item' + (img ? '' : ' missing') + (isLayerSel ? ' selected' : '');
+
+        const thumb = document.createElement('canvas');
+        thumb.width = 28; thumb.height = 28; thumb.className = 'layer-icon';
+        if (img) {
+          const tCtx = thumb.getContext('2d');
+          const scale = Math.min(26/img.width, 26/img.height);
+          tCtx.drawImage(img, (28-img.width*scale)/2, (28-img.height*scale)/2, img.width*scale, img.height*scale);
+        }
+        item.appendChild(thumb);
+
+        const nameEl = document.createElement('span');
+        nameEl.className = 'layer-name';
+        nameEl.textContent = layer.id + (img ? '' : ' ⚠');
+        item.appendChild(nameEl);
+
+        const posEl = document.createElement('span');
+        posEl.className = 'layer-pos';
+        const off = layerOffsets[layer.id] || { x: 0, y: 0 };
+        posEl.textContent = `${off.x},${off.y}`;
+        item.appendChild(posEl);
+
+        const vis = document.createElement('span');
+        vis.className = 'layer-vis';
+        vis.textContent = visibility[layer.id] !== false ? '👁' : '🚫';
+        vis.addEventListener('click', (e) => {
+          e.stopPropagation();
+          visibility[layer.id] = !(visibility[layer.id] !== false);
+          buildLayerList(); render();
+        });
+        item.appendChild(vis);
+
+        item.addEventListener('click', () => selectLayer(layer.id));
+        layerListEl.appendChild(item);
+      }
+    }
+
+    function buildAllLayerList() {
+      // Simplified "All" view — just list all non-model layers
+      const layers = Object.values(LAYERS).flat();
+      let lastGroup = '';
+      for (const layer of layers) {
+        const group = getDisplayGroup(layer.id);
+        if (group && group !== lastGroup) {
+          const h = document.createElement('div');
+          h.className = 'layer-group-header';
+          h.textContent = group;
+          layerListEl.appendChild(h);
+          lastGroup = group;
+        }
+        const img = images[layer.file];
+        const item = document.createElement('div');
+        item.className = 'layer-item' + (img ? '' : ' missing');
+        const nameEl = document.createElement('span');
+        nameEl.className = 'layer-name';
+        nameEl.textContent = layer.id;
+        item.appendChild(nameEl);
+        layerListEl.appendChild(item);
+      }
+    }
+
+    function updateGroupHeaderText(groupId) {
+      const gKey = groupAnchorKey(groupId);
+      const gPos = groupAnchors[gKey] || { x: 0, y: 0, rot: 0 };
+      const span = layerListEl.querySelector(`.group-pos[data-group-id="${groupId}"]`);
+      if (span) span.textContent = `${gPos.x},${gPos.y}` + (gPos.rot ? ` R${gPos.rot}` : '');
+    }
+
+    function updateStatusBar() {
+      let label = `<strong>${currentBatch}</strong>`;
+      if (BODY_DEPENDENT.has(currentBatch) || currentBatch === 'body')
+        label += ` <span style="color:#6a8a72">[${currentBodyType}]</span>`;
+      if (currentBatch === 'wings')
+        label += ` <span style="color:#6a6a8a">[${currentWingCount}-wing]</span>`;
+      if (currentBatch === 'legs')
+        label += ` <span style="color:#6a6a8a">[${currentLimbCount}-limb]</span>`;
+      if (CHAINED_TO_HEAD.has(currentBatch))
+        label += ` <span style="color:#8a6a6a">[→ head]</span>`;
+
+      if (MODEL_BATCHES.has(currentBatch)) {
+        const models = getModels(currentBatch);
+        const pairs = getActivePairs(currentBatch);
+        let totalLayers = 0;
+        for (const model of Object.values(models)) {
+          totalLayers += model.layers.length;
+        }
+        label += ` — ${totalLayers} model layers × ${pairs.length} pairs`;
+      } else {
+        const layers = getBatchLayers();
+        const loaded = layers.filter(l => images[l.file]).length;
+        label += ` — ${layers.length} layers, ${loaded} loaded`;
+      }
+      if (groupMoveEnabled) label += ` | <strong style="color:#c4a265">🔗 Group</strong>`;
+      statusBar.innerHTML = label;
+    }
+
+    // ── Selection ──
+    function selectGroup(groupId) {
+      selectedGroupId = groupId;
+      selectedLayerId = null;
+      selectedModelId = null;
+      const gKey = groupAnchorKey(groupId);
+      const gPos = groupAnchors[gKey] || { x: 0, y: 0, rot: 0 };
+      posX.value = gPos.x; posY.value = gPos.y;
+      posEditorTitle.textContent = '🔗 ' + groupId;
+
+      // Show rotation for wing/vest groups
+      const rotRow = document.getElementById('rotRow');
+      const rotSlider = document.getElementById('rotSlider');
+      const rotValueEl = document.getElementById('rotValue');
+      if (isRotatableGroup(groupId)) {
+        rotRow.classList.add('visible');
+        rotSlider.value = gPos.rot || 0;
+        rotValueEl.textContent = (gPos.rot || 0) + '°';
+      } else {
+        rotRow.classList.remove('visible');
+      }
+
+      posInfo.textContent = 'Group anchor — move the whole group';
+      chainInfoEl.style.display = 'block';
+      chainInfoEl.textContent = `📌 ${currentBodyType} | Moving group: all offsets preserved`;
+      buildLayerList(); render();
+    }
+
+    function selectModelLayer(modelId) {
+      selectedModelId = modelId;
+      selectedLayerId = null;
+      selectedGroupId = null;
+      const mOff = modelOffsets[modelId] || { x: 0, y: 0 };
+      posX.value = mOff.x; posY.value = mOff.y;
+      posEditorTitle.textContent = '📐 ' + modelId.split(':')[1];
+      document.getElementById('rotRow').classList.remove('visible');
+
+      // Find the model layer info for size display
+      const models = getModels(currentBatch);
+      let file = null;
+      for (const model of Object.values(models)) {
+        const ml = model.layers.find(l => l.modelId === modelId);
+        if (ml) { file = ml.file; break; }
+      }
+      const img = file ? images[file] : null;
+      posInfo.textContent = img ? `Size: ${img.width}×${img.height}px` : 'PNG not found';
+
+      chainInfoEl.style.display = 'block';
+      chainInfoEl.textContent = `📐 Model offset — shared across all pairs`;
+      buildLayerList(); render();
+    }
+
+    function selectLayer(layerId) {
+      selectedGroupId = null;
+      selectedModelId = null;
+      selectedLayerId = layerId;
+      const off = layerOffsets[layerId] || { x: 0, y: 0 };
+      posX.value = off.x; posY.value = off.y;
+      posEditorTitle.textContent = layerId;
+      document.getElementById('rotRow').classList.remove('visible');
+
+      const layer = getBatchLayers().find(l => l.id === layerId);
+      const img = layer ? images[layer.file] : null;
+      posInfo.textContent = img ? `Size: ${img.width}×${img.height}px` : 'PNG not found';
+
+      const group = getLinkGroup(layerId);
+      if (CHAINED_TO_HEAD.has(currentBatch)) {
+        const resolved = getResolvedPosition(layerId);
+        chainInfoEl.style.display = 'block';
+        chainInfoEl.textContent = `🔗 Offset in group → canvas (${resolved.x},${resolved.y})`;
+      } else if (group && currentBatch !== 'body') {
+        const gKey = groupAnchorKey(group);
+        const gPos = groupAnchors[gKey] || { x: 0, y: 0 };
+        chainInfoEl.style.display = 'block';
+        chainInfoEl.textContent = `📌 Group: ${group} (${gPos.x},${gPos.y}) + offset (${off.x},${off.y})`;
+      } else {
+        chainInfoEl.style.display = 'none';
+      }
+
+      buildLayerList(); render();
+    }
+
+    // ── Position editing ──
+    function updatePosition(dx, dy) {
+      if (selectedGroupId) {
+        const gKey = groupAnchorKey(selectedGroupId);
+        if (!groupAnchors[gKey]) groupAnchors[gKey] = { x: 0, y: 0 };
+        groupAnchors[gKey].x += dx;
+        groupAnchors[gKey].y += dy;
+        posX.value = groupAnchors[gKey].x;
+        posY.value = groupAnchors[gKey].y;
+      } else if (selectedModelId) {
+        if (!modelOffsets[selectedModelId]) modelOffsets[selectedModelId] = { x: 0, y: 0 };
+        modelOffsets[selectedModelId].x += dx;
+        modelOffsets[selectedModelId].y += dy;
+        posX.value = modelOffsets[selectedModelId].x;
+        posY.value = modelOffsets[selectedModelId].y;
+      } else if (selectedLayerId) {
+        if (groupMoveEnabled && currentBatch !== 'body') {
+          const group = getLinkGroup(selectedLayerId);
+          if (group) {
+            const gKey = groupAnchorKey(group);
+            if (!groupAnchors[gKey]) groupAnchors[gKey] = { x: 0, y: 0 };
+            groupAnchors[gKey].x += dx;
+            groupAnchors[gKey].y += dy;
+            const off = layerOffsets[selectedLayerId] || { x: 0, y: 0 };
+            posX.value = off.x; posY.value = off.y;
+          } else {
+            if (!layerOffsets[selectedLayerId]) layerOffsets[selectedLayerId] = { x: 0, y: 0 };
+            layerOffsets[selectedLayerId].x += dx;
+            layerOffsets[selectedLayerId].y += dy;
+            posX.value = layerOffsets[selectedLayerId].x;
+            posY.value = layerOffsets[selectedLayerId].y;
+          }
+        } else {
+          if (!layerOffsets[selectedLayerId]) layerOffsets[selectedLayerId] = { x: 0, y: 0 };
+          layerOffsets[selectedLayerId].x += dx;
+          layerOffsets[selectedLayerId].y += dy;
+          posX.value = layerOffsets[selectedLayerId].x;
+          posY.value = layerOffsets[selectedLayerId].y;
+        }
+      } else return;
+      saveAnchors(); buildLayerList(); render();
+    }
+
+    posX.addEventListener('change', () => {
+      const newX = parseInt(posX.value) || 0;
+      if (selectedGroupId) {
+        const gKey = groupAnchorKey(selectedGroupId);
+        const oldX = (groupAnchors[gKey] || { x: 0 }).x;
+        updatePosition(newX - oldX, 0);
+      } else if (selectedModelId) {
+        const oldX = (modelOffsets[selectedModelId] || { x: 0 }).x;
+        updatePosition(newX - oldX, 0);
+      } else if (selectedLayerId) {
+        const oldX = (layerOffsets[selectedLayerId] || { x: 0 }).x;
+        if (groupMoveEnabled && currentBatch !== 'body') {
+          const group = getLinkGroup(selectedLayerId);
+          if (group) {
+            if (!layerOffsets[selectedLayerId]) layerOffsets[selectedLayerId] = { x: 0, y: 0 };
+            layerOffsets[selectedLayerId].x = newX;
+            saveAnchors(); buildLayerList(); render();
+            return;
+          }
+        }
+        updatePosition(newX - oldX, 0);
+      }
+    });
+    posY.addEventListener('change', () => {
+      const newY = parseInt(posY.value) || 0;
+      if (selectedGroupId) {
+        const gKey = groupAnchorKey(selectedGroupId);
+        const oldY = (groupAnchors[gKey] || { y: 0 }).y;
+        updatePosition(0, newY - oldY);
+      } else if (selectedModelId) {
+        const oldY = (modelOffsets[selectedModelId] || { y: 0 }).y;
+        updatePosition(0, newY - oldY);
+      } else if (selectedLayerId) {
+        const oldY = (layerOffsets[selectedLayerId] || { y: 0 }).y;
+        if (groupMoveEnabled && currentBatch !== 'body') {
+          const group = getLinkGroup(selectedLayerId);
+          if (group) {
+            if (!layerOffsets[selectedLayerId]) layerOffsets[selectedLayerId] = { x: 0, y: 0 };
+            layerOffsets[selectedLayerId].y = newY;
+            saveAnchors(); buildLayerList(); render();
+            return;
+          }
+        }
+        updatePosition(0, newY - oldY);
+      }
+    });
+
+    document.querySelectorAll('.nudge').forEach(btn => {
+      btn.addEventListener('click', () => {
+        updatePosition(parseInt(btn.dataset.dx)||0, parseInt(btn.dataset.dy)||0);
+      });
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT') return;
+      if (!selectedLayerId && !selectedGroupId && !selectedModelId) return;
+      const step = e.shiftKey ? 10 : 1;
+      switch (e.key) {
+        case 'ArrowLeft':  updatePosition(-step, 0); e.preventDefault(); break;
+        case 'ArrowRight': updatePosition(step, 0);  e.preventDefault(); break;
+        case 'ArrowUp':    updatePosition(0, -step);  e.preventDefault(); break;
+        case 'ArrowDown':  updatePosition(0, step);   e.preventDefault(); break;
+        case 'g': case 'G':
+          groupMoveEnabled = !groupMoveEnabled;
+          buildLayerList(); render();
+          break;
+      }
+    });
+
+    // ── Rotation (group-level) ──
+    document.getElementById('rotSlider').addEventListener('input', (e) => {
+      if (!selectedGroupId || !isRotatableGroup(selectedGroupId)) return;
+      const gKey = groupAnchorKey(selectedGroupId);
+      if (!groupAnchors[gKey]) groupAnchors[gKey] = { x: 0, y: 0, rot: 0 };
+      groupAnchors[gKey].rot = parseInt(e.target.value) || 0;
+      document.getElementById('rotValue').textContent = groupAnchors[gKey].rot + '°';
+      updateGroupHeaderText(selectedGroupId);
+      render();
+    });
+    document.getElementById('rotSlider').addEventListener('change', saveAnchors);
+    document.getElementById('rotReset').addEventListener('click', () => {
+      if (!selectedGroupId || !isRotatableGroup(selectedGroupId)) return;
+      const gKey = groupAnchorKey(selectedGroupId);
+      if (!groupAnchors[gKey]) groupAnchors[gKey] = { x: 0, y: 0, rot: 0 };
+      groupAnchors[gKey].rot = 0;
+      document.getElementById('rotSlider').value = 0;
+      document.getElementById('rotValue').textContent = '0°';
+      updateGroupHeaderText(selectedGroupId);
+      saveAnchors(); render();
+    });
+
+    // ── Canvas drag + pan + zoom ──
+    container.addEventListener('mousedown', (e) => {
+      const rect = container.getBoundingClientRect();
+      const mx = (e.clientX - rect.left - panX) / zoom;
+      const my = (e.clientY - rect.top - panY) / zoom;
+
+      // For model-based batches, hit-test model layers
+      if (MODEL_BATCHES.has(currentBatch)) {
+        const models = getModels(currentBatch);
+        const pairs = getActivePairs(currentBatch);
+
+        // If a group is selected, clicking any member of that group starts a group drag
+        if (selectedGroupId) {
+          for (const [modelName, model] of Object.entries(models)) {
+            for (const pair of pairs) {
+              const groupId = modelName + ':p' + pair;
+              if (groupId !== selectedGroupId) continue;
+              for (let i = model.layers.length - 1; i >= 0; i--) {
+                const ml = model.layers[i];
+                const img = images[ml.file];
+                if (!img || visibility[ml.modelId] === false) continue;
+                const pos = getModelResolvedPosition(ml.modelId, modelName, pair);
+                if (mx >= pos.x && mx <= pos.x + img.width && my >= pos.y && my <= pos.y + img.height) {
+                  startGroupDrag(e, selectedGroupId);
+                  return;
+                }
+              }
+            }
+          }
+        }
+
+        // Try to click on any visible model layer
+        for (const [modelName, model] of Object.entries(models)) {
+          for (const pair of [...pairs].reverse()) {
+            for (let i = model.layers.length - 1; i >= 0; i--) {
+              const ml = model.layers[i];
+              const img = images[ml.file];
+              if (!img || visibility[ml.modelId] === false) continue;
+              const pos = getModelResolvedPosition(ml.modelId, modelName, pair);
+              if (mx >= pos.x && mx <= pos.x + img.width && my >= pos.y && my <= pos.y + img.height) {
+                // Pixel test
+                const offC = document.createElement('canvas');
+                offC.width = img.width; offC.height = img.height;
+                offC.getContext('2d').drawImage(img, 0, 0);
+                const px = Math.floor(mx - pos.x), py = Math.floor(my - pos.y);
+                if (px >= 0 && px < img.width && py >= 0 && py < img.height) {
+                  if (offC.getContext('2d').getImageData(px, py, 1, 1).data[3] > 10) {
+                    if (groupMoveEnabled) {
+                      // Select and start dragging the group this pair belongs to
+                      const groupId = modelName + ':p' + pair;
+                      selectGroup(groupId);
+                      startGroupDrag(e, groupId);
+                    } else {
+                      selectModelLayer(ml.modelId);
+                      startModelDrag(e, ml.modelId);
+                    }
+                    return;
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // Fall through to canvas pan
+        isDraggingCanvas = true;
+        dragStartX = e.clientX - panX; dragStartY = e.clientY - panY;
+        canvas.classList.add('dragging');
+        return;
+      }
+
+      // Non-model batches (existing logic)
+      const layers = getBatchLayers();
+
+      if (selectedGroupId) {
+        for (let i = layers.length - 1; i >= 0; i--) {
+          const l = layers[i];
+          if (getLinkGroup(l.id) !== selectedGroupId) continue;
+          const img = images[l.file];
+          if (!img || visibility[l.id] === false) continue;
+          const pos = getResolvedPosition(l.id);
+          if (mx >= pos.x && mx <= pos.x + img.width && my >= pos.y && my <= pos.y + img.height) {
+            startLayerDrag(e, l.id); return;
+          }
+        }
+      }
+
+      if (selectedLayerId) {
+        const layer = layers.find(l => l.id === selectedLayerId);
+        if (layer && images[layer.file] && visibility[layer.id] !== false) {
+          const pos = getResolvedPosition(layer.id);
+          const img = images[layer.file];
+          if (mx >= pos.x && mx <= pos.x + img.width && my >= pos.y && my <= pos.y + img.height) {
+            startLayerDrag(e, selectedLayerId); return;
+          }
+        }
+      }
+
+      for (let i = layers.length - 1; i >= 0; i--) {
+        const l = layers[i];
+        const img = images[l.file];
+        if (!img || visibility[l.id] === false) continue;
+        const pos = getResolvedPosition(l.id);
+        if (mx >= pos.x && mx <= pos.x + img.width && my >= pos.y && my <= pos.y + img.height) {
+          const offC = document.createElement('canvas');
+          offC.width = img.width; offC.height = img.height;
+          offC.getContext('2d').drawImage(img, 0, 0);
+          const px = Math.floor(mx - pos.x), py = Math.floor(my - pos.y);
+          if (px >= 0 && px < img.width && py >= 0 && py < img.height) {
+            if (offC.getContext('2d').getImageData(px, py, 1, 1).data[3] > 10) {
+              selectLayer(l.id); startLayerDrag(e, l.id); return;
+            }
+          }
+        }
+      }
+
+      isDraggingCanvas = true;
+      dragStartX = e.clientX - panX; dragStartY = e.clientY - panY;
+      canvas.classList.add('dragging');
+    });
+
+    let dragMode = 'none'; // 'group' | 'model' | 'offset' | 'none'
+    let dragGroupKey = null;
+    let dragModelId = null;
+
+    function startGroupDrag(e, groupId) {
+      isDraggingLayer = true;
+      dragMode = 'group';
+      dragStartX = e.clientX; dragStartY = e.clientY;
+      dragGroupKey = groupAnchorKey(groupId);
+      const gPos = groupAnchors[dragGroupKey] || { x: 0, y: 0 };
+      dragStartAnchors = { _group: { x: gPos.x, y: gPos.y } };
+      canvas.classList.add('dragging');
+      e.preventDefault();
+    }
+
+    function startModelDrag(e, modelId) {
+      isDraggingLayer = true;
+      dragMode = 'model';
+      dragModelId = modelId;
+      dragStartX = e.clientX; dragStartY = e.clientY;
+      const mOff = modelOffsets[modelId] || { x: 0, y: 0 };
+      dragStartAnchors = { _model: { x: mOff.x, y: mOff.y } };
+      canvas.classList.add('dragging');
+      e.preventDefault();
+    }
+
+    function startLayerDrag(e, layerId) {
+      isDraggingLayer = true;
+      dragStartX = e.clientX; dragStartY = e.clientY;
+      dragStartAnchors = {};
+
+      const group = getLinkGroup(layerId);
+
+      if (currentBatch === 'body' || !group) {
+        dragMode = 'offset';
+        const off = layerOffsets[layerId] || { x: 0, y: 0 };
+        dragStartAnchors[layerId] = { x: off.x, y: off.y };
+      } else if (groupMoveEnabled || selectedGroupId) {
+        dragMode = 'group';
+        dragGroupKey = groupAnchorKey(group);
+        const gPos = groupAnchors[dragGroupKey] || { x: 0, y: 0 };
+        dragStartAnchors['_group'] = { x: gPos.x, y: gPos.y };
+      } else {
+        dragMode = 'offset';
+        const off = layerOffsets[layerId] || { x: 0, y: 0 };
+        dragStartAnchors[layerId] = { x: off.x, y: off.y };
+      }
+      canvas.classList.add('dragging');
+      e.preventDefault();
+    }
+
+    document.addEventListener('mousemove', (e) => {
+      if (isDraggingLayer) {
+        const dx = (e.clientX - dragStartX) / zoom;
+        const dy = (e.clientY - dragStartY) / zoom;
+
+        if (dragMode === 'group') {
+          const start = dragStartAnchors['_group'];
+          if (!groupAnchors[dragGroupKey]) groupAnchors[dragGroupKey] = { x: 0, y: 0 };
+          groupAnchors[dragGroupKey].x = Math.round(start.x + dx);
+          groupAnchors[dragGroupKey].y = Math.round(start.y + dy);
+          if (selectedGroupId) {
+            posX.value = groupAnchors[dragGroupKey].x;
+            posY.value = groupAnchors[dragGroupKey].y;
+            updateGroupHeaderText(selectedGroupId);
+          } else if (selectedLayerId) {
+            const off = layerOffsets[selectedLayerId] || { x: 0, y: 0 };
+            posX.value = off.x; posY.value = off.y;
+          }
+        } else if (dragMode === 'model') {
+          const start = dragStartAnchors['_model'];
+          if (!modelOffsets[dragModelId]) modelOffsets[dragModelId] = { x: 0, y: 0 };
+          modelOffsets[dragModelId].x = Math.round(start.x + dx);
+          modelOffsets[dragModelId].y = Math.round(start.y + dy);
+          posX.value = modelOffsets[dragModelId].x;
+          posY.value = modelOffsets[dragModelId].y;
+        } else if (dragMode === 'offset') {
+          const lid = selectedLayerId;
+          const start = dragStartAnchors[lid];
+          if (start) {
+            if (!layerOffsets[lid]) layerOffsets[lid] = { x: 0, y: 0 };
+            layerOffsets[lid].x = Math.round(start.x + dx);
+            layerOffsets[lid].y = Math.round(start.y + dy);
+            posX.value = layerOffsets[lid].x;
+            posY.value = layerOffsets[lid].y;
+          }
+        }
+        render();
+      } else if (isDraggingCanvas) {
+        panX = e.clientX - dragStartX; panY = e.clientY - dragStartY;
+        render();
+      }
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (isDraggingLayer) { saveAnchors(); buildLayerList(); }
+      isDraggingLayer = false; isDraggingCanvas = false;
+      canvas.classList.remove('dragging');
+    });
+
+    container.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const rect = container.getBoundingClientRect();
+      const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+      const oldZoom = zoom;
+      zoom = Math.max(0.05, Math.min(3, zoom * (e.deltaY > 0 ? 0.9 : 1.1)));
+      panX = mx - (mx - panX) * (zoom / oldZoom);
+      panY = my - (my - panY) * (zoom / oldZoom);
+      render();
+    }, { passive: false });
+
+    // ── Tab switching ──
+    document.querySelectorAll('#batchTabs .tab-btn').forEach(tab => {
+      tab.addEventListener('click', async () => {
+        document.querySelectorAll('#batchTabs .tab-btn').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        currentBatch = tab.dataset.batch;
+        selectedLayerId = null;
+        selectedGroupId = null;
+        selectedModelId = null;
+        posEditorTitle.textContent = 'No layer selected';
+        posInfo.textContent = ''; chainInfoEl.style.display = 'none';
+        document.getElementById('rotRow').classList.remove('visible');
+        updateConfigVisibility();
+        statusBar.innerHTML = '<strong>Loading...</strong>';
+        await loadBatch(currentBatch);
+        buildLayerList(); render();
+        // Auto-select first thing
+        if (MODEL_BATCHES.has(currentBatch)) {
+          const models = getModels(currentBatch);
+          const pairs = getActivePairs(currentBatch);
+          if (pairs.length > 0) {
+            const firstModel = Object.keys(models)[0];
+            selectGroup(firstModel + ':p' + pairs[0]);
+          }
+        } else {
+          const first = getBatchLayers().find(l => images[l.file]);
+          if (first) selectLayer(first.id);
+        }
+      });
+    });
+
+    // Wing count tabs
+    document.querySelectorAll('#wingCountTabs .tab-btn').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('#wingCountTabs .tab-btn').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        currentWingCount = parseInt(tab.dataset.wings);
+        selectedLayerId = null;
+        selectedModelId = null;
+        // Re-select group if one was selected (position changes with config)
+        if (selectedGroupId) {
+          selectGroup(selectedGroupId);
+        } else {
+          selectedGroupId = null;
+          buildLayerList(); render();
+          const pairs = getActivePairs(currentBatch);
+          const models = getModels(currentBatch);
+          if (pairs.length > 0 && models) {
+            selectGroup(Object.keys(models)[0] + ':p' + pairs[0]);
+          }
+        }
+      });
+    });
+
+    // Limb count tabs
+    document.querySelectorAll('#limbCountTabs .tab-btn').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('#limbCountTabs .tab-btn').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        currentLimbCount = parseInt(tab.dataset.limbs);
+        selectedLayerId = null;
+        selectedModelId = null;
+        if (selectedGroupId) {
+          selectGroup(selectedGroupId);
+        } else {
+          selectedGroupId = null;
+          buildLayerList(); render();
+          const pairs = getActivePairs(currentBatch);
+          const models = getModels(currentBatch);
+          if (pairs.length > 0 && models) {
+            selectGroup(Object.keys(models)[0] + ':p' + pairs[0]);
+          }
+        }
+      });
+    });
+
+    document.querySelectorAll('#bodyTypeTabs .tab-btn').forEach(tab => {
+      tab.addEventListener('click', async () => {
+        document.querySelectorAll('#bodyTypeTabs .tab-btn').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        currentBodyType = tab.dataset.body;
+        if (currentBatch !== 'body') await loadBatch(currentBatch);
+        if (selectedGroupId) selectGroup(selectedGroupId);
+        else if (selectedModelId) selectModelLayer(selectedModelId);
+        else if (selectedLayerId) selectLayer(selectedLayerId);
+        else { buildLayerList(); render(); }
+      });
+    });
+
+    // ── Copy Anchors — flatten to absolute positions ──
+    document.getElementById('copyAnchorsBtn').addEventListener('click', () => {
+      const fmt = (a) => {
+        const rot = a.rot || 0;
+        return rot ? `{ x: ${a.x}, y: ${a.y}, rot: ${rot} }` : `{ x: ${a.x}, y: ${a.y} }`;
+      };
+
+      const flat = {};
+
+      // Body layers
+      for (const layer of LAYERS.body || []) {
+        const off = layerOffsets[layer.id] || { x: 0, y: 0 };
+        flat[layer.id] = { x: off.x, y: off.y };
+      }
+
+      // Head, tail, vestigial (body-type-dependent, not config-dependent)
+      for (const batchName of ['head', 'tail', 'vestigial']) {
+        for (const bt of BODY_TYPES) {
+          for (const layer of (LAYERS[batchName] || [])) {
+            const group = getLinkGroup(layer.id);
+            const off = layerOffsets[layer.id] || { x: 0, y: 0 };
+            let gx = 0, gy = 0, rot = 0;
+            if (group) {
+              const gKey = groupAnchorKeyFor(group, batchName, bt, currentWingCount, currentLimbCount);
+              const gPos = groupAnchors[gKey] || { x: 0, y: 0, rot: 0 };
+              gx = gPos.x; gy = gPos.y; rot = gPos.rot || 0;
+            }
+            const key = layer.id + ':' + bt;
+            flat[key] = { x: gx + off.x, y: gy + off.y };
+            if (rot) flat[key].rot = rot;
+          }
+        }
+      }
+
+      // Horns (chained to head, no body type in export key)
+      for (const layer of (LAYERS.horns || [])) {
+        const group = getLinkGroup(layer.id);
+        const off = layerOffsets[layer.id] || { x: 0, y: 0 };
+        let gx = 0, gy = 0;
+        if (group) {
+          const gPos = groupAnchors[group] || { x: 0, y: 0 };
+          gx = gPos.x; gy = gPos.y;
+        }
+        flat[layer.id] = { x: gx + off.x, y: gy + off.y };
+      }
+
+      // Wings (config-dependent: body type × wing count × pair)
+      for (const wc of [2, 4, 6]) {
+        const maxPair = wingCountToMaxPair(wc);
+        for (const bt of BODY_TYPES) {
+          for (const [modelName, model] of Object.entries(WING_MODELS)) {
+            for (let p = 1; p <= maxPair; p++) {
+              const gKey = groupAnchorKeyFor(modelName + ':p' + p, 'wings', bt, wc, currentLimbCount);
+              const gPos = groupAnchors[gKey] || { x: 0, y: 0, rot: 0 };
+              for (const ml of model.layers) {
+                const mOff = modelOffsets[ml.modelId] || { x: 0, y: 0 };
+                const exportKey = `${ml.file}:p${p}:${bt}:${wc}w`;
+                flat[exportKey] = { x: gPos.x + mOff.x, y: gPos.y + mOff.y };
+                if (gPos.rot) flat[exportKey].rot = gPos.rot;
+              }
+            }
+          }
+        }
+      }
+
+      // Legs (config-dependent: body type × limb count × pair)
+      for (const lc of [2, 4, 6]) {
+        const maxPair = limbCountToMaxPair(lc);
+        for (const bt of BODY_TYPES) {
+          for (const [modelName, model] of Object.entries(LEG_MODELS)) {
+            for (let p = 1; p <= maxPair; p++) {
+              const gKey = groupAnchorKeyFor(modelName + ':p' + p, 'legs', bt, currentWingCount, lc);
+              const gPos = groupAnchors[gKey] || { x: 0, y: 0 };
+              for (const ml of model.layers) {
+                const mOff = modelOffsets[ml.modelId] || { x: 0, y: 0 };
+                const exportKey = `${ml.file}:p${p}:${bt}:${lc}l`;
+                flat[exportKey] = { x: gPos.x + mOff.x, y: gPos.y + mOff.y };
+              }
+            }
+          }
+        }
+      }
+
+      // Format output
+      const keys = Object.keys(flat).sort();
+      const lines = [];
+      let lastPrefix = '';
+      for (const key of keys) {
+        const prefix = key.split('_')[0] || key.split(':')[0];
+        if (prefix !== lastPrefix) { lines.push(''); lastPrefix = prefix; }
+        const a = flat[key];
+        const pad = ' '.repeat(Math.max(1, 38 - key.length));
+        lines.push(`  '${key}':${pad}${fmt(a)},`);
+      }
+
+      const code = `export const ANCHORS = {\n${lines.join('\n')}\n};\n`;
+      outputBox.textContent = code;
+      navigator.clipboard.writeText(code).then(() => {
+        statusBar.innerHTML = '<strong style="color:#6a8a72;">✓ Copied!</strong>';
+        setTimeout(buildLayerList, 2000);
+      }).catch(() => { statusBar.innerHTML = 'Shown below'; });
+    });
+
+    // ── Export by Part — downloads one txt per body part ──
+    document.getElementById('exportPartsBtn').addEventListener('click', () => {
+      const fmt = (a) => {
+        const rot = a.rot || 0;
+        return rot ? `{ x: ${a.x}, y: ${a.y}, rot: ${rot} }` : `{ x: ${a.x}, y: ${a.y} }`;
+      };
+
+      // Collect anchors grouped by part
+      const parts = { body: {}, head: {}, horns: {}, tail: {}, wings: {}, legs: {} };
+
+      // Body
+      for (const layer of LAYERS.body || []) {
+        const off = layerOffsets[layer.id] || { x: 0, y: 0 };
+        parts.body[layer.id] = { x: off.x, y: off.y };
+      }
+
+      // Head
+      for (const bt of BODY_TYPES) {
+        for (const layer of (LAYERS.head || [])) {
+          const group = getLinkGroup(layer.id);
+          const off = layerOffsets[layer.id] || { x: 0, y: 0 };
+          let gx = 0, gy = 0, rot = 0;
+          if (group) {
+            const gKey = groupAnchorKeyFor(group, 'head', bt, currentWingCount, currentLimbCount);
+            const gPos = groupAnchors[gKey] || { x: 0, y: 0, rot: 0 };
+            gx = gPos.x; gy = gPos.y; rot = gPos.rot || 0;
+          }
+          const key = layer.id + ':' + bt;
+          parts.head[key] = { x: gx + off.x, y: gy + off.y };
+          if (rot) parts.head[key].rot = rot;
+        }
+      }
+
+      // Horns
+      for (const layer of (LAYERS.horns || [])) {
+        const group = getLinkGroup(layer.id);
+        const off = layerOffsets[layer.id] || { x: 0, y: 0 };
+        let gx = 0, gy = 0;
+        if (group) {
+          const gPos = groupAnchors[group] || { x: 0, y: 0 };
+          gx = gPos.x; gy = gPos.y;
+        }
+        parts.horns[layer.id] = { x: gx + off.x, y: gy + off.y };
+      }
+
+      // Tail
+      for (const bt of BODY_TYPES) {
+        for (const layer of (LAYERS.tail || [])) {
+          const group = getLinkGroup(layer.id);
+          const off = layerOffsets[layer.id] || { x: 0, y: 0 };
+          let gx = 0, gy = 0, rot = 0;
+          if (group) {
+            const gKey = groupAnchorKeyFor(group, 'tail', bt, currentWingCount, currentLimbCount);
+            const gPos = groupAnchors[gKey] || { x: 0, y: 0, rot: 0 };
+            gx = gPos.x; gy = gPos.y; rot = gPos.rot || 0;
+          }
+          const key = layer.id + ':' + bt;
+          parts.tail[key] = { x: gx + off.x, y: gy + off.y };
+          if (rot) parts.tail[key].rot = rot;
+        }
+      }
+
+      // Vestigial wings go into wings
+      for (const bt of BODY_TYPES) {
+        for (const layer of (LAYERS.vestigial || [])) {
+          const group = getLinkGroup(layer.id);
+          const off = layerOffsets[layer.id] || { x: 0, y: 0 };
+          let gx = 0, gy = 0, rot = 0;
+          if (group) {
+            const gKey = groupAnchorKeyFor(group, 'vestigial', bt, currentWingCount, currentLimbCount);
+            const gPos = groupAnchors[gKey] || { x: 0, y: 0, rot: 0 };
+            gx = gPos.x; gy = gPos.y; rot = gPos.rot || 0;
+          }
+          const key = layer.id + ':' + bt;
+          parts.wings[key] = { x: gx + off.x, y: gy + off.y };
+          if (rot) parts.wings[key].rot = rot;
+        }
+      }
+
+      // Wings (config-dependent)
+      for (const wc of [2, 4, 6]) {
+        const maxPair = wingCountToMaxPair(wc);
+        for (const bt of BODY_TYPES) {
+          for (const [modelName, model] of Object.entries(WING_MODELS)) {
+            for (let p = 1; p <= maxPair; p++) {
+              const gKey = groupAnchorKeyFor(modelName + ':p' + p, 'wings', bt, wc, currentLimbCount);
+              const gPos = groupAnchors[gKey] || { x: 0, y: 0, rot: 0 };
+              for (const ml of model.layers) {
+                const mOff = modelOffsets[ml.modelId] || { x: 0, y: 0 };
+                const exportKey = `${ml.file}:p${p}:${bt}:${wc}w`;
+                parts.wings[exportKey] = { x: gPos.x + mOff.x, y: gPos.y + mOff.y };
+                if (gPos.rot) parts.wings[exportKey].rot = gPos.rot;
+              }
+            }
+          }
+        }
+      }
+
+      // Legs (config-dependent)
+      for (const lc of [2, 4, 6]) {
+        const maxPair = limbCountToMaxPair(lc);
+        for (const bt of BODY_TYPES) {
+          for (const [modelName, model] of Object.entries(LEG_MODELS)) {
+            for (let p = 1; p <= maxPair; p++) {
+              const gKey = groupAnchorKeyFor(modelName + ':p' + p, 'legs', bt, currentWingCount, lc);
+              const gPos = groupAnchors[gKey] || { x: 0, y: 0 };
+              for (const ml of model.layers) {
+                const mOff = modelOffsets[ml.modelId] || { x: 0, y: 0 };
+                const exportKey = `${ml.file}:p${p}:${bt}:${lc}l`;
+                parts.legs[exportKey] = { x: gPos.x + mOff.x, y: gPos.y + mOff.y };
+              }
+            }
+          }
+        }
+      }
+
+      // Download each part as a txt file
+      let count = 0;
+      for (const [partName, anchors] of Object.entries(parts)) {
+        const keys = Object.keys(anchors).sort();
+        if (keys.length === 0) continue;
+        const lines = keys.map(k => {
+          const pad = ' '.repeat(Math.max(1, 38 - k.length));
+          return `  '${k}':${pad}${fmt(anchors[k])},`;
+        });
+        const content = `// anchors-${partName}.txt\n// ${keys.length} entries\n\n${lines.join('\n')}\n`;
+        const blob = new Blob([content], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `anchors-${partName}.txt`;
+        document.body.appendChild(a);
+        // Stagger downloads slightly to avoid browser throttling
+        setTimeout(() => { a.click(); a.remove(); URL.revokeObjectURL(url); }, count * 200);
+        count++;
+      }
+      statusBar.innerHTML = `<strong style="color:#6a8a72;">✓ Downloading ${count} files</strong>`;
+      setTimeout(buildLayerList, 3000);
+    });
+
+    // ── Reset ──
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      if (MODEL_BATCHES.has(currentBatch)) {
+        const models = getModels(currentBatch);
+        const pairs = getActivePairs(currentBatch);
+        for (const [modelName, model] of Object.entries(models)) {
+          for (const ml of model.layers) {
+            modelOffsets[ml.modelId] = { x: 0, y: 0 };
+          }
+          for (const pair of pairs) {
+            const gKey = groupAnchorKey(modelName + ':p' + pair);
+            groupAnchors[gKey] = { x: 0, y: 0 };
+          }
+        }
+      } else {
+        const layers = getBatchLayers();
+        for (const l of layers) {
+          layerOffsets[l.id] = { x: 0, y: 0 };
+          const group = getLinkGroup(l.id);
+          if (group) {
+            const gKey = groupAnchorKey(group);
+            groupAnchors[gKey] = { x: 0, y: 0 };
+          }
+        }
+      }
+      saveAnchors();
+      if (selectedGroupId) selectGroup(selectedGroupId);
+      else if (selectedModelId) selectModelLayer(selectedModelId);
+      else if (selectedLayerId) selectLayer(selectedLayerId);
+      buildLayerList(); render();
+    });
+
+    // ── Toggles ──
+    document.getElementById('showAllLayers').addEventListener('change', render);
+    document.getElementById('showTint').addEventListener('change', () => { tintCache.clear(); render(); });
+    document.getElementById('tintColor').addEventListener('input', () => { tintCache.clear(); render(); });
+    document.getElementById('showGhost').addEventListener('change', render);
+
+    // ── Init ──
+    loadSavedAnchors();
+    async function init() {
+      const rect = container.getBoundingClientRect();
+      zoom = Math.min(rect.width / SPRITE_WIDTH, rect.height / SPRITE_HEIGHT) * 0.9;
+      panX = (rect.width - SPRITE_WIDTH * zoom) / 2;
+      panY = (rect.height - SPRITE_HEIGHT * zoom) / 2;
+      await loadBatch('body');
+      buildLayerList(); render();
+      const first = getBatchLayers().find(l => images[l.file]);
+      if (first) selectLayer(first.id);
+    }
+    init();
+  </script>
+</body>
+</html>
