@@ -447,11 +447,19 @@ export function resolveAssetsForPhenotype(phenotype) {
 // COLOR ADJUSTMENT AMOUNTS
 // ============================================================
 export const COLOR_ADJUSTMENTS = {
-  base:    { luminanceShift: 0,    saturationShift: 0 },
-  lighten: { luminanceShift: 0.15, saturationShift: 0 },      // belly, wing inner membrane — 15% lighter
-  darken:  { luminanceShift: -0.25, saturationShift: 0.76 },  // outlines — 25% darker, sat boost for Layer 2 color match
-  horn:    { luminanceShift: -0.10, saturationShift: 0 },      // horn fills — subtle darken, between base and outline
-  fixed:   null,                                                // no color processing (eyes, mouth)
+  base:    { luminanceShift: 0 },
+  lighten: { luminanceShift: 0.15 },   // belly, wing inner membrane — 15% lighter
+  darken:  { luminanceShift: -0.25 },  // outlines — 25% darker
+  horn:    { luminanceShift: -0.10 },  // horn fills — subtle darken, between base and outline
+  fixed:   null,                       // no color processing (eyes, mouth)
+};
+
+// Layer 2 outline corrections: extra sat/lum shifts applied ONLY to
+// outlines in the transparent compositing path (Layer 2) so they
+// visually match the Layer 4 surface outlines.
+export const LAYER2_OUTLINE_CORRECTION = {
+  saturationShift: 0.76,
+  luminanceShift:  0.22,
 };
 
 // ============================================================

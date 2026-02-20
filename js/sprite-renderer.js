@@ -26,6 +26,7 @@ import {
   ASSET_TABLE,
   resolveAssetsForPhenotype,
   COLOR_ADJUSTMENTS,
+  LAYER2_OUTLINE_CORRECTION,
   WING_TRANSPARENCY,
   BODY_TRANSPARENCY,
   SPRITE_WIDTH,
@@ -449,9 +450,8 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     if (asset.colorMode !== 'fixed') {
       const imageData = offCtx.getImageData(0, 0, offscreen.width, offscreen.height);
       const adjustment = COLOR_ADJUSTMENTS[asset.colorMode];
-      const lumShift = adjustment ? adjustment.luminanceShift : 0;
-      const satShift = adjustment ? (adjustment.saturationShift || 0) : 0;
-      applyColorBlend(imageData, dragonRgb, lumShift, satShift);
+      const shift = adjustment ? adjustment.luminanceShift : 0;
+      applyColorBlend(imageData, dragonRgb, shift);
       offCtx.putImageData(imageData, 0, 0);
     }
 
@@ -522,7 +522,7 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     }
     maskCtx.putImageData(maskData, 0, 0);
 
-    processedLayers.push({ asset, offscreen, maskCanvas, anchorX, anchorY, rotation, isOutline, isFixedDetail });
+    processedLayers.push({ asset, offscreen, maskCanvas, anchorX, anchorY, rotation, isOutline, isFixedDetail, originalImg: img });
   }
 
   // ── Pre-process fade layers (Layer A2): wing/leg fade variants ──
@@ -548,9 +548,8 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     if (asset.colorMode !== 'fixed') {
       const imageData = offCtx.getImageData(0, 0, offscreen.width, offscreen.height);
       const adjustment = COLOR_ADJUSTMENTS[asset.colorMode];
-      const lumShift = adjustment ? adjustment.luminanceShift : 0;
-      const satShift = adjustment ? (adjustment.saturationShift || 0) : 0;
-      applyColorBlend(imageData, dragonRgb, lumShift, satShift);
+      const shift = adjustment ? adjustment.luminanceShift : 0;
+      applyColorBlend(imageData, dragonRgb, shift);
       offCtx.putImageData(imageData, 0, 0);
     }
 
@@ -685,12 +684,31 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     }
 
     // Layer 2: Outlines only at full opacity — these show through
-    // wherever Layer 3's fade fills have transparency gradients
+    // wherever Layer 3's fade fills have transparency gradients.
+    // Apply Layer 2 sat/lum corrections so these outlines visually
+    // match Layer 4 surface outlines (which use normalized grey + darken).
+    const l2SatCorr = LAYER2_OUTLINE_CORRECTION.saturationShift;
+    const l2LumCorr = LAYER2_OUTLINE_CORRECTION.luminanceShift;
+    const l2Temps = [];
     for (const layer of processedLayers) {
       if (layer.isOutline) {
-        drawToCtx(offscreenCompCtx, layer.offscreen, layer, 1.0);
+        // Re-blend from the original art with corrected sat/lum
+        const src = layer.offscreen;
+        const tmp = document.createElement('canvas');
+        tmp.width = src.width;
+        tmp.height = src.height;
+        const tmpCtx = tmp.getContext('2d');
+        tmpCtx.drawImage(layer.originalImg, 0, 0);
+        const imgData = tmpCtx.getImageData(0, 0, tmp.width, tmp.height);
+        const baseLum = COLOR_ADJUSTMENTS.darken.luminanceShift;
+        applyColorBlend(imgData, dragonRgb, baseLum + l2LumCorr, l2SatCorr);
+        tmpCtx.putImageData(imgData, 0, 0);
+        drawToCtx(offscreenCompCtx, tmp, layer, 1.0);
+        l2Temps.push(tmp);
       }
     }
+    // Clean up Layer 2 temp canvases
+    for (const tmp of l2Temps) { tmp.width = 0; tmp.height = 0; }
 
     // Layer 3: Fade fills only (no outlines)
     for (const layer of layerA2Layers) {
