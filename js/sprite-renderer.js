@@ -8,27 +8,19 @@
 //   3. Adjust luminance: lighten for bellies/membranes, darken for outlines
 //   4. Two-pass compositing based on finish opacity gene
 //
-// Multi-pass compositing model:
-//   Layer A — Full dragon with base wing/leg art (at layerAAlpha):
-//     - ALL layers rendered in z-order at α=1.0, composited at layerAAlpha
-//   Layer A2 — Full dragon with fade wing/leg art (at layerAAlpha):
-//     - Same complete z-ordered stack, but wing/leg slots swapped to fade PNGs
-//     - Fade PNGs have painted-in transparency gradients at limb/body junctions
-//     - Non-wing/non-leg layers (body, head, tail, etc.) are identical to Layer A
-//     - Stacking Layer A + A2 each at half bodyAlpha ≈ original bodyAlpha
-//       but with softer blending at limb/body junctions
-//     - For fully-opaque dragons (bodyAlpha=1.0), both layers stay at 1.0
-//   Fixed details — Face details (eyes, mouth, etc.) at full opacity:
-//     - Layers with colorMode 'fixed' drawn directly at α=1.0
-//     - No color correction — uses original PNG art colors
-//     - Sits above the transparent body, below the outline overlay
-//   Layer B — Outline overlay (pixel-processed):
-//     - Base + fade mask layers re-rendered: fills as white, outlines as black
-//     - White pixels made transparent, black pixels → 50% grey
-//     - Grey pixels get dragon color via darken luminance shift
-//     - Overlaid at α=1.0 so outlines "punch through" the transparency
-//   Result: outlines stay crisp over transparent bodies, soft blending at limb
-//           junctions, face details keep their original colors
+// 4-layer compositing model:
+//   Layers 1+2+3 (merged at full internal opacity, stamped at bodyAlpha):
+//     Layer 1 — Full dragon with base PNGs (all layers in z-order)
+//     Layer 2 — Outlines only, base PNGs (transparent dragons only)
+//     Layer 3 — Full dragon with fade PNGs swapped in (transparent dragons only)
+//       Fade PNGs have painted-in transparency at limb/body junctions.
+//       Outlines from Layer 2 show through where fade fills are transparent.
+//       Opaque dragons skip Layers 2+3 entirely.
+//   Face details — Eyes, mouth at full opacity, no color correction
+//   Layer 4 — Surface outline overlay (pixel-processed):
+//     - Mask layers rendered: fills as white, outlines as black
+//     - White→transparent, dark→colored with darken shift
+//     - Overlaid at α=1.0 for crisp surface outlines
 
 import {
   ASSET_TABLE,
@@ -390,7 +382,6 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
   // show through on opaque dragons.
   const hasFadeLayers = fadeFilenames.size > 0;
   const needsFadePass = hasFadeLayers && bodyAlpha < 1.0;
-  const layerAAlpha = needsFadePass ? bodyAlpha * 0.5 : bodyAlpha;
 
   // Determine body variant for anchor lookups
   const bodyTypeName = phenotype.traits.body_type?.name?.toLowerCase() || 'normal';
@@ -671,44 +662,42 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
   offscreenComp.height = height;
   const offscreenCompCtx = offscreenComp.getContext('2d');
 
-  // ── Layer 1: Full dragon with base art, at body transparency ──
+  // ── Layers 1+2+3 (merged): All rendered at full internal opacity ──
+  // Layer 1: Full dragon, base PNGs (all layers in z-order)
+  // Layer 2: Outlines only, base PNGs (transparent dragons only)
+  // Layer 3: Full dragon, fade PNGs swapped in (transparent dragons only)
+  //
+  // Everything composites onto offscreen at α=1.0, then the merged
+  // result is stamped onto the main canvas at bodyAlpha.
+  // Opaque dragons only get Layer 1 (Layers 2+3 skipped).
+
+  // Layer 1: Full dragon with base art
   for (const layer of processedLayers) {
     drawToCtx(offscreenCompCtx, layer.offscreen, layer, 1.0);
   }
-  ctx.save();
-  ctx.globalAlpha = layerAAlpha;
-  ctx.drawImage(offscreenComp, 0, 0);
-  ctx.restore();
 
-  // ── Layers 2+3 (merged): Outlines + fade pass, composited together ──
-  // Only for transparent dragons (bodyAlpha < 1.0).
-  // First draw all outlines at full opacity onto offscreen, then draw
-  // the fade-swapped full dragon on top. The outlines sit beneath the
-  // fade fills, so they show through wherever fills are transparent.
-  // The merged result is then stamped at layerAAlpha onto the main canvas.
-  // Opaque dragons skip this entirely — they only need Layers 1 and 4.
   if (needsFadePass) {
-    offscreenCompCtx.clearRect(0, 0, width, height);
-
-    // Outlines first (full opacity base) — these will show through
-    // transparent regions of the fade fills drawn on top
+    // Layer 2: Outlines only at full opacity — these sit on top of
+    // Layer 1's fills, and will show through wherever Layer 3's
+    // fade fills have transparency gradients
     for (const layer of processedLayers) {
       if (layer.isOutline) {
         drawToCtx(offscreenCompCtx, layer.offscreen, layer, 1.0);
       }
     }
 
-    // Fade-swapped full dragon on top (at full internal opacity)
+    // Layer 3: Full dragon with fade PNGs — fills cover outlines
+    // where opaque, let them peek through where faded
     for (const layer of layerA2Layers) {
       drawToCtx(offscreenCompCtx, layer.offscreen, layer, 1.0);
     }
-
-    // Stamp the merged outlines+fade result at body transparency
-    ctx.save();
-    ctx.globalAlpha = layerAAlpha;
-    ctx.drawImage(offscreenComp, 0, 0);
-    ctx.restore();
   }
+
+  // Stamp merged Layers 1(+2+3) at body transparency
+  ctx.save();
+  ctx.globalAlpha = bodyAlpha;
+  ctx.drawImage(offscreenComp, 0, 0);
+  ctx.restore();
 
   // ── Face details: eyes, mouth at full opacity, no color correction ──
   for (const layer of processedLayers) {
