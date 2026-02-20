@@ -3,11 +3,12 @@
 // All generations visible at once — no expand/collapse.
 //
 // Visual rules:
+//   - Every child shows its parents above it (up to MAX_DEPTH)
+//   - When a dragon appears multiple times (shared ancestor / inbreeding),
+//     the LAST (deepest) instance is full opacity + full size ("primary")
+//     and earlier appearances are slightly transparent + smaller ("echo")
 //   - Solid lines = direct parent connections
-//   - Dotted lines + reduced opacity = reference (repeat) nodes
-//   - First appearance of a dragon = full opacity
-//   - Subsequent appearances = smaller portrait, lower opacity, dotted border
-//   - Parent portraits slightly smaller than child at depth 0
+//   - Dotted lines + reduced opacity = echo (earlier repeat) nodes
 //   - Sire/Dam labels on direct parents of the subject
 import { renderDragonSprite } from './ui-dragon-sprite.js';
 import { renderDragon } from './sprite-renderer.js';
@@ -26,51 +27,69 @@ function el(tag, className, text) {
 }
 
 /**
- * Build the ancestor data structure by traversing parentIds.
+ * Build the full ancestor tree — always expands parents up to MAX_DEPTH,
+ * even for dragons that appear multiple times.
+ * Collects all node references per dragon ID for the second pass.
  */
-function buildAncestorTree(dragon, registry, depth = 0, occurrences = null) {
-  if (!occurrences) occurrences = new Map();
+function buildFullTree(dragon, registry, depth = 0, allNodes = null) {
+  if (!allNodes) allNodes = new Map(); // dragonId → [nodeRef, nodeRef, ...]
 
   const nodeId = `tree-node-${nodeCounter++}`;
   const node = {
     dragon,
     nodeId,
+    depth,
     parentA: null,
     parentB: null,
-    isReference: false,
-    firstNodeId: null,
-    occurrenceIndex: 0, // 0 = first, 1+ = subsequent
+    isPrimary: false, // will be set in second pass
   };
 
-  if (occurrences.has(dragon.id)) {
-    const entry = occurrences.get(dragon.id);
-    entry.count++;
-    node.isReference = true;
-    node.firstNodeId = entry.firstNodeId;
-    node.occurrenceIndex = entry.count;
-    return { tree: node, occurrences };
+  // Track this node
+  if (!allNodes.has(dragon.id)) allNodes.set(dragon.id, []);
+  allNodes.get(dragon.id).push(node);
+
+  // Always expand parents up to depth limit
+  if (depth < MAX_DEPTH && dragon.parentIds) {
+    const [parentAId, parentBId] = dragon.parentIds;
+    const parentADragon = registry.get(parentAId);
+    const parentBDragon = registry.get(parentBId);
+
+    if (parentADragon) {
+      node.parentA = buildFullTree(parentADragon, registry, depth + 1, allNodes);
+    }
+    if (parentBDragon) {
+      node.parentB = buildFullTree(parentBDragon, registry, depth + 1, allNodes);
+    }
   }
 
-  occurrences.set(dragon.id, { count: 0, firstNodeId: nodeId });
+  return node;
+}
 
-  if (depth >= MAX_DEPTH || !dragon.parentIds) {
-    return { tree: node, occurrences };
+/**
+ * Second pass: for each dragon that appears multiple times,
+ * mark the LAST (deepest) instance as "primary" (full opacity).
+ * Earlier instances become "echoes" (smaller, translucent).
+ * Dragons that appear only once are always primary.
+ */
+function markPrimaryInstances(allNodes) {
+  for (const [, nodes] of allNodes) {
+    if (nodes.length === 1) {
+      nodes[0].isPrimary = true;
+    } else {
+      // Find the deepest instance — that's the primary
+      let deepest = nodes[0];
+      for (let i = 1; i < nodes.length; i++) {
+        if (nodes[i].depth > deepest.depth) deepest = nodes[i];
+      }
+      for (const n of nodes) {
+        n.isPrimary = (n === deepest);
+      }
+      // Store the primary's nodeId on echo nodes for click-to-scroll
+      for (const n of nodes) {
+        if (!n.isPrimary) n.primaryNodeId = deepest.nodeId;
+      }
+    }
   }
-
-  const [parentAId, parentBId] = dragon.parentIds;
-  const parentADragon = registry.get(parentAId);
-  const parentBDragon = registry.get(parentBId);
-
-  if (parentADragon) {
-    const result = buildAncestorTree(parentADragon, registry, depth + 1, occurrences);
-    node.parentA = result.tree;
-  }
-  if (parentBDragon) {
-    const result = buildAncestorTree(parentBDragon, registry, depth + 1, occurrences);
-    node.parentB = result.tree;
-  }
-
-  return { tree: node, occurrences };
 }
 
 /**
@@ -91,8 +110,12 @@ export function openFamilyTree(dragon, registry) {
     : `Generation ${dragon.generation}`;
   panel.appendChild(el('div', 'family-tree-gen-info', genText));
 
-  // Build and render tree
-  const { tree } = buildAncestorTree(dragon, registry);
+  // Build tree (two-pass)
+  const allNodes = new Map();
+  const tree = buildFullTree(dragon, registry, 0, allNodes);
+  markPrimaryInstances(allNodes);
+
+  // Render
   const treeContainer = el('div', 'family-tree-container pedigree-tree');
   treeContainer.appendChild(renderPedigreeNode(tree, registry, 0));
   panel.appendChild(treeContainer);
@@ -101,11 +124,11 @@ export function openFamilyTree(dragon, registry) {
   const lineLegend = el('div', 'tree-line-legend');
   const solidItem = el('span', 'tree-line-legend-item');
   solidItem.appendChild(el('span', 'tree-line-solid'));
-  solidItem.appendChild(document.createTextNode(' Direct parent'));
+  solidItem.appendChild(document.createTextNode(' Direct ancestor'));
   lineLegend.appendChild(solidItem);
   const dottedItem = el('span', 'tree-line-legend-item');
   dottedItem.appendChild(el('span', 'tree-line-dotted'));
-  dottedItem.appendChild(document.createTextNode(' Repeat ancestor'));
+  dottedItem.appendChild(document.createTextNode(' Shared ancestor (echo)'));
   lineLegend.appendChild(dottedItem);
   panel.appendChild(lineLegend);
 
@@ -135,7 +158,7 @@ export function openFamilyTree(dragon, registry) {
 
 /**
  * Render a pedigree node recursively (bottom-up).
- * Parents appear ABOVE the child.
+ * Parents appear ABOVE the child. Every child shows its parents.
  *
  *   [Parent A]  [Parent B]
  *        └────┬────┘
@@ -144,17 +167,13 @@ export function openFamilyTree(dragon, registry) {
 function renderPedigreeNode(node, registry, depth) {
   const family = el('div', 'ped-family');
 
-  // If has parents, render them ABOVE
-  const hasParents = !node.isReference && (node.parentA || node.parentB);
+  const hasParents = node.parentA || node.parentB;
+  const isEcho = !node.isPrimary;
 
   if (hasParents) {
     const parents = el('div', 'ped-parents');
 
-    // Determine if either parent is a reference (repeat) — use dotted connectors
-    const parentAIsRef = node.parentA?.isReference;
-    const parentBIsRef = node.parentB?.isReference;
-
-    // Parent A branch
+    // Parent A branch (Sire — left side)
     const branchA = el('div', 'ped-branch');
     if (depth === 0) branchA.appendChild(el('div', 'ped-parent-label', 'Sire'));
     if (node.parentA) {
@@ -162,11 +181,15 @@ function renderPedigreeNode(node, registry, depth) {
     } else {
       branchA.appendChild(renderPedUnknown());
     }
-    // Add connector style class
-    if (parentAIsRef) branchA.classList.add('ped-branch-dotted');
+    // Bracket connector
+    branchA.appendChild(el('div', 'ped-connector-down'));
+    // Echo parent branches get dotted connectors
+    if (node.parentA && !node.parentA.isPrimary) {
+      branchA.classList.add('ped-branch-dotted');
+    }
     parents.appendChild(branchA);
 
-    // Parent B branch
+    // Parent B branch (Dam — right side)
     const branchB = el('div', 'ped-branch');
     if (depth === 0) branchB.appendChild(el('div', 'ped-parent-label', 'Dam'));
     if (node.parentB) {
@@ -174,13 +197,11 @@ function renderPedigreeNode(node, registry, depth) {
     } else {
       branchB.appendChild(renderPedUnknown());
     }
-    if (parentBIsRef) branchB.classList.add('ped-branch-dotted');
-    parents.appendChild(branchB);
-
-    // Use dotted horizontal bar if BOTH parents are references
-    if (parentAIsRef && parentBIsRef) {
-      parents.classList.add('ped-parents-dotted');
+    branchB.appendChild(el('div', 'ped-connector-down'));
+    if (node.parentB && !node.parentB.isPrimary) {
+      branchB.classList.add('ped-branch-dotted');
     }
+    parents.appendChild(branchB);
 
     family.appendChild(parents);
 
@@ -191,8 +212,8 @@ function renderPedigreeNode(node, registry, depth) {
   // The dragon node at the bottom of this subtree
   const childWrapper = el('div', 'ped-child');
 
-  if (node.isReference) {
-    childWrapper.appendChild(renderPedRefContent(node, registry));
+  if (isEcho) {
+    childWrapper.appendChild(renderPedEchoContent(node, registry, depth));
   } else {
     childWrapper.appendChild(renderPedDragonContent(node, registry, depth));
   }
@@ -246,7 +267,7 @@ function renderSprite(phenotype, cssClass) {
 }
 
 /**
- * Render dragon content for a pedigree node.
+ * Render dragon content for a PRIMARY pedigree node (full opacity, full size).
  */
 function renderPedDragonContent(node, registry, depth) {
   const nodeEl = el('div', 'ped-node');
@@ -256,7 +277,7 @@ function renderPedDragonContent(node, registry, depth) {
   const genClass = 'tree-gen-' + Math.min(node.dragon.generation, 5);
   nodeEl.classList.add(genClass);
 
-  // Depth-based sizing: subject (depth 0) is larger, parents are slightly smaller
+  // Depth-based sizing: subject (depth 0) is larger
   if (depth === 0) {
     nodeEl.classList.add('ped-node-subject');
   } else if (depth >= 3) {
@@ -281,13 +302,14 @@ function renderPedDragonContent(node, registry, depth) {
 }
 
 /**
- * Render a reference node (duplicate ancestor).
- * Smaller portrait, reduced opacity, dotted border.
+ * Render an ECHO node (earlier appearance of a shared ancestor).
+ * Slightly smaller, reduced opacity, dotted border.
+ * Clicking scrolls to the primary (deepest) instance.
  */
-function renderPedRefContent(node, registry) {
-  const nodeEl = el('div', 'ped-node ped-ref');
+function renderPedEchoContent(node, registry, depth) {
+  const nodeEl = el('div', 'ped-node ped-echo');
   nodeEl.setAttribute('data-node-id', node.nodeId);
-  nodeEl.setAttribute('data-ref-target', node.dragon.id);
+  nodeEl.setAttribute('data-dragon-id', node.dragon.id);
 
   const genClass = 'tree-gen-' + Math.min(node.dragon.generation, 5);
   nodeEl.classList.add(genClass);
@@ -299,16 +321,18 @@ function renderPedRefContent(node, registry) {
   nodeEl.appendChild(renderSprite(node.dragon.phenotype, 'ped-sprite'));
 
   nodeEl.appendChild(el('div', 'ped-node-name', node.dragon.name));
-  nodeEl.appendChild(el('div', 'ped-ref-label', '↗ see above'));
+  nodeEl.appendChild(el('div', 'ped-echo-label', '↗ see above'));
 
   nodeEl.addEventListener('click', (e) => {
     e.stopPropagation();
-    // Flash-highlight the first occurrence
-    const firstNode = document.querySelector(`[data-node-id="${node.firstNodeId}"]`);
-    if (firstNode) {
-      firstNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      firstNode.classList.add('ped-highlight');
-      setTimeout(() => firstNode.classList.remove('ped-highlight'), 1500);
+    // Flash-highlight the primary (deepest) occurrence
+    if (node.primaryNodeId) {
+      const primaryNode = document.querySelector(`[data-node-id="${node.primaryNodeId}"]`);
+      if (primaryNode) {
+        primaryNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        primaryNode.classList.add('ped-highlight');
+        setTimeout(() => primaryNode.classList.remove('ped-highlight'), 1500);
+      }
     }
   });
 

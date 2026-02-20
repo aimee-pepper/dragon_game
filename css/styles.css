@@ -1559,7 +1559,11 @@ header h1 {
 }
 
 /* ---- Classic Bottom-Up Pedigree Layout ---- */
-/* Solid lines = direct connections | Dotted = repeat ancestors */
+/* Bracket-style connectors using the standard pedigree technique:
+   Each .ped-branch gets a bottom-border on its INNER half only,
+   plus a vertical drop-line. The two inner halves meet to form
+   a horizontal bar that always spans from branch-center to branch-center.
+   Solid lines = direct connections | Dotted = repeat ancestors */
 
 .pedigree-tree {
   display: flex;
@@ -1574,7 +1578,7 @@ header h1 {
   align-items: center;
 }
 
-/* Parent branch wrapper */
+/* Parent branch wrapper — uses bottom border for its half of the bar */
 .ped-branch {
   display: flex;
   flex-direction: column;
@@ -1583,38 +1587,21 @@ header h1 {
 
 /* Parent label (Sire/Dam) — only shown at depth 0 */
 .ped-parent-label {
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 600;
-  color: var(--text-muted);
+  color: var(--accent);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.8px;
   margin-bottom: 4px;
 }
 
-/* Parents row: two .ped-branch subtrees side by side */
+/* Parents row: two .ped-branch subtrees side by side, no gap.
+   Each branch has a .ped-connector-down wrapper at bottom that
+   creates the bracket shape. */
 .ped-parents {
   display: flex;
   justify-content: center;
-  gap: 6px;
-  position: relative;
-  padding-bottom: 12px;
-}
-
-/* Horizontal bar connecting the two parent branches — SOLID by default */
-.ped-parents::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 25%;
-  right: 25%;
-  height: 0;
-  border-bottom: 2px solid var(--border);
-}
-
-/* Dotted horizontal bar when both parents are references */
-.ped-parents-dotted::after {
-  border-bottom-style: dotted;
-  opacity: 0.6;
+  gap: 0;
 }
 
 /* Vertical connector from horizontal bar down to child — SOLID */
@@ -1624,32 +1611,40 @@ header h1 {
   border-left: 2px solid var(--border);
 }
 
-/* Vertical connector from each parent branch down to the horizontal bar — SOLID */
-.ped-branch > .ped-family > .ped-child::after,
-.ped-branch > .ped-child::after {
-  content: '';
-  display: block;
-  width: 0;
-  height: 12px;
-  border-left: 2px solid var(--border);
-  margin: 0 auto;
+/* ---- Branch Connector (bracket approach) ----
+   Each branch has a .ped-connector-down at its bottom.
+   The connector is 50% width of the branch and uses borders to form
+   half of the bracket:
+     Left branch:  ┘  (drop-line on left edge, bar runs right)
+     Right branch:  └  (drop-line on right edge, bar runs left)
+   Together: ┘└ forming the bracket that joins at center between branches. */
+.ped-connector-down {
+  height: 14px;
+  box-sizing: border-box;
 }
 
-/* Dotted vertical connectors for reference/repeat parent branches */
-.ped-branch-dotted > .ped-family > .ped-child::after,
-.ped-branch-dotted > .ped-child::after {
-  border-left-style: dotted;
+/* Left branch (first-child): bar from center → right edge,
+   vertical drop from center downward */
+.ped-parents > .ped-branch:first-child > .ped-connector-down {
+  width: 50%;
+  margin-left: auto;   /* push to right half of branch */
+  border-left: 2px solid var(--border);   /* vertical drop */
+  border-bottom: 2px solid var(--border); /* horizontal bar → right */
+}
+
+/* Right branch (last-child): bar from center → left edge,
+   vertical drop from center downward */
+.ped-parents > .ped-branch:last-child > .ped-connector-down {
+  width: 50%;
+  margin-right: auto;  /* push to left half of branch */
+  border-right: 2px solid var(--border);  /* vertical drop */
+  border-bottom: 2px solid var(--border); /* horizontal bar → left */
+}
+
+/* Dotted connectors for echo (shared ancestor) parent branches */
+.ped-branch-dotted > .ped-connector-down {
+  border-style: dotted !important;
   opacity: 0.6;
-}
-
-/* Legacy selector for deeper levels */
-.ped-parents > .ped-family > .ped-child::after {
-  content: '';
-  display: block;
-  width: 0;
-  height: 12px;
-  border-left: 2px solid var(--border);
-  margin: 0 auto;
 }
 
 /* Child wrapper: centers the node */
@@ -1665,16 +1660,16 @@ header h1 {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 5px 6px;
+  gap: 3px;
+  padding: 6px 8px;
   background: var(--bg-card);
   border: 2px solid var(--border);
   border-radius: var(--radius-sm);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: border-color 0.15s, background 0.15s, box-shadow 0.3s, opacity 0.2s;
-  min-width: 68px;
-  max-width: 86px;
+  min-width: 74px;
+  max-width: 96px;
   text-align: center;
 }
 
@@ -1685,42 +1680,43 @@ header h1 {
 
 /* Subject node (depth 0) — larger and more prominent */
 .ped-node-subject {
-  min-width: 80px;
-  max-width: 100px;
-  padding: 6px 8px;
+  min-width: 92px;
+  max-width: 120px;
+  padding: 8px 10px;
+  border-width: 2.5px;
 }
 
 .ped-node-subject .ped-sprite,
 .ped-node-subject .ped-sprite canvas {
-  width: 56px !important;
-  max-width: 56px !important;
+  width: 64px !important;
+  max-width: 64px !important;
 }
 
 .ped-node-subject .ped-sprite-canvas {
-  width: 56px;
-  max-width: 56px;
+  width: 64px;
+  max-width: 64px;
 }
 
 .ped-node-subject .ped-node-name {
-  font-size: 11px;
+  font-size: 12px;
 }
 
 /* Distant ancestors (depth 3+) — slightly smaller */
 .ped-node-distant {
-  min-width: 56px;
-  max-width: 72px;
-  padding: 3px 4px;
+  min-width: 60px;
+  max-width: 78px;
+  padding: 4px 5px;
 }
 
 .ped-node-distant .ped-sprite,
 .ped-node-distant .ped-sprite canvas {
-  width: 36px !important;
-  max-width: 36px !important;
+  width: 40px !important;
+  max-width: 40px !important;
 }
 
 .ped-node-distant .ped-sprite-canvas {
-  width: 36px;
-  max-width: 36px;
+  width: 40px;
+  max-width: 40px;
 }
 
 .ped-node-distant .ped-node-name {
@@ -1733,8 +1729,8 @@ header h1 {
 
 /* Compact sprite (legacy pixel-art) */
 .ped-sprite {
-  width: 44px !important;
-  max-width: 44px !important;
+  width: 48px !important;
+  max-width: 48px !important;
   height: auto;
   flex-shrink: 0;
 }
@@ -1742,19 +1738,19 @@ header h1 {
 .ped-sprite canvas {
   width: 100%;
   height: auto;
-  max-width: 44px;
+  max-width: 48px;
 }
 
 /* Async PNG sprite canvas in pedigree nodes */
 .ped-sprite-canvas {
-  width: 44px;
-  max-width: 44px;
+  width: 48px;
+  max-width: 48px;
   height: auto;
   flex-shrink: 0;
 }
 
 .ped-node-name {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-bright);
   white-space: nowrap;
@@ -1764,7 +1760,7 @@ header h1 {
 }
 
 .ped-node-gen {
-  font-size: 8px;
+  font-size: 9px;
   color: var(--accent);
   font-weight: 500;
 }
@@ -1788,41 +1784,41 @@ header h1 {
   border-color: var(--border);
 }
 
-/* ---- Reference/Repeat Ancestor Nodes ---- */
-/* Smaller, less opaque, dotted border — visually distinguished from first appearance */
+/* ---- Echo Nodes (earlier appearance of shared ancestor) ---- */
+/* Smaller, less opaque, dotted border — the PRIMARY (deepest) instance is full size */
 
-.ped-ref {
+.ped-echo {
   opacity: 0.5;
   border-style: dotted;
   border-width: 2px;
-  min-width: 56px;
-  max-width: 72px;
-  padding: 3px 4px;
+  min-width: 60px;
+  max-width: 78px;
+  padding: 4px 5px;
 }
 
-.ped-ref .ped-sprite,
-.ped-ref .ped-sprite canvas {
-  width: 32px !important;
-  max-width: 32px !important;
+.ped-echo .ped-sprite,
+.ped-echo .ped-sprite canvas {
+  width: 36px !important;
+  max-width: 36px !important;
 }
 
-.ped-ref .ped-sprite-canvas {
-  width: 32px;
-  max-width: 32px;
+.ped-echo .ped-sprite-canvas {
+  width: 36px;
+  max-width: 36px;
 }
 
-.ped-ref:hover,
-.ped-ref:active {
+.ped-echo:hover,
+.ped-echo:active {
   opacity: 0.85;
 }
 
-.ped-ref-label {
-  font-size: 7px;
+.ped-echo-label {
+  font-size: 8px;
   color: var(--accent);
   opacity: 0.8;
 }
 
-.ped-ref .ped-node-name {
+.ped-echo .ped-node-name {
   font-size: 9px;
 }
 
@@ -3145,55 +3141,51 @@ header h1 {
     padding: var(--spacing-xs);
   }
 
-  .ped-parents {
-    gap: 3px;
-  }
-
   .ped-node {
-    padding: 3px 4px;
-    min-width: 52px;
-    max-width: 68px;
+    padding: 4px 5px;
+    min-width: 56px;
+    max-width: 72px;
   }
 
   .ped-node-subject {
-    min-width: 64px;
-    max-width: 80px;
+    min-width: 68px;
+    max-width: 88px;
   }
 
   .ped-sprite {
-    width: 32px !important;
-    max-width: 32px !important;
+    width: 36px !important;
+    max-width: 36px !important;
   }
 
   .ped-sprite canvas {
-    max-width: 32px;
+    max-width: 36px;
   }
 
   .ped-sprite-canvas {
-    width: 32px;
-    max-width: 32px;
+    width: 36px;
+    max-width: 36px;
   }
 
   .ped-node-subject .ped-sprite,
   .ped-node-subject .ped-sprite canvas {
-    width: 40px !important;
-    max-width: 40px !important;
+    width: 44px !important;
+    max-width: 44px !important;
   }
 
   .ped-node-subject .ped-sprite-canvas {
-    width: 40px;
-    max-width: 40px;
+    width: 44px;
+    max-width: 44px;
   }
 
-  .ped-ref .ped-sprite,
-  .ped-ref .ped-sprite canvas {
-    width: 24px !important;
-    max-width: 24px !important;
+  .ped-echo .ped-sprite,
+  .ped-echo .ped-sprite canvas {
+    width: 28px !important;
+    max-width: 28px !important;
   }
 
-  .ped-ref .ped-sprite-canvas {
-    width: 24px;
-    max-width: 24px;
+  .ped-echo .ped-sprite-canvas {
+    width: 28px;
+    max-width: 28px;
   }
 
   .ped-node-name {
@@ -3213,10 +3205,8 @@ header h1 {
     height: 10px;
   }
 
-  .ped-parents > .ped-family > .ped-child::after,
-  .ped-branch > .ped-family > .ped-child::after,
-  .ped-branch > .ped-child::after {
-    height: 8px;
+  .ped-connector-down {
+    height: 10px;
   }
 
   .tree-legend {
@@ -3308,39 +3298,39 @@ header h1 {
 
   /* Extra-small pedigree tree tweaks */
   .ped-node {
-    min-width: 44px;
-    max-width: 58px;
-    padding: 2px 3px;
+    min-width: 48px;
+    max-width: 62px;
+    padding: 3px 4px;
   }
 
   .ped-node-subject {
-    min-width: 52px;
-    max-width: 68px;
+    min-width: 56px;
+    max-width: 72px;
   }
 
   .ped-sprite {
-    width: 26px !important;
-    max-width: 26px !important;
+    width: 28px !important;
+    max-width: 28px !important;
   }
 
   .ped-sprite canvas {
-    max-width: 26px;
+    max-width: 28px;
   }
 
   .ped-sprite-canvas {
-    width: 26px;
-    max-width: 26px;
+    width: 28px;
+    max-width: 28px;
   }
 
-  .ped-ref .ped-sprite,
-  .ped-ref .ped-sprite canvas {
-    width: 20px !important;
-    max-width: 20px !important;
+  .ped-echo .ped-sprite,
+  .ped-echo .ped-sprite canvas {
+    width: 22px !important;
+    max-width: 22px !important;
   }
 
-  .ped-ref .ped-sprite-canvas {
-    width: 20px;
-    max-width: 20px;
+  .ped-echo .ped-sprite-canvas {
+    width: 22px;
+    max-width: 22px;
   }
 
   .ped-node-name {
@@ -3348,11 +3338,15 @@ header h1 {
   }
 
   .ped-node-gen {
-    font-size: 6px;
+    font-size: 7px;
   }
 
   .ped-parent-label {
     font-size: 7px;
+  }
+
+  .ped-connector-down {
+    height: 8px;
   }
 }
 
