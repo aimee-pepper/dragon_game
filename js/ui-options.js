@@ -88,7 +88,8 @@ export function initOptionsTab(container) {
     if (e.key === 'Enter') {
       const cmd = consoleInput.value.trim().toLowerCase();
       if (cmd === 'tools' || cmd === 'open tools' || cmd === '') {
-        window.open('tools.html', '_blank');
+        const base = window.location.href.replace(/\/[^/]*$/, '/');
+        window.open(base + 'tools.html', '_blank', 'noopener');
       }
       consoleInput.value = '';
       consoleLine.classList.remove('revealed');
