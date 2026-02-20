@@ -663,20 +663,24 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
   const offscreenCompCtx = offscreenComp.getContext('2d');
 
   // ── Layers 1+2+3 (merged): All rendered at full internal opacity ──
-  // Layer 1: Full dragon, base PNGs (all layers in z-order)
-  // Layer 2: Outlines only, base PNGs (transparent dragons only)
-  // Layer 3: Full dragon, fade PNGs swapped in (transparent dragons only)
+  // For transparent dragons:
+  //   Layer 1: Fills only, base PNGs (no outlines — avoids double-drawing)
+  //   Layer 2: Outlines only, base PNGs
+  //   Layer 3: Fade fills only (no outlines — fade outline PNGs are empty)
+  // For opaque dragons:
+  //   Layer 1: Full dragon (fills + outlines), base PNGs
   //
   // Everything composites onto offscreen at α=1.0, then the merged
   // result is stamped onto the main canvas at bodyAlpha.
-  // Opaque dragons only get Layer 1 (Layers 2+3 skipped).
-
-  // Layer 1: Full dragon with base art
-  for (const layer of processedLayers) {
-    drawToCtx(offscreenCompCtx, layer.offscreen, layer, 1.0);
-  }
 
   if (needsFadePass) {
+    // Layer 1: Fills only (skip outlines to avoid double-draw with Layer 2)
+    for (const layer of processedLayers) {
+      if (!layer.isOutline) {
+        drawToCtx(offscreenCompCtx, layer.offscreen, layer, 1.0);
+      }
+    }
+
     // Layer 2: Outlines only at full opacity — these sit on top of
     // Layer 1's fills, and will show through wherever Layer 3's
     // fade fills have transparency gradients
@@ -687,13 +691,16 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     }
 
     // Layer 3: Fade fills only (no outlines) — fade fills cover Layer 2
-    // outlines where opaque, let them peek through where faded.
-    // Fade outline PNGs are nearly empty art, so we skip them here;
-    // Layer 2's base outlines are the ones we want visible.
+    // outlines where opaque, let them peek through where faded
     for (const layer of layerA2Layers) {
       if (!layer.isOutline) {
         drawToCtx(offscreenCompCtx, layer.offscreen, layer, 1.0);
       }
+    }
+  } else {
+    // Opaque: Full dragon (fills + outlines) in one pass
+    for (const layer of processedLayers) {
+      drawToCtx(offscreenCompCtx, layer.offscreen, layer, 1.0);
     }
   }
 
