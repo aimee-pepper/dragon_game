@@ -1558,271 +1558,88 @@ header h1 {
   -webkit-overflow-scrolling: touch;
 }
 
-/* ---- Classic Bottom-Up Pedigree Layout ---- */
-/* Bracket-style connectors using the standard pedigree technique:
-   Each .ped-branch gets a bottom-border on its INNER half only,
-   plus a vertical drop-line. The two inner halves meet to form
-   a horizontal bar that always spans from branch-center to branch-center.
-   Solid lines = direct connections | Dotted = repeat ancestors */
+/* ---- Pedigree Layout (SVG lines + absolutely-positioned DOM nodes) ---- */
 
-.pedigree-tree {
-  display: flex;
-  justify-content: center;
-  padding-bottom: 8px;
+/* Positioned stage that holds SVG + node cards */
+.pedigree-stage {
+  position: relative;
 }
 
-/* A family unit: parents row (above) + connector + child (below) */
-.ped-family {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-/* Parent branch wrapper — uses bottom border for its half of the bar */
-.ped-branch {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-/* Parent label (Sire/Dam) — only shown at depth 0 */
+/* Sire/Dam labels above the subject's direct parents */
 .ped-parent-label {
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--accent);
   text-transform: uppercase;
   letter-spacing: 0.8px;
-  margin-bottom: 4px;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
-/* Parents row: two .ped-branch subtrees side by side, no gap.
-   Each branch has a .ped-connector-down wrapper at bottom that
-   creates the bracket shape. */
-.ped-parents {
-  display: flex;
-  justify-content: center;
-  gap: 0;
-}
-
-/* Vertical connector from horizontal bar down to child — SOLID */
-.ped-vline {
-  width: 0;
-  height: 14px;
-  border-left: 2px solid var(--border);
-}
-
-/* ---- Branch Connector (bracket approach) ----
-   Each branch has a .ped-connector-down at its bottom.
-   The connector is 50% width of the branch and uses borders to form
-   half of the bracket:
-     Left branch:  ┘  (drop-line on left edge, bar runs right)
-     Right branch:  └  (drop-line on right edge, bar runs left)
-   Together: ┘└ forming the bracket that joins at center between branches. */
-.ped-connector-down {
-  height: 14px;
-  box-sizing: border-box;
-}
-
-/* Left branch (first-child): bar from center → right edge,
-   vertical drop from center downward */
-.ped-parents > .ped-branch:first-child > .ped-connector-down {
-  width: 50%;
-  margin-left: auto;   /* push to right half of branch */
-  border-left: 2px solid var(--border);   /* vertical drop */
-  border-bottom: 2px solid var(--border); /* horizontal bar → right */
-}
-
-/* Right branch (last-child): bar from center → left edge,
-   vertical drop from center downward */
-.ped-parents > .ped-branch:last-child > .ped-connector-down {
-  width: 50%;
-  margin-right: auto;  /* push to left half of branch */
-  border-right: 2px solid var(--border);  /* vertical drop */
-  border-bottom: 2px solid var(--border); /* horizontal bar → left */
-}
-
-/* Dotted connectors for echo (shared ancestor) parent branches */
-.ped-branch-dotted > .ped-connector-down {
-  border-style: dotted !important;
-  opacity: 0.6;
-}
-
-/* Child wrapper: centers the node */
-.ped-child {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-/* ---- Pedigree Node ---- */
+/* ---- Pedigree Node Card ---- */
 
 .ped-node {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
-  padding: 6px 8px;
+  justify-content: center;
+  gap: 2px;
+  padding: 5px 4px;
   background: var(--bg-card);
   border: 2px solid var(--border);
   border-radius: var(--radius-sm);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: border-color 0.15s, background 0.15s, box-shadow 0.3s, opacity 0.2s;
-  min-width: 74px;
-  max-width: 96px;
   text-align: center;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .ped-node:active {
   background: var(--bg-card-alt);
-  border-color: var(--accent);
 }
 
-/* Subject node (depth 0) — larger and more prominent */
 .ped-node-subject {
-  min-width: 92px;
-  max-width: 120px;
-  padding: 8px 10px;
-  border-width: 2.5px;
-}
-
-.ped-node-subject .ped-sprite,
-.ped-node-subject .ped-sprite canvas {
-  width: 64px !important;
-  max-width: 64px !important;
-}
-
-.ped-node-subject .ped-sprite-canvas {
-  width: 64px;
-  max-width: 64px;
-}
-
-.ped-node-subject .ped-node-name {
-  font-size: 12px;
-}
-
-/* Distant ancestors (depth 3+) — slightly smaller */
-.ped-node-distant {
-  min-width: 60px;
-  max-width: 78px;
-  padding: 4px 5px;
-}
-
-.ped-node-distant .ped-sprite,
-.ped-node-distant .ped-sprite canvas {
-  width: 40px !important;
-  max-width: 40px !important;
-}
-
-.ped-node-distant .ped-sprite-canvas {
-  width: 40px;
-  max-width: 40px;
-}
-
-.ped-node-distant .ped-node-name {
-  font-size: 9px;
-}
-
-.ped-node-distant .ped-node-gen {
-  font-size: 7px;
-}
-
-/* Compact sprite (legacy pixel-art) */
-.ped-sprite {
-  width: 48px !important;
-  max-width: 48px !important;
-  height: auto;
-  flex-shrink: 0;
-}
-
-.ped-sprite canvas {
-  width: 100%;
-  height: auto;
-  max-width: 48px;
-}
-
-/* Async PNG sprite canvas in pedigree nodes */
-.ped-sprite-canvas {
-  width: 48px;
-  max-width: 48px;
-  height: auto;
-  flex-shrink: 0;
+  padding: 6px;
 }
 
 .ped-node-name {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   color: var(--text-bright);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
+  line-height: 1.2;
 }
 
 .ped-node-gen {
-  font-size: 9px;
+  font-size: 8px;
   color: var(--accent);
   font-weight: 500;
+  line-height: 1.2;
 }
 
-/* Wild dragon: dashed border */
-.ped-node-wild {
-  border-style: dashed;
-  border-width: 2px;
-}
-
-/* Unknown ancestor */
-.ped-unknown {
-  opacity: 0.4;
-  cursor: default;
-  min-height: 28px;
-  justify-content: center;
-}
-
-.ped-unknown:active {
-  background: var(--bg-card);
-  border-color: var(--border);
-}
-
-/* ---- Echo Nodes (earlier appearance of shared ancestor) ---- */
-/* Smaller, less opaque, dotted border — the PRIMARY (deepest) instance is full size */
-
+/* Echo nodes (earlier appearance of shared ancestor) */
 .ped-echo {
-  opacity: 0.5;
   border-style: dotted;
-  border-width: 2px;
-  min-width: 60px;
-  max-width: 78px;
-  padding: 4px 5px;
-}
-
-.ped-echo .ped-sprite,
-.ped-echo .ped-sprite canvas {
-  width: 36px !important;
-  max-width: 36px !important;
-}
-
-.ped-echo .ped-sprite-canvas {
-  width: 36px;
-  max-width: 36px;
 }
 
 .ped-echo:hover,
 .ped-echo:active {
-  opacity: 0.85;
+  opacity: 0.85 !important;
 }
 
 .ped-echo-label {
-  font-size: 8px;
+  font-size: 7px;
   color: var(--accent);
   opacity: 0.8;
+  line-height: 1.2;
 }
 
-.ped-echo .ped-node-name {
-  font-size: 9px;
-}
-
-/* Pulse highlight animation */
+/* Pulse highlight animation (for clicking echo → scroll to primary) */
 .ped-highlight {
   animation: ped-pulse 1.5s ease-out;
 }
@@ -1841,46 +1658,6 @@ header h1 {
 
 .ancestor-detail-panel {
   max-height: 80vh;
-}
-
-/* ---- Generation border colors + subtle background tints ---- */
-.tree-gen-0 { border-color: #44aa99; background: rgba(68, 170, 153, 0.06); }
-.tree-gen-1 { border-color: var(--accent); background: rgba(196, 162, 101, 0.06); }
-.tree-gen-2 { border-color: #7a8fcc; background: rgba(122, 143, 204, 0.06); }
-.tree-gen-3 { border-color: #cc7acc; background: rgba(204, 122, 204, 0.06); }
-.tree-gen-4 { border-color: #cc8855; background: rgba(204, 136, 85, 0.06); }
-.tree-gen-5 { border-color: #cc5555; background: rgba(204, 85, 85, 0.06); }
-
-/* ---- Line Type Legend ---- */
-.tree-line-legend {
-  display: flex;
-  gap: 16px;
-  font-size: 10px;
-  color: var(--text-muted);
-  padding: 6px 0;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 4px;
-}
-
-.tree-line-legend-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.tree-line-solid {
-  display: inline-block;
-  width: 16px;
-  height: 0;
-  border-bottom: 2px solid var(--border);
-}
-
-.tree-line-dotted {
-  display: inline-block;
-  width: 16px;
-  height: 0;
-  border-bottom: 2px dotted var(--border);
-  opacity: 0.6;
 }
 
 /* Generation legend */
@@ -1913,8 +1690,6 @@ header h1 {
   border-radius: 3px;
   background: var(--bg-card);
 }
-
-.tree-legend-dot.tree-gen-0 { border-style: dashed; }
 
 /* Clickable dragon name in completed quests */
 .quest-completed-name-link {
@@ -3138,54 +2913,7 @@ header h1 {
   }
 
   .family-tree-container {
-    padding: var(--spacing-xs);
-  }
-
-  .ped-node {
-    padding: 4px 5px;
-    min-width: 56px;
-    max-width: 72px;
-  }
-
-  .ped-node-subject {
-    min-width: 68px;
-    max-width: 88px;
-  }
-
-  .ped-sprite {
-    width: 36px !important;
-    max-width: 36px !important;
-  }
-
-  .ped-sprite canvas {
-    max-width: 36px;
-  }
-
-  .ped-sprite-canvas {
-    width: 36px;
-    max-width: 36px;
-  }
-
-  .ped-node-subject .ped-sprite,
-  .ped-node-subject .ped-sprite canvas {
-    width: 44px !important;
-    max-width: 44px !important;
-  }
-
-  .ped-node-subject .ped-sprite-canvas {
-    width: 44px;
-    max-width: 44px;
-  }
-
-  .ped-echo .ped-sprite,
-  .ped-echo .ped-sprite canvas {
-    width: 28px !important;
-    max-width: 28px !important;
-  }
-
-  .ped-echo .ped-sprite-canvas {
-    width: 28px;
-    max-width: 28px;
+    padding: 4px;
   }
 
   .ped-node-name {
@@ -3198,25 +2926,11 @@ header h1 {
 
   .ped-parent-label {
     font-size: 8px;
-    margin-bottom: 2px;
-  }
-
-  .ped-vline {
-    height: 10px;
-  }
-
-  .ped-connector-down {
-    height: 10px;
   }
 
   .tree-legend {
     font-size: 9px;
     gap: 6px;
-  }
-
-  .tree-line-legend {
-    font-size: 9px;
-    gap: 10px;
   }
 
   /* ---- Almanac: mobile single-pane toggle ---- */
@@ -3297,42 +3011,6 @@ header h1 {
   }
 
   /* Extra-small pedigree tree tweaks */
-  .ped-node {
-    min-width: 48px;
-    max-width: 62px;
-    padding: 3px 4px;
-  }
-
-  .ped-node-subject {
-    min-width: 56px;
-    max-width: 72px;
-  }
-
-  .ped-sprite {
-    width: 28px !important;
-    max-width: 28px !important;
-  }
-
-  .ped-sprite canvas {
-    max-width: 28px;
-  }
-
-  .ped-sprite-canvas {
-    width: 28px;
-    max-width: 28px;
-  }
-
-  .ped-echo .ped-sprite,
-  .ped-echo .ped-sprite canvas {
-    width: 22px !important;
-    max-width: 22px !important;
-  }
-
-  .ped-echo .ped-sprite-canvas {
-    width: 22px;
-    max-width: 22px;
-  }
-
   .ped-node-name {
     font-size: 8px;
   }
@@ -3343,10 +3021,6 @@ header h1 {
 
   .ped-parent-label {
     font-size: 7px;
-  }
-
-  .ped-connector-down {
-    height: 8px;
   }
 }
 
