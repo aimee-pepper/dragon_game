@@ -58,6 +58,9 @@ header h1 {
   font-size: 13px;
   padding: 6px 14px;
   white-space: nowrap;
+  text-decoration: none;
+  display: inline-block;
+  line-height: 1.4;
 }
 
 .tool-tab.active {

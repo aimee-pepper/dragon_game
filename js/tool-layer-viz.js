@@ -11,6 +11,8 @@ import {
   WING_TRANSPARENCY,
   BODY_TRANSPARENCY,
   ANCHORS,
+  SPRITE_WIDTH,
+  SPRITE_HEIGHT,
 } from './sprite-config.js';
 import { classifyLevel } from './gene-config.js';
 
@@ -135,9 +137,7 @@ async function preloadAssets(assets) {
   return map;
 }
 
-// Full render size
-const SPRITE_WIDTH = 2560;
-const SPRITE_HEIGHT = 1920;
+// SPRITE_WIDTH / SPRITE_HEIGHT now imported from sprite-config.js
 
 // ── Core: decompose a dragon into raw layer data ──
 // Returns raw (uncolored) canvases + metadata so the UI can re-process
@@ -438,6 +438,10 @@ export function initLayerVisualizer(container) {
   const genBtn = el('button', '', 'Generate Dragon');
   controls.appendChild(genBtn);
 
+  const reRenderBtn = el('button', 'secondary', 'Re-render');
+  reRenderBtn.title = 'Re-composite with current settings';
+  controls.appendChild(reRenderBtn);
+
   const opacityLabel = el('label', '', 'Opacity override: ');
   const opacitySelect = el('select');
   ['Auto', 'None (10%)', 'Low (30%)', 'Med (60%)', 'High (100%)'].forEach((name, i) => {
@@ -472,6 +476,12 @@ export function initLayerVisualizer(container) {
     bgToggle.appendChild(btn);
   });
   compositeSection.appendChild(bgToggle);
+
+  // Active layers status line
+  const toggleStatus = el('div', 'layer-info');
+  toggleStatus.id = 'layer-toggle-status';
+  toggleStatus.style.cssText = 'font-size:11px;color:var(--text-muted);margin-bottom:4px;';
+  compositeSection.appendChild(toggleStatus);
 
   const compositeCanvas = document.createElement('canvas');
   compositeCanvas.className = 'dark-bg';
@@ -570,14 +580,32 @@ export function initLayerVisualizer(container) {
     // Layer 4 at full opacity (if enabled)
     if (s4.outlines) mainCtx.drawImage(l4, 0, 0);
 
-    // Crop and display
+    // Crop and display — clear old content first
     const cropped = autoCrop(main, 8);
+    const cCtx = compositeCanvas.getContext('2d');
     compositeCanvas.width = cropped.width;
     compositeCanvas.height = cropped.height;
-    compositeCanvas.getContext('2d').drawImage(cropped, 0, 0);
+    cCtx.clearRect(0, 0, cropped.width, cropped.height);
+    cCtx.drawImage(cropped, 0, 0);
+
+    // Update status to show which layers are active
+    updateToggleStatus();
 
     // Update per-layer preview canvases
     updateLayerPreviews();
+  }
+
+  // ── Show active layer status in UI ──
+  function updateToggleStatus() {
+    const parts = [];
+    if (layerSettings.layer1.fills) parts.push('L1:fills');
+    if (layerSettings.layer1.outlines) parts.push('L1:outlines');
+    if (layerSettings.layer2.outlines) parts.push('L2:outlines');
+    if (layerSettings.layer3.fills) parts.push('L3:fills');
+    if (layerSettings.face.fills) parts.push('Face');
+    if (layerSettings.layer4.outlines) parts.push('L4:outlines');
+    const statusEl = document.getElementById('layer-toggle-status');
+    if (statusEl) statusEl.textContent = `Active: ${parts.join(' + ') || 'none'}`;
   }
 
   // ── Per-layer preview canvases (updated after recomposite) ──
@@ -614,24 +642,33 @@ export function initLayerVisualizer(container) {
       const target = previewCanvases[key];
       if (!target) continue;
       const s = def.settings;
+      // Dim the preview when this layer's toggle is off
+      const isActive = def.showFills ? s.fills : s.outlines;
+      target.style.opacity = isActive ? '1' : '0.25';
+
       const rendered = renderLayerGroup(def.layers, dragonHsl, def.filter,
         { hShift: s.hShift, sShift: s.sShift, lShift: s.lShift });
       const cropped = autoCrop(rendered, 8);
       target.width = cropped.width;
       target.height = cropped.height;
-      target.getContext('2d').drawImage(cropped, 0, 0);
+      const tCtx = target.getContext('2d');
+      tCtx.clearRect(0, 0, target.width, target.height);
+      tCtx.drawImage(cropped, 0, 0);
     }
 
     // Layer 4 preview
     const l4Target = previewCanvases.layer4;
     if (l4Target) {
       const s4 = layerSettings.layer4;
+      l4Target.style.opacity = s4.outlines ? '1' : '0.25';
       const rendered = renderLayer4(processedLayers, dragonHsl,
         { hShift: s4.hShift, sShift: s4.sShift, lShift: s4.lShift });
       const cropped = autoCrop(rendered, 8);
       l4Target.width = cropped.width;
       l4Target.height = cropped.height;
-      l4Target.getContext('2d').drawImage(cropped, 0, 0);
+      const l4Ctx = l4Target.getContext('2d');
+      l4Ctx.clearRect(0, 0, l4Target.width, l4Target.height);
+      l4Ctx.drawImage(cropped, 0, 0);
     }
   }
 
@@ -776,6 +813,10 @@ export function initLayerVisualizer(container) {
   }
 
   genBtn.addEventListener('click', generate);
+
+  reRenderBtn.addEventListener('click', () => {
+    if (currentData) recomposite();
+  });
 
   opacitySelect.addEventListener('change', () => {
     const val = opacitySelect.value;
