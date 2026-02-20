@@ -683,31 +683,30 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
   ctx.drawImage(offscreenComp, 0, 0);
   ctx.restore();
 
-  // ── Layer 2: Outlines only, base PNGs, at full opacity ──
+  // ── Layers 2+3 (merged): Outlines + fade pass, composited together ──
   // Only for transparent dragons (bodyAlpha < 1.0).
-  // Renders all outline layers at α=1.0 so they show through the
-  // semi-transparent fills from Layer 1. Opaque dragons skip this
-  // entirely — their fills fully cover everything and Layer 4 handles
-  // the clean surface outlines.
-  if (bodyAlpha < 1.0) {
+  // First draw all outlines at full opacity onto offscreen, then draw
+  // the fade-swapped full dragon on top. The outlines sit beneath the
+  // fade fills, so they show through wherever fills are transparent.
+  // The merged result is then stamped at layerAAlpha onto the main canvas.
+  // Opaque dragons skip this entirely — they only need Layers 1 and 4.
+  if (needsFadePass) {
     offscreenCompCtx.clearRect(0, 0, width, height);
+
+    // Outlines first (full opacity base) — these will show through
+    // transparent regions of the fade fills drawn on top
     for (const layer of processedLayers) {
       if (layer.isOutline) {
         drawToCtx(offscreenCompCtx, layer.offscreen, layer, 1.0);
       }
     }
-    ctx.drawImage(offscreenComp, 0, 0);
-  }
 
-  // ── Layer 3: Full dragon with fade PNGs, at body transparency ──
-  // Same full z-ordered stack as Layer 1, but wing/leg slots swapped
-  // to fade PNGs (painted-in transparency gradients at limb/body junctions).
-  // Skipped for fully-opaque dragons (fade art would add unwanted transparency).
-  if (needsFadePass) {
-    offscreenCompCtx.clearRect(0, 0, width, height);
+    // Fade-swapped full dragon on top (at full internal opacity)
     for (const layer of layerA2Layers) {
       drawToCtx(offscreenCompCtx, layer.offscreen, layer, 1.0);
     }
+
+    // Stamp the merged outlines+fade result at body transparency
     ctx.save();
     ctx.globalAlpha = layerAAlpha;
     ctx.drawImage(offscreenComp, 0, 0);
