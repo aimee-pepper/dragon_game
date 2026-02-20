@@ -495,15 +495,15 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     const isOutline = asset.opacityMode === 'opaque' && asset.colorMode !== 'fixed';
     const isFixedDetail = asset.colorMode === 'fixed';
 
-    // Build mask canvas for Layer B (white-fill / black-outline trick).
+    // Build mask canvas for Layer 4 (white-fill / black-outline trick).
     // EVERY layer gets a mask: fills + fixed details → solid white, outlines → solid black.
     // When composited in z-order, white fills paint over black outlines beneath,
-    // so only truly-visible outlines survive. Then white→transparent, black→colored.
+    // so only truly-visible surface outlines survive.
+    // Then white→transparent, surviving dark→colored with darken shift.
     //
-    // For transparent dragons (bodyAlpha < 1.0), fill mask alpha is scaled by bodyAlpha
-    // so that fills only partially erase the outlines behind them. This lets overlapping
-    // outlines show through transparent fills — the lower the opacity, the more
-    // "back outlines" are visible (e.g. body outlines behind transparent leg fills).
+    // Fill masks use FULL alpha (no bodyAlpha scaling). Layers 2+3 handle
+    // the overlapping-outline visibility for transparent dragons — Layer 4's
+    // job is purely clean surface outline extraction, same for all dragons.
     const maskCanvas = document.createElement('canvas');
     maskCanvas.width = img.width;
     maskCanvas.height = img.height;
@@ -519,15 +519,12 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
         maskData.data[i + 2] = 0;
       }
     } else {
-      // Fills + fixed details → solid white (255,255,255)
-      // Alpha scaled by bodyAlpha: opaque dragons fully erase back outlines,
-      // transparent dragons let back outlines bleed through.
+      // Fills + fixed details → solid white (255,255,255), preserving original alpha
       for (let i = 0; i < maskData.data.length; i += 4) {
         if (maskData.data[i + 3] === 0) continue;
         maskData.data[i]     = 255;
         maskData.data[i + 1] = 255;
         maskData.data[i + 2] = 255;
-        maskData.data[i + 3] = Math.round(maskData.data[i + 3] * bodyAlpha);
       }
     }
     maskCtx.putImageData(maskData, 0, 0);
