@@ -88,14 +88,16 @@ export function initOptionsTab(container) {
     if (e.key === 'Enter') {
       const cmd = consoleInput.value.trim().toLowerCase();
       if (cmd === 'tools' || cmd === 'open tools' || cmd === '') {
-        const base = window.location.href.replace(/\/[^/]*$/, '/');
-        window.open(base + 'tools.html', '_blank', 'noopener');
+        const url = new URL('tools.html', window.location.href).href;
+        window.open(url, '_blank');
       }
       consoleInput.value = '';
       consoleLine.classList.remove('revealed');
+      consoleInput.blur();
     } else if (e.key === 'Escape') {
       consoleInput.value = '';
       consoleLine.classList.remove('revealed');
+      consoleInput.blur();
     }
   });
 
