@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dragon Keeper — Dev Tools</title>
+  <link rel="stylesheet" href="css/tools.css">
+</head>
+<body>
+  <header>
+    <h1>Dev Tools</h1>
+    <nav id="tools-nav">
+      <button data-tool="layers" class="tool-tab active">Layer Visualizer</button>
+      <button data-tool="sprites" class="tool-tab">Sprite Placement</button>
+    </nav>
+  </header>
+  <main id="tools-app">
+    <section id="tool-layers" class="tool-panel active"></section>
+    <section id="tool-sprites" class="tool-panel"></section>
+  </main>
+  <script type="module" src="js/tools-main.js"></script>
+</body>
+</html>

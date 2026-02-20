@@ -2769,6 +2769,52 @@ header h1 {
   transform: translateX(18px);
 }
 
+/* ---- Secret Dev Console ---- */
+.dev-console {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: var(--spacing);
+  padding: 8px 12px;
+  background: #0d0b09;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 0.3s ease, opacity 0.3s ease, border-color 0.3s ease;
+}
+
+.dev-console.revealed {
+  max-height: 48px;
+  opacity: 1;
+  border-color: var(--accent);
+}
+
+.dev-console-prefix {
+  color: var(--accent);
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.dev-console-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-bright);
+  font-family: inherit;
+  font-size: inherit;
+  flex: 1;
+  caret-color: var(--accent);
+}
+
+.dev-console-input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.4;
+}
+
 /* ---- Quest Highlighting ---- */
 
 .quest-card {

@@ -49,6 +49,55 @@ export function initOptionsTab(container) {
     makeBoolToggle('Pinned Quest Widget', 'Show floating quest panel on all tabs', 'pinned-quest-widget')
   );
 
+  // --- Secret Console (type "Furburt" anywhere on the options tab) ---
+  const consoleLine = el('div', 'dev-console');
+  const consolePrefix = el('span', 'dev-console-prefix', '> ');
+  const consoleInput = el('input', 'dev-console-input');
+  consoleInput.type = 'text';
+  consoleInput.placeholder = 'tools';
+  consoleInput.spellcheck = false;
+  consoleInput.autocomplete = 'off';
+  consoleLine.appendChild(consolePrefix);
+  consoleLine.appendChild(consoleInput);
+  wrapper.appendChild(consoleLine);
+
+  // Hidden keystroke listener — spell "furburt" to reveal the console
+  let secretBuffer = '';
+  const SECRET = 'furburt';
+  document.addEventListener('keydown', (e) => {
+    // Only listen when the options tab is visible
+    if (!container.classList.contains('active')) { secretBuffer = ''; return; }
+    // Ignore if already typing in the console input
+    if (e.target === consoleInput) return;
+    const ch = e.key.length === 1 ? e.key.toLowerCase() : '';
+    if (!ch) return;
+    secretBuffer += ch;
+    // Keep only the last N characters
+    if (secretBuffer.length > SECRET.length) {
+      secretBuffer = secretBuffer.slice(-SECRET.length);
+    }
+    if (secretBuffer === SECRET) {
+      consoleLine.classList.add('revealed');
+      consoleInput.focus();
+      secretBuffer = '';
+    }
+  });
+
+  // Console command handler
+  consoleInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const cmd = consoleInput.value.trim().toLowerCase();
+      if (cmd === 'tools' || cmd === 'open tools' || cmd === '') {
+        window.open('tools.html', '_blank');
+      }
+      consoleInput.value = '';
+      consoleLine.classList.remove('revealed');
+    } else if (e.key === 'Escape') {
+      consoleInput.value = '';
+      consoleLine.classList.remove('revealed');
+    }
+  });
+
   container.appendChild(wrapper);
 }
 
