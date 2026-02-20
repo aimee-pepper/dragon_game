@@ -245,3 +245,52 @@ main {
   color: var(--text-muted);
   min-width: 40px;
 }
+
+/* HSL Sliders per layer card */
+.hsl-slider {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-top: 4px;
+}
+
+.hsl-slider .hsl-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  min-width: 64px;
+  flex-shrink: 0;
+}
+
+.hsl-slider input[type="range"] {
+  flex: 1;
+  accent-color: var(--accent);
+  height: 4px;
+}
+
+.hsl-slider .hsl-value {
+  font-size: 11px;
+  color: var(--text-muted);
+  min-width: 36px;
+  text-align: right;
+  font-family: 'Courier New', monospace;
+}
+
+/* Toggle row with multiple checkboxes */
+.layer-card .toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: var(--spacing-sm);
+}
+
+.layer-card .toggle-row label {
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+  margin-right: 4px;
+}
+
+.layer-card .toggle-row input[type="checkbox"] {
+  accent-color: var(--accent);
+  margin-right: 2px;
+}
