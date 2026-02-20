@@ -91,11 +91,17 @@ function resolveColor(genotype) {
   const base = resolveTriangle(genotype, 'color');
   const [cLevel, mLevel, yLevel] = base.levels;
 
-  // Compute continuous RGB for the visual swatch
-  const rgb = cmyToRGB(cLevel, mLevel, yLevel);
+  // Classify to discrete tiers (0-3) — used for BOTH name and RGB
+  // so the rendered color always matches the display name.
+  const cTier = classifyLevel(cLevel);
+  const mTier = classifyLevel(mLevel);
+  const yTier = classifyLevel(yLevel);
+
+  // Compute RGB from classified tiers (not continuous values)
+  const rgb = cmyToRGB(cTier, mTier, yTier);
   const hex = rgbToHex(rgb.r, rgb.g, rgb.b);
 
-  // Color name from 64-entry lookup table
+  // Color name from 64-entry lookup table (same classified tiers)
   const displayName = getColorDisplayName(cLevel, mLevel, yLevel);
 
   // Build CMY breakdown for display: "C: High · M: None · Y: Mid"

@@ -706,33 +706,46 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     }
   }
 
-  // ── Layer 4: Outline treatment — z-order-aware fill removal + darken ──
-  // Render ALL mask layers in z-order: fills as white, outlines as black.
-  // White fills paint over black outlines beneath, so only surface outlines
-  // survive. Then white→transparent, surviving dark→colored with darken shift.
+  // ── Layer 4: Surface outline extraction ──
+  // Two-step process:
+  //   Step A: Render mask layers (white fills, black outlines) in z-order.
+  //           White fills erase black outlines beneath → only surface outlines survive.
+  //   Step B: Render full color-blended dragon, then use the mask to keep only
+  //           the surface-visible outline pixels (preserving the artist's original
+  //           luminance and color treatment — no flat grey replacement).
+
+  // Step A: Build the z-order mask to identify surface outlines
   offscreenCompCtx.clearRect(0, 0, width, height);
   for (const layer of processedLayers) {
     drawToCtx(offscreenCompCtx, layer.maskCanvas, layer, 1.0);
   }
+  const maskData = offscreenCompCtx.getImageData(0, 0, width, height);
 
-  const layerBData = offscreenCompCtx.getImageData(0, 0, width, height);
-  const bData = layerBData.data;
-  for (let i = 0; i < bData.length; i += 4) {
-    if (bData[i + 3] === 0) continue;
-    const brightness = bData[i] + bData[i + 1] + bData[i + 2];
-    if (brightness > 384) {
-      // White-ish pixel (fill area) → fully transparent
-      bData[i + 3] = 0;
-    } else {
-      // Dark pixel (outline) → uniform 50% grey for color blend
-      bData[i]     = 128;
-      bData[i + 1] = 128;
-      bData[i + 2] = 128;
-    }
+  // Step B: Render full color-blended dragon onto same offscreen
+  offscreenCompCtx.clearRect(0, 0, width, height);
+  for (const layer of processedLayers) {
+    drawToCtx(offscreenCompCtx, layer.offscreen, layer, 1.0);
   }
-  const darkenShift = COLOR_ADJUSTMENTS.darken.luminanceShift;
-  applyColorBlend(layerBData, dragonRgb, darkenShift);
-  offscreenCompCtx.putImageData(layerBData, 0, 0);
+  const colorData = offscreenCompCtx.getImageData(0, 0, width, height);
+
+  // Merge: keep color pixels only where mask shows dark (surface outline)
+  const mPx = maskData.data;
+  const cPx = colorData.data;
+  for (let i = 0; i < cPx.length; i += 4) {
+    const maskAlpha = mPx[i + 3];
+    if (maskAlpha === 0) {
+      // Mask transparent → no outline here
+      cPx[i + 3] = 0;
+      continue;
+    }
+    const brightness = mPx[i] + mPx[i + 1] + mPx[i + 2];
+    if (brightness > 384) {
+      // White-ish (fill area) → not a surface outline
+      cPx[i + 3] = 0;
+    }
+    // else: dark (surface outline) → keep color pixel as-is
+  }
+  offscreenCompCtx.putImageData(colorData, 0, 0);
   ctx.drawImage(offscreenComp, 0, 0);
 
   // ── Cleanup: release all temp canvases to free memory ──
