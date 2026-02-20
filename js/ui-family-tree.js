@@ -41,6 +41,7 @@ const GEN_COLORS = [
 ];
 
 let nodeCounter = 0;
+let cardBgBase = '#2a2420'; // resolved from --bg-card at render time
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -252,8 +253,8 @@ function drawDuplicateLinks(svg, allNodes) {
 
     // Sort by depth so we connect shallowest → deepest in order
     const sorted = [...nodes].sort((a, b) => a.depth - b.depth);
-    const genIdx = Math.min(sorted[0].dragon.generation, 5);
-    const color = GEN_COLORS[genIdx];
+    // Use the dragon's actual body color for the wavy link
+    const color = sorted[0].dragon.phenotype.color.hex || GEN_COLORS[Math.min(sorted[0].dragon.generation, 5)];
 
     // Connect each consecutive pair
     for (let i = 0; i < sorted.length - 1; i++) {
@@ -313,10 +314,11 @@ function renderNodeCard(node, registry, treeOverlay) {
     height: ${node.h}px;
   `;
 
-  // Generation color
+  // Generation color — opaque background so SVG lines don't bleed through
   const genIdx = Math.min(node.dragon.generation, 5);
-  card.style.borderColor = GEN_COLORS[genIdx];
-  card.style.background = hexToRgba(GEN_COLORS[genIdx], 0.08);
+  const genColor = GEN_COLORS[genIdx];
+  card.style.borderColor = genColor;
+  card.style.background = blendOver(cardBgBase, genColor, 0.08);
 
   // Wild → dashed border
   if (node.dragon.generation === 0 && !node.dragon.parentIds) {
@@ -405,6 +407,11 @@ function flattenTree(node, out = []) {
 
 export function openFamilyTree(dragon, registry) {
   nodeCounter = 0;
+
+  // Resolve card background color once (handles light/dark theme)
+  const resolved = getComputedStyle(document.documentElement)
+    .getPropertyValue('--bg-card').trim();
+  if (resolved) cardBgBase = resolved;
 
   // 1. Build data tree
   const allNodes = new Map();
@@ -570,4 +577,30 @@ function hexToRgba(hex, alpha) {
   const g = parseInt(h.substring(2, 4), 16);
   const b = parseInt(h.substring(4, 6), 16);
   return `rgba(${r},${g},${b},${alpha})`;
+}
+
+/**
+ * Blend a hex color at a given alpha over a base hex color, return opaque hex.
+ * Used to create solid card backgrounds so SVG lines don't bleed through.
+ */
+function blendOver(baseHex, fgHex, alpha) {
+  const b = hexToRgbArr(baseHex);
+  const f = hexToRgbArr(fgHex);
+  const r = Math.round(b[0] * (1 - alpha) + f[0] * alpha);
+  const g = Math.round(b[1] * (1 - alpha) + f[1] * alpha);
+  const bl = Math.round(b[2] * (1 - alpha) + f[2] * alpha);
+  return `rgb(${r},${g},${bl})`;
+}
+
+function hexToRgbArr(color) {
+  // Handle rgb(r, g, b) from getComputedStyle
+  const rgbMatch = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+  if (rgbMatch) return [+rgbMatch[1], +rgbMatch[2], +rgbMatch[3]];
+  // Handle hex
+  const h = color.replace('#', '');
+  return [
+    parseInt(h.substring(0, 2), 16),
+    parseInt(h.substring(2, 4), 16),
+    parseInt(h.substring(4, 6), 16),
+  ];
 }
