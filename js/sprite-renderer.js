@@ -220,7 +220,7 @@ function hslToRgb(h, s, l) {
  * @param {object} dragonRgb - { r, g, b } dragon's base color (0-255)
  * @param {number} luminanceShift - how much to shift luminance (-1 to 1)
  */
-function applyColorBlend(imageData, dragonRgb, luminanceShift = 0) {
+function applyColorBlend(imageData, dragonRgb, luminanceShift = 0, saturationShift = 0) {
   const dragonHsl = rgbToHsl(dragonRgb.r, dragonRgb.g, dragonRgb.b);
   const data = imageData.data;
 
@@ -235,11 +235,12 @@ function applyColorBlend(imageData, dragonRgb, luminanceShift = 0) {
     const artB = data[i + 2];
     const artHsl = rgbToHsl(artR, artG, artB);
 
-    // Use dragon's hue + saturation, art's luminance (+ shift)
+    // Use dragon's hue + saturation (+ optional shift), art's luminance (+ shift)
+    let targetS = Math.max(0, Math.min(1, dragonHsl.s + saturationShift));
     let targetL = artHsl.l + luminanceShift;
     targetL = Math.max(0, Math.min(1, targetL)); // clamp
 
-    const result = hslToRgb(dragonHsl.h, dragonHsl.s, targetL);
+    const result = hslToRgb(dragonHsl.h, targetS, targetL);
     data[i]     = result.r;
     data[i + 1] = result.g;
     data[i + 2] = result.b;
@@ -448,8 +449,10 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     if (asset.colorMode !== 'fixed') {
       const imageData = offCtx.getImageData(0, 0, offscreen.width, offscreen.height);
       const adjustment = COLOR_ADJUSTMENTS[asset.colorMode];
-      const shift = adjustment ? adjustment.luminanceShift : 0;
-      applyColorBlend(imageData, dragonRgb, shift);
+      const lumShift = adjustment ? adjustment.luminanceShift : 0;
+      const satShift = adjustment ? (adjustment.saturationShift || 0) : 0;
+      const lumCorrection = adjustment ? (adjustment.outlineLumCorrection || 0) : 0;
+      applyColorBlend(imageData, dragonRgb, lumShift + lumCorrection, satShift);
       offCtx.putImageData(imageData, 0, 0);
     }
 
@@ -546,8 +549,10 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     if (asset.colorMode !== 'fixed') {
       const imageData = offCtx.getImageData(0, 0, offscreen.width, offscreen.height);
       const adjustment = COLOR_ADJUSTMENTS[asset.colorMode];
-      const shift = adjustment ? adjustment.luminanceShift : 0;
-      applyColorBlend(imageData, dragonRgb, shift);
+      const lumShift = adjustment ? adjustment.luminanceShift : 0;
+      const satShift = adjustment ? (adjustment.saturationShift || 0) : 0;
+      const lumCorrection = adjustment ? (adjustment.outlineLumCorrection || 0) : 0;
+      applyColorBlend(imageData, dragonRgb, lumShift + lumCorrection, satShift);
       offCtx.putImageData(imageData, 0, 0);
     }
 
