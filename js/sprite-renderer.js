@@ -6,7 +6,7 @@
 //   2. Composite all layers in z-order as raw greyscale+red
 //   3. Extract/remove red markers per compositing group
 //   4. Desaturate to pure grey, then color-blend each group via HSL
-//      Base/Fade: shift=0, Outlines: darken shift, Injected: darken+L2
+//      Base/Fade: shift=0, All Outlines: darken shift
 //
 // Red-extraction compositing model (3 opacity paths):
 //
@@ -16,15 +16,17 @@
 //     Final Outline — Raw composite → keepOnlyRed → grey → colorBlend(darken)
 //
 //   LOW & MID OPACITY:
-//     Base Layer       — Raw composite → removeRed → desaturate → colorBlend(0) @ bodyAlpha
-//     Injected Outlines— Assemble _o raw → grey → L2 blend (darken+corrections)
-//     Fade Layer       — Raw fade composite → removeRed → desaturate → colorBlend(0)
+//     Combined @ bodyAlpha:
+//       Base Layer       — Raw composite → removeRed → desaturate → colorBlend(0)
+//       Injected Outlines— Assemble _o raw → grey → colorBlend(darken)
+//       Fade Layer       — Raw fade composite → removeRed → desaturate → colorBlend(0)
 //     Detail Layer     — Eyes/mouth at full opacity
 //     Final Outline    — Raw composite → keepOnlyRed → grey → colorBlend(darken)
 //
 //   NONE OPACITY (opacityLevel 0 — no base layer):
-//     Injected Outlines— Assemble _o raw → grey → L2 blend (darken+corrections)
-//     Fade Layer       — Raw fade composite → removeRed → desaturate → colorBlend(0)
+//     Combined @ bodyAlpha:
+//       Injected Outlines— Assemble _o raw → grey → colorBlend(darken)
+//       Fade Layer       — Raw fade composite → removeRed → desaturate → colorBlend(0)
 //     Detail Layer     — Eyes/mouth at full opacity
 //     Final Outline    — Raw composite → keepOnlyRed → grey → colorBlend(darken)
 
@@ -32,7 +34,6 @@ import {
   ASSET_TABLE,
   resolveAssetsForPhenotype,
   COLOR_ADJUSTMENTS,
-  LAYER2_OUTLINE_CORRECTION,
   WING_TRANSPARENCY,
   BODY_TRANSPARENCY,
   SPRITE_WIDTH,
@@ -619,42 +620,32 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
   // ============================================================
   //
   // Outline pixels in art PNGs are pure red (R=255, G=0, B=0).
-  // During pre-processing, red pixels are left untouched while
-  // greyscale fill pixels are color-blended per their colorMode.
-  //
-  // At composite time, all layers are drawn in z-order onto a
-  // shared canvas, then red pixels are extracted to produce a
-  // clean outline layer. Because fills paint over outlines beneath
-  // in z-order, only surface-visible outlines survive as red —
-  // same principle as the old black/white mask trick but simpler.
+  // Assets are composited RAW (no per-asset color processing).
+  // Red pixels are extracted/removed per compositing group, then
+  // color-blended once at group level.
   //
   // Three opacity paths:
   //
   // FULL OPACITY (opacityLevel 3 = High):
-  //   Base Layer:    All assets composited → extract red → fills remain
+  //   Base Layer:    Raw composite → removeRed → desaturate → colorBlend(0)
   //   Detail Layer:  Eyes/mouth at full opacity, no correction
-  //   Final Outline: Extracted red → mid grey → darken color blend
+  //   Final Outline: Raw composite → keepOnlyRed → grey → colorBlend(darken)
   //   Stack: Base → Detail → Final Outline
   //
   // LOW & MID OPACITY (opacityLevel 1-2):
-  //   Base Layer:    All assets composited → extract red → fills remain
-  //                  → stamped at bodyAlpha
-  //   Injected Outlines: All assets composited → keep only red →
-  //                  red→grey → Layer 2 sat/lum corrections
-  //   Fade Layer:    Fade-substituted assets composited → remove red →
-  //                  fills only remain
-  //   Detail Layer:  Eyes/mouth at full opacity, no correction
-  //   Final Outline: Extracted red → mid grey → darken blend
-  //   Stack: Base → Injected Outlines → Fade → Detail → Final Outline
-  //
-  // NONE OPACITY (opacityLevel 0):
-  //   Injected Outlines: All assets composited → keep only red →
-  //                  red→grey → Layer 2 sat/lum corrections
-  //   Fade Layer:    Fade-substituted assets composited → remove red →
-  //                  fills only remain
+  //   Combined @ bodyAlpha:
+  //     Base Layer:       Raw composite → removeRed → desaturate → colorBlend(0)
+  //     Injected Outlines: Assemble _o raw → grey → colorBlend(darken)
+  //     Fade Layer:       Fade composite → removeRed → desaturate → colorBlend(0)
   //   Detail Layer:  Eyes/mouth at full opacity
-  //   Final Outline: All assets composited → extract red → grey → darken
-  //   Stack: Injected Outlines → Fade → Detail → Final Outline
+  //   Final Outline: Raw composite → keepOnlyRed → grey → colorBlend(darken)
+  //
+  // NONE OPACITY (opacityLevel 0 — no base layer):
+  //   Combined @ bodyAlpha:
+  //     Injected Outlines: Assemble _o raw → grey → colorBlend(darken)
+  //     Fade Layer:       Fade composite → removeRed → desaturate → colorBlend(0)
+  //   Detail Layer:  Eyes/mouth at full opacity
+  //   Final Outline: Raw composite → keepOnlyRed → grey → colorBlend(darken)
 
   // ── Utility: composite a layer list onto a canvas, return ImageData ──
   function compositeLayersRaw(layerList, targetWidth, targetHeight) {
@@ -754,28 +745,6 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     return result;
   }
 
-  // ── Utility: apply Layer 2 color blend with sat/lum corrections ──
-  // Self-contained: does its own HSL conversion with saturation shift.
-  // Does NOT modify the shared applyColorBlend function.
-  function applyLayer2Blend(imgData, rgb) {
-    const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
-    const satCorr = LAYER2_OUTLINE_CORRECTION.saturationShift;
-    const lumCorr = LAYER2_OUTLINE_CORRECTION.luminanceShift;
-    const baseLum = COLOR_ADJUSTMENTS.darken.luminanceShift;
-    const d = imgData.data;
-
-    for (let i = 0; i < d.length; i += 4) {
-      if (d[i + 3] === 0) continue;
-      const artHsl = rgbToHsl(d[i], d[i + 1], d[i + 2]);
-      const targetS = Math.max(0, Math.min(1, hsl.s + satCorr));
-      const targetL = Math.max(0, Math.min(1, artHsl.l + baseLum + lumCorr));
-      const result = hslToRgb(hsl.h, targetS, targetL);
-      d[i]     = result.r;
-      d[i + 1] = result.g;
-      d[i + 2] = result.b;
-    }
-  }
-
   // ── Shared offscreen compositor (reused for putImageData → drawImage) ──
   const offscreenComp = document.createElement('canvas');
   offscreenComp.width = width;
@@ -787,22 +756,30 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
 
   if (isNoneOpacity) {
     // ── NONE OPACITY: no base layer ──
+    // Merge injected outlines + fade onto offscreen, stamp at bodyAlpha
 
-    // Injected Outlines: assemble _o assets → red→grey → L2 color blend
+    // Injected Outlines: assemble _o assets → red→grey → darken color blend
     const injOutlines = assembleOutlineAssets(processedLayers, width, height);
     redToGrey(injOutlines);
-    applyLayer2Blend(injOutlines, dragonRgb);
+    applyColorBlend(injOutlines, dragonRgb, darkenShift);
     offscreenCompCtx.putImageData(injOutlines, 0, 0);
-    ctx.drawImage(offscreenComp, 0, 0);
 
-    // Fade Layer: composite fade-substituted layers → remove red → desaturate residual tint
+    // Fade Layer: composite fade-substituted layers → remove red → desaturate → color blend
     const fadeRaw = compositeLayersRaw(fadeSubLayers, width, height);
     removeRed(fadeRaw);
     desaturateToGrey(fadeRaw);
     applyColorBlend(fadeRaw, dragonRgb, 0);
-    offscreenCompCtx.clearRect(0, 0, width, height);
-    offscreenCompCtx.putImageData(fadeRaw, 0, 0);
+    const fadeComp = document.createElement('canvas');
+    fadeComp.width = width; fadeComp.height = height;
+    fadeComp.getContext('2d').putImageData(fadeRaw, 0, 0);
+    offscreenCompCtx.drawImage(fadeComp, 0, 0);
+    fadeComp.width = 0; fadeComp.height = 0;
+
+    // Stamp combined injected+fade at bodyAlpha
+    ctx.save();
+    ctx.globalAlpha = bodyAlpha;
     ctx.drawImage(offscreenComp, 0, 0);
+    ctx.restore();
 
     // Detail Layer: face details at full opacity
     for (const layer of processedLayers) {
@@ -821,34 +798,41 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
 
   } else if (needsFadePass) {
     // ── LOW & MID OPACITY ──
+    // Merge base + injected outlines + fade onto offscreen, stamp at bodyAlpha
 
-    // Base Layer: composite raw → remove red → desaturate → color blend → at bodyAlpha
+    // Base Layer: composite raw → remove red → desaturate → color blend
     const baseRaw = compositeLayersRaw(processedLayers, width, height);
     removeRed(baseRaw);
     desaturateToGrey(baseRaw);
     applyColorBlend(baseRaw, dragonRgb, 0);
     offscreenCompCtx.putImageData(baseRaw, 0, 0);
-    ctx.save();
-    ctx.globalAlpha = bodyAlpha;
-    ctx.drawImage(offscreenComp, 0, 0);
-    ctx.restore();
 
-    // Injected Outlines: assemble _o assets → red→grey → L2 color blend
+    // Injected Outlines: assemble _o assets → red→grey → darken color blend
     const injOutlines = assembleOutlineAssets(processedLayers, width, height);
     redToGrey(injOutlines);
-    applyLayer2Blend(injOutlines, dragonRgb);
-    offscreenCompCtx.clearRect(0, 0, width, height);
-    offscreenCompCtx.putImageData(injOutlines, 0, 0);
-    ctx.drawImage(offscreenComp, 0, 0);
+    applyColorBlend(injOutlines, dragonRgb, darkenShift);
+    const injComp = document.createElement('canvas');
+    injComp.width = width; injComp.height = height;
+    injComp.getContext('2d').putImageData(injOutlines, 0, 0);
+    offscreenCompCtx.drawImage(injComp, 0, 0);
+    injComp.width = 0; injComp.height = 0;
 
-    // Fade Layer: composite fade-substituted layers → remove red → desaturate residual tint
+    // Fade Layer: composite fade-substituted layers → remove red → desaturate → color blend
     const fadeRaw = compositeLayersRaw(fadeSubLayers, width, height);
     removeRed(fadeRaw);
     desaturateToGrey(fadeRaw);
     applyColorBlend(fadeRaw, dragonRgb, 0);
-    offscreenCompCtx.clearRect(0, 0, width, height);
-    offscreenCompCtx.putImageData(fadeRaw, 0, 0);
+    const fadeComp = document.createElement('canvas');
+    fadeComp.width = width; fadeComp.height = height;
+    fadeComp.getContext('2d').putImageData(fadeRaw, 0, 0);
+    offscreenCompCtx.drawImage(fadeComp, 0, 0);
+    fadeComp.width = 0; fadeComp.height = 0;
+
+    // Stamp combined base+injected+fade at bodyAlpha
+    ctx.save();
+    ctx.globalAlpha = bodyAlpha;
     ctx.drawImage(offscreenComp, 0, 0);
+    ctx.restore();
 
     // Detail Layer: face details at full opacity
     for (const layer of processedLayers) {
