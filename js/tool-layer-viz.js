@@ -8,6 +8,7 @@ import {
   ASSET_TABLE,
   resolveAssetsForPhenotype,
   COLOR_ADJUSTMENTS,
+  LAYER2_OUTLINE_CORRECTION,
   WING_TRANSPARENCY,
   BODY_TRANSPARENCY,
   ANCHORS,
@@ -392,10 +393,9 @@ function renderBaseLayer(processedLayers, dragonHsl, hslOverrides) {
   return c;
 }
 
-// ── Render Injected Outlines: assemble _o raw → red→grey → darken color blend ──
+// ── Render Injected Outlines: assemble _o raw → red→grey → L2 blend ──
 // Outline PNGs are already pure red lines. Just composite them, convert, color.
-// Same color treatment as Final Outline (plain darken, no L2 corrections).
-function renderInjectedOutlines(processedLayers, dragonHsl, hslOverrides) {
+function renderInjectedOutlines(processedLayers, dragonHsl, dragonRgb, hslOverrides) {
   const w = SPRITE_WIDTH, h = SPRITE_HEIGHT;
   const comp = document.createElement('canvas');
   comp.width = w; comp.height = h;
@@ -408,11 +408,26 @@ function renderInjectedOutlines(processedLayers, dragonHsl, hslOverrides) {
     drawToCanvas(compCtx, layer.rawCanvas, layer);
   }
 
-  // Convert red → grey → darken color blend (same as final outline)
+  // Convert red → grey → L2 blend (darken + sat/lum corrections)
   const raw = compCtx.getImageData(0, 0, w, h);
   redToGrey(raw);
-  const darkenShift = COLOR_ADJUSTMENTS.darken.luminanceShift;
-  applyColorBlendHSL(raw, dragonHsl, darkenShift, hslOverrides);
+
+  const satCorr = LAYER2_OUTLINE_CORRECTION.saturationShift;
+  const lumCorr = LAYER2_OUTLINE_CORRECTION.luminanceShift;
+  const baseLum = COLOR_ADJUSTMENTS.darken.luminanceShift;
+  const hShift = hslOverrides.hShift || 0;
+  const sShift = hslOverrides.sShift || 0;
+  const lShift = hslOverrides.lShift || 0;
+  const d = raw.data;
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] === 0) continue;
+    const artHsl = rgbToHsl(d[i], d[i + 1], d[i + 2]);
+    const targetH = ((dragonHsl.h + hShift) % 1 + 1) % 1;
+    const targetS = Math.max(0, Math.min(1, dragonHsl.s + satCorr + sShift));
+    const targetL = Math.max(0, Math.min(1, artHsl.l + baseLum + lumCorr + lShift));
+    const result = hslToRgb(targetH, targetS, targetL);
+    d[i] = result.r; d[i+1] = result.g; d[i+2] = result.b;
+  }
 
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
@@ -575,7 +590,7 @@ export function initLayerVisualizer(container) {
   // ── Recomposite: rebuilds from raw data with current settings ──
   function recomposite() {
     if (!currentData) return;
-    const { processedLayers, fadeSubLayers, dragonHsl } = currentData;
+    const { processedLayers, fadeSubLayers, dragonHsl, dragonRgb } = currentData;
 
     // Determine effective opacity level
     const effectiveOpLevel = opacityOverride !== null ? opacityOverride : currentData.opacityLevel;
@@ -594,7 +609,7 @@ export function initLayerVisualizer(container) {
     // Render each layer
     const baseCanvas = renderBaseLayer(processedLayers, dragonHsl,
       { hShift: sBase.hShift, sShift: sBase.sShift, lShift: sBase.lShift });
-    const injCanvas = renderInjectedOutlines(processedLayers, dragonHsl,
+    const injCanvas = renderInjectedOutlines(processedLayers, dragonHsl, dragonRgb,
       { hShift: sInj.hShift, sShift: sInj.sShift, lShift: sInj.lShift });
     const fadeCanvas = renderFadeLayer(fadeSubLayers, dragonHsl,
       { hShift: sFade.hShift, sShift: sFade.sShift, lShift: sFade.lShift });
@@ -799,7 +814,7 @@ export function initLayerVisualizer(container) {
       { });
 
     addLayerCard('Injected Outlines (Layer 2)', 'injectedOutline',
-      'Assemble _o raw → red→grey → darken color blend. Same treatment as Final Outline. Transparent dragons only.',
+      'Assemble _o raw → red→grey → L2 blend (darken + sat/lum corrections). Transparent dragons only.',
       { });
 
     addLayerCard('Fade Layer', 'fade',

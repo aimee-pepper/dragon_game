@@ -6,7 +6,7 @@
 //   2. Composite all layers in z-order as raw greyscale+red
 //   3. Extract/remove red markers per compositing group
 //   4. Desaturate to pure grey, then color-blend each group via HSL
-//      Base/Fade: shift=0, All Outlines: darken shift
+//      Base/Fade: shift=0, Final Outline: darken, Injected: darken+L2
 //
 // Red-extraction compositing model (3 opacity paths):
 //
@@ -18,14 +18,14 @@
 //   LOW & MID OPACITY:
 //     Combined @ bodyAlpha:
 //       Base Layer       — Raw composite → removeRed → desaturate → colorBlend(0)
-//       Injected Outlines— Assemble _o raw → grey → colorBlend(darken)
+//       Injected Outlines— Assemble _o raw → grey → L2 blend (darken+corrections)
 //       Fade Layer       — Raw fade composite → removeRed → desaturate → colorBlend(0)
 //     Detail Layer     — Eyes/mouth at full opacity
 //     Final Outline    — Raw composite → keepOnlyRed → grey → colorBlend(darken)
 //
 //   NONE OPACITY (opacityLevel 0 — no base layer):
 //     Combined @ bodyAlpha:
-//       Injected Outlines— Assemble _o raw → grey → colorBlend(darken)
+//       Injected Outlines— Assemble _o raw → grey → L2 blend (darken+corrections)
 //       Fade Layer       — Raw fade composite → removeRed → desaturate → colorBlend(0)
 //     Detail Layer     — Eyes/mouth at full opacity
 //     Final Outline    — Raw composite → keepOnlyRed → grey → colorBlend(darken)
@@ -34,6 +34,7 @@ import {
   ASSET_TABLE,
   resolveAssetsForPhenotype,
   COLOR_ADJUSTMENTS,
+  LAYER2_OUTLINE_CORRECTION,
   WING_TRANSPARENCY,
   BODY_TRANSPARENCY,
   SPRITE_WIDTH,
@@ -745,6 +746,28 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     return result;
   }
 
+  // ── Utility: apply Layer 2 color blend with sat/lum corrections ──
+  // Self-contained: does its own HSL conversion with saturation shift.
+  // Does NOT modify the shared applyColorBlend function.
+  function applyLayer2Blend(imgData, rgb) {
+    const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
+    const satCorr = LAYER2_OUTLINE_CORRECTION.saturationShift;
+    const lumCorr = LAYER2_OUTLINE_CORRECTION.luminanceShift;
+    const baseLum = COLOR_ADJUSTMENTS.darken.luminanceShift;
+    const d = imgData.data;
+
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] === 0) continue;
+      const artHsl = rgbToHsl(d[i], d[i + 1], d[i + 2]);
+      const targetS = Math.max(0, Math.min(1, hsl.s + satCorr));
+      const targetL = Math.max(0, Math.min(1, artHsl.l + baseLum + lumCorr));
+      const result = hslToRgb(hsl.h, targetS, targetL);
+      d[i]     = result.r;
+      d[i + 1] = result.g;
+      d[i + 2] = result.b;
+    }
+  }
+
   // ── Shared offscreen compositor (reused for putImageData → drawImage) ──
   const offscreenComp = document.createElement('canvas');
   offscreenComp.width = width;
@@ -758,10 +781,10 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     // ── NONE OPACITY: no base layer ──
     // Merge injected outlines + fade onto offscreen, stamp at bodyAlpha
 
-    // Injected Outlines: assemble _o assets → red→grey → darken color blend
+    // Injected Outlines: assemble _o assets → red→grey → L2 blend (darken+corrections)
     const injOutlines = assembleOutlineAssets(processedLayers, width, height);
     redToGrey(injOutlines);
-    applyColorBlend(injOutlines, dragonRgb, darkenShift);
+    applyLayer2Blend(injOutlines, dragonRgb);
     offscreenCompCtx.putImageData(injOutlines, 0, 0);
 
     // Fade Layer: composite fade-substituted layers → remove red → desaturate → color blend
@@ -807,10 +830,10 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     applyColorBlend(baseRaw, dragonRgb, 0);
     offscreenCompCtx.putImageData(baseRaw, 0, 0);
 
-    // Injected Outlines: assemble _o assets → red→grey → darken color blend
+    // Injected Outlines: assemble _o assets → red→grey → L2 blend (darken+corrections)
     const injOutlines = assembleOutlineAssets(processedLayers, width, height);
     redToGrey(injOutlines);
-    applyColorBlend(injOutlines, dragonRgb, darkenShift);
+    applyLayer2Blend(injOutlines, dragonRgb);
     const injComp = document.createElement('canvas');
     injComp.width = width; injComp.height = height;
     injComp.getContext('2d').putImageData(injOutlines, 0, 0);
