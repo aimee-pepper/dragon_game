@@ -8,7 +8,7 @@ import {
   ASSET_TABLE,
   resolveAssetsForPhenotype,
   COLOR_ADJUSTMENTS,
-  LAYER2_OUTLINE_CORRECTION,
+
   WING_TRANSPARENCY,
   BODY_TRANSPARENCY,
   ANCHORS,
@@ -393,7 +393,7 @@ function renderBaseLayer(processedLayers, dragonHsl, hslOverrides) {
   return c;
 }
 
-// ── Render Injected Outlines: assemble _o raw → red→grey → L2 blend ──
+// ── Render Injected Outlines: assemble _o raw → red→grey → darken color blend ──
 // Outline PNGs are already pure red lines. Just composite them, convert, color.
 function renderInjectedOutlines(processedLayers, dragonHsl, dragonRgb, hslOverrides) {
   const w = SPRITE_WIDTH, h = SPRITE_HEIGHT;
@@ -408,26 +408,11 @@ function renderInjectedOutlines(processedLayers, dragonHsl, dragonRgb, hslOverri
     drawToCanvas(compCtx, layer.rawCanvas, layer);
   }
 
-  // Convert red → grey → L2 blend (darken + sat/lum corrections)
+  // Convert red → grey → darken color blend (same as final outline)
   const raw = compCtx.getImageData(0, 0, w, h);
   redToGrey(raw);
-
-  const satCorr = LAYER2_OUTLINE_CORRECTION.saturationShift;
-  const lumCorr = LAYER2_OUTLINE_CORRECTION.luminanceShift;
-  const baseLum = COLOR_ADJUSTMENTS.darken.luminanceShift;
-  const hShift = hslOverrides.hShift || 0;
-  const sShift = hslOverrides.sShift || 0;
-  const lShift = hslOverrides.lShift || 0;
-  const d = raw.data;
-  for (let i = 0; i < d.length; i += 4) {
-    if (d[i + 3] === 0) continue;
-    const artHsl = rgbToHsl(d[i], d[i + 1], d[i + 2]);
-    const targetH = ((dragonHsl.h + hShift) % 1 + 1) % 1;
-    const targetS = Math.max(0, Math.min(1, dragonHsl.s + satCorr + sShift));
-    const targetL = Math.max(0, Math.min(1, artHsl.l + baseLum + lumCorr + lShift));
-    const result = hslToRgb(targetH, targetS, targetL);
-    d[i] = result.r; d[i+1] = result.g; d[i+2] = result.b;
-  }
+  const darkenShift = COLOR_ADJUSTMENTS.darken.luminanceShift;
+  applyColorBlendHSL(raw, dragonHsl, darkenShift, hslOverrides);
 
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
@@ -721,7 +706,7 @@ export function initLayerVisualizer(container) {
     // Preview canvas
     const preview = document.createElement('canvas');
     preview.style.width = '100%';
-    preview.style.maxWidth = '400px';
+    preview.style.maxWidth = '512px';
     preview.style.height = 'auto';
     card.appendChild(preview);
     previewCanvases[key] = preview;

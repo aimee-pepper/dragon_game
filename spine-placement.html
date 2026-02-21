@@ -757,6 +757,16 @@ function currentPathKey() {
   return `${currentBody}:${currentTail}_${currentLength}`;
 }
 
+// Snapshot current working path for seeding into a new combo
+function snapshotCurrentPath() {
+  if (controlPoints.length === 0) return null;
+  return {
+    controlPoints: controlPoints.map(p => ({ x: p.x, y: p.y })),
+    spineCount, spineSpacing, spineScale, heightOffset,
+    perSpineOverrides: JSON.parse(JSON.stringify(perSpineOverrides)),
+  };
+}
+
 // ── LocalStorage ──
 function saveAll() {
   const allPaths = loadAllPaths();
@@ -776,29 +786,39 @@ function loadAllPaths() {
   } catch { return {}; }
 }
 
-function restorePath() {
+function restorePath(seedFrom) {
   const allPaths = loadAllPaths();
   const data = allPaths[currentPathKey()];
   if (data) {
+    // Existing saved path — load it
     controlPoints = data.controlPoints || [];
     spineCount = data.spineCount || 10;
     spineSpacing = data.spineSpacing || 1.0;
     spineScale = data.spineScale || 1.0;
     heightOffset = data.heightOffset || 60;
     perSpineOverrides = data.perSpineOverrides || {};
-    // Restore sliders
-    spineCountSlider.value = spineCount;
-    spineCountVal.textContent = spineCount;
-    spineSpacingSlider.value = spineSpacing;
-    spineSpacingVal.textContent = spineSpacing.toFixed(2);
-    spineScaleSlider.value = spineScale;
-    spineScaleVal.textContent = spineScale.toFixed(2);
-    heightOffsetSlider.value = heightOffset;
-    heightOffsetVal.textContent = Math.round(heightOffset);
+  } else if (seedFrom) {
+    // No saved path — seed from current working path (deep copy)
+    controlPoints = seedFrom.controlPoints.map(p => ({ x: p.x, y: p.y }));
+    spineCount = seedFrom.spineCount;
+    spineSpacing = seedFrom.spineSpacing;
+    spineScale = seedFrom.spineScale;
+    heightOffset = seedFrom.heightOffset;
+    perSpineOverrides = JSON.parse(JSON.stringify(seedFrom.perSpineOverrides));
   } else {
+    // No saved path, no seed — blank
     controlPoints = [];
     perSpineOverrides = {};
   }
+  // Restore sliders to match loaded/seeded state
+  spineCountSlider.value = spineCount;
+  spineCountVal.textContent = spineCount;
+  spineSpacingSlider.value = spineSpacing;
+  spineSpacingVal.textContent = spineSpacing.toFixed(2);
+  spineScaleSlider.value = spineScale;
+  spineScaleVal.textContent = spineScale.toFixed(2);
+  heightOffsetSlider.value = heightOffset;
+  heightOffsetVal.textContent = Math.round(heightOffset);
   selectedSpineIdx = -1;
   overridePanel.style.display = 'none';
   render();
@@ -1051,16 +1071,19 @@ function initTabGroup(selector, callback) {
 }
 
 initTabGroup('[data-body]', (btn) => {
+  const seed = snapshotCurrentPath();
   currentBody = btn.dataset.body;
-  restorePath();
+  restorePath(seed);
 });
 initTabGroup('[data-tail]', (btn) => {
+  const seed = snapshotCurrentPath();
   currentTail = btn.dataset.tail;
-  restorePath();
+  restorePath(seed);
 });
 initTabGroup('[data-length]', (btn) => {
+  const seed = snapshotCurrentPath();
   currentLength = btn.dataset.length;
-  restorePath();
+  restorePath(seed);
 });
 initTabGroup('[data-spine]', (btn) => {
   currentSpine = btn.dataset.spine;

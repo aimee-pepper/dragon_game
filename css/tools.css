@@ -142,8 +142,8 @@ main {
 }
 
 .layer-display {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: var(--spacing);
 }
 
@@ -152,8 +152,6 @@ main {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: var(--spacing);
-  min-width: 200px;
-  flex: 1;
 }
 
 .layer-card h3 {
@@ -170,7 +168,7 @@ main {
 
 .layer-card canvas {
   width: 100%;
-  max-width: 400px;
+  max-width: 512px;
   height: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
