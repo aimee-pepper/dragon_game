@@ -951,7 +951,7 @@ function updateOutput(positions) {
 
 // ── Path Key ──
 function currentPathKey() {
-  return `${currentBody}:${currentTail}_${currentLength}`;
+  return `${currentBody}:${currentTail}_${currentLength}_${currentSpine}_${currentHeight}`;
 }
 
 // Snapshot current working path for seeding into a new combo
@@ -972,7 +972,7 @@ function saveAll() {
     controlPoints: controlPoints.map(p => ({ x: Math.round(p.x), y: Math.round(p.y) })),
     spineCount, spineSpacing, spineScale, heightOffset, globalRotation,
     perSpineOverrides: { ...perSpineOverrides },
-    heightControlPoints: heightControlPoints.map(p => ({ t: p.t, mul: p.mul })),
+    heightControlPoints: heightControlPoints.map(p => ({ t: p.t, mul: p.mul, rot: p.rot || 0 })),
     spineType: currentSpine,
     spineHeight: currentHeight,
   };
@@ -1343,12 +1343,14 @@ initTabGroup('[data-length]', (btn) => {
   restorePath(seed);
 });
 initTabGroup('[data-spine]', (btn) => {
+  const seed = snapshotCurrentPath();
   currentSpine = btn.dataset.spine;
-  render();
+  restorePath(seed);
 });
 initTabGroup('[data-height]', (btn) => {
+  const seed = snapshotCurrentPath();
   currentHeight = btn.dataset.height;
-  render();
+  restorePath(seed);
 });
 
 // ── Slider Handlers ──
@@ -1431,7 +1433,7 @@ document.getElementById('btn-copy-curve').addEventListener('click', () => {
     controlPoints: controlPoints.map(p => ({ x: Math.round(p.x), y: Math.round(p.y) })),
     spineCount, spineSpacing, spineScale, heightOffset, globalRotation,
     perSpineOverrides: { ...perSpineOverrides },
-    heightControlPoints: heightControlPoints.map(p => ({ t: p.t, mul: p.mul })),
+    heightControlPoints: heightControlPoints.map(p => ({ t: p.t, mul: p.mul, rot: p.rot || 0 })),
     spineType: currentSpine,
     spineHeight: currentHeight,
   };
