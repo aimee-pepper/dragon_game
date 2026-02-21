@@ -805,26 +805,18 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     }
   }
 
-  // ── Utility: desaturate any residual red tint in fill pixels ──
-  // Catches anti-aliased edge pixels that slipped below the redAmount()
-  // threshold but still carry visible red coloring. Used on the Fade
-  // Layer only — after removeRed has already stripped pure red markers.
-  function desaturateRedTint(imgData) {
+  // ── Utility: full desaturate — drop all saturation to zero ──
+  // Converts every pixel to its luminance-equivalent grey. Used on the
+  // Fade Layer after removeRed to kill any residual red tint from
+  // anti-aliased edges. Existing grey pixels are unaffected (no-op).
+  function desaturateToGrey(imgData) {
     const d = imgData.data;
     for (let i = 0; i < d.length; i += 4) {
       if (d[i + 3] === 0) continue;
-      const r = d[i], g = d[i + 1], b = d[i + 2];
-      // Only act on pixels that are noticeably redder than they should be
-      // (a balanced grey or properly-colored pixel won't trigger this)
-      const maxGB = Math.max(g, b);
-      if (r <= maxGB) continue; // not red-biased — leave alone
-      const excess = (r - maxGB) / 255; // 0-1 scale of "extra redness"
-      if (excess < 0.05) continue; // negligible
-      // Blend toward luminance grey proportionally
-      const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-      d[i]     = Math.round(r + (lum - r) * excess);
-      d[i + 1] = Math.round(g + (lum - g) * excess);
-      d[i + 2] = Math.round(b + (lum - b) * excess);
+      const lum = Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]);
+      d[i] = lum;
+      d[i + 1] = lum;
+      d[i + 2] = lum;
     }
   }
 
@@ -907,7 +899,7 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     // Fade Layer: composite fade-substituted layers → remove red → desaturate residual tint
     const fadeRaw = compositeLayersRaw(fadeSubLayers, width, height);
     removeRed(fadeRaw);
-    desaturateRedTint(fadeRaw);
+    desaturateToGrey(fadeRaw);
     offscreenCompCtx.clearRect(0, 0, width, height);
     offscreenCompCtx.putImageData(fadeRaw, 0, 0);
     ctx.drawImage(offscreenComp, 0, 0);
@@ -950,7 +942,7 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     // Fade Layer: composite fade-substituted layers → remove red → desaturate residual tint
     const fadeRaw = compositeLayersRaw(fadeSubLayers, width, height);
     removeRed(fadeRaw);
-    desaturateRedTint(fadeRaw);
+    desaturateToGrey(fadeRaw);
     offscreenCompCtx.clearRect(0, 0, width, height);
     offscreenCompCtx.putImageData(fadeRaw, 0, 0);
     ctx.drawImage(offscreenComp, 0, 0);
