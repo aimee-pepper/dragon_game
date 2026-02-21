@@ -538,7 +538,7 @@ function sortHeightControlPoints() {
   heightControlPoints.sort((a, b) => a.t - b.t);
 }
 
-// Distribute spines evenly along the curve
+// Distribute spines along the curve, tightening gaps where width is narrower
 function computeSpinePositions() {
   if (controlPoints.length < 2) return [];
 
@@ -546,13 +546,33 @@ function computeSpinePositions() {
   const { totalLength } = arcData;
   const positions = [];
 
-  // Even distribution with spacing factor
-  const gap = (totalLength / (spineCount - 1)) * spineSpacing;
-  const totalSpan = gap * (spineCount - 1);
-  const startOffset = (totalLength - totalSpan) / 2; // center the spines
+  const baseGap = (totalLength / (spineCount - 1)) * spineSpacing;
 
+  // Pre-sample width at each uniform position to compute width-adjusted gaps.
+  // Each gap between spine i and i+1 is scaled by the average width of those two spines.
+  const uniformDists = [];
   for (let i = 0; i < spineCount; i++) {
-    const dist = Math.max(0, Math.min(totalLength, startOffset + i * gap));
+    uniformDists.push(i * baseGap);
+  }
+  // Sample width at each uniform t
+  const uniformWidths = uniformDists.map(d => {
+    const t = tAtArcLength(arcData, Math.max(0, Math.min(totalLength, d)));
+    return sampleHeightWidth(t);
+  });
+  // Compute width-scaled gap weights
+  const gapWeights = [];
+  for (let i = 0; i < spineCount - 1; i++) {
+    gapWeights.push((uniformWidths[i] + uniformWidths[i + 1]) / 2);
+  }
+  const totalWeight = gapWeights.reduce((a, b) => a + b, 0) || 1;
+  // Total span stays the same, but individual gaps are redistributed by width
+  const totalSpan = baseGap * (spineCount - 1);
+  const startOffset = (totalLength - totalSpan) / 2;
+
+  // Place spines with width-adjusted spacing
+  let cumulativeDist = startOffset;
+  for (let i = 0; i < spineCount; i++) {
+    const dist = Math.max(0, Math.min(totalLength, cumulativeDist));
     const t = tAtArcLength(arcData, dist);
     const pt = catmullRomPoint(controlPoints, t);
     const tangentAngle = catmullRomTangentAngle(controlPoints, t);
@@ -571,6 +591,11 @@ function computeSpinePositions() {
     const widthMul = sampleHeightWidth(t);
 
     positions.push({ x: pt.x, y: pt.y, angleDeg, scale, widthMul, t, idx: i, heightMul });
+
+    // Next gap scaled by width weight (narrower → smaller gap)
+    if (i < spineCount - 1) {
+      cumulativeDist += totalSpan * (gapWeights[i] / totalWeight);
+    }
   }
 
   return positions;
