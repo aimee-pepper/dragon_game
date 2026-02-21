@@ -208,6 +208,11 @@
           <input type="range" id="height-offset" min="1" max="400" step="1" value="60">
           <span class="val" id="height-offset-val">60</span>
         </div>
+        <div class="slider-row">
+          <label>Rotation</label>
+          <input type="range" id="global-rotation" min="-180" max="180" step="1" value="0">
+          <span class="val" id="global-rotation-val">0°</span>
+        </div>
         <label style="font-size:11px; color:#8a7e72; display:flex; align-items:center; gap:4px; margin-top:2px; cursor:pointer;">
           <input type="checkbox" id="show-height-guide" checked style="accent-color:#c4a265;">
           Show height guide line
@@ -314,6 +319,7 @@ let controlPoints = [];   // Array of { x, y } in sprite-space coordinates
 let spineCount = 10;
 let spineSpacing = 1.0;
 let spineScale = 1.0;
+let globalRotation = 0;    // degrees added to ALL spine angles
 let perSpineOverrides = {}; // { index: { angleDeg, scale } }
 let selectedSpineIdx = -1;
 
@@ -347,6 +353,8 @@ const spineSpacingSlider = document.getElementById('spine-spacing');
 const spineSpacingVal = document.getElementById('spine-spacing-val');
 const spineScaleSlider = document.getElementById('spine-scale');
 const spineScaleVal = document.getElementById('spine-scale-val');
+const globalRotSlider = document.getElementById('global-rotation');
+const globalRotVal = document.getElementById('global-rotation-val');
 const spineListEl = document.getElementById('spine-list');
 const spinePointCount = document.getElementById('spine-point-count');
 const overridePanel = document.getElementById('override-panel');
@@ -484,10 +492,10 @@ function computeSpinePositions() {
     const pt = catmullRomPoint(controlPoints, t);
     const tangentAngle = catmullRomTangentAngle(controlPoints, t);
 
-    // Default angle: perpendicular to curve (tangent - 90°)
-    const defaultAngleDeg = (tangentAngle * 180 / Math.PI) - 90;
+    // Default angle: perpendicular to curve (tangent - 90°) + global rotation offset
+    const defaultAngleDeg = (tangentAngle * 180 / Math.PI) - 90 + globalRotation;
 
-    // Apply per-spine overrides
+    // Apply per-spine overrides (override replaces default entirely)
     const override = perSpineOverrides[i] || {};
     const angleDeg = override.angleDeg !== undefined ? override.angleDeg : defaultAngleDeg;
     const scale = (override.scale !== undefined ? override.scale : 1.0) * spineScale;
@@ -845,7 +853,7 @@ function snapshotCurrentPath() {
   if (controlPoints.length === 0) return null;
   return {
     controlPoints: controlPoints.map(p => ({ x: p.x, y: p.y })),
-    spineCount, spineSpacing, spineScale, heightOffset,
+    spineCount, spineSpacing, spineScale, heightOffset, globalRotation,
     perSpineOverrides: JSON.parse(JSON.stringify(perSpineOverrides)),
   };
 }
@@ -855,7 +863,7 @@ function saveAll() {
   const allPaths = loadAllPaths();
   allPaths[currentPathKey()] = {
     controlPoints: controlPoints.map(p => ({ x: Math.round(p.x), y: Math.round(p.y) })),
-    spineCount, spineSpacing, spineScale, heightOffset,
+    spineCount, spineSpacing, spineScale, heightOffset, globalRotation,
     perSpineOverrides: { ...perSpineOverrides },
     spineType: currentSpine,
     spineHeight: currentHeight,
@@ -879,6 +887,7 @@ function restorePath(seedFrom) {
     spineSpacing = data.spineSpacing || 1.0;
     spineScale = data.spineScale || 1.0;
     heightOffset = data.heightOffset || 60;
+    globalRotation = data.globalRotation || 0;
     perSpineOverrides = data.perSpineOverrides || {};
   } else if (seedFrom) {
     // No saved path — seed from current working path (deep copy)
@@ -887,11 +896,13 @@ function restorePath(seedFrom) {
     spineSpacing = seedFrom.spineSpacing;
     spineScale = seedFrom.spineScale;
     heightOffset = seedFrom.heightOffset;
+    globalRotation = seedFrom.globalRotation || 0;
     perSpineOverrides = JSON.parse(JSON.stringify(seedFrom.perSpineOverrides));
   } else {
     // No saved path, no seed — blank
     controlPoints = [];
     perSpineOverrides = {};
+    globalRotation = 0;
   }
   // Restore sliders to match loaded/seeded state
   spineCountSlider.value = spineCount;
@@ -902,6 +913,8 @@ function restorePath(seedFrom) {
   spineScaleVal.textContent = spineScale.toFixed(2);
   heightOffsetSlider.value = heightOffset;
   heightOffsetVal.textContent = Math.round(heightOffset);
+  globalRotSlider.value = globalRotation;
+  globalRotVal.textContent = globalRotation + '°';
   selectedSpineIdx = -1;
   overridePanel.style.display = 'none';
   render();
@@ -1203,6 +1216,13 @@ spineScaleSlider.addEventListener('input', () => {
 });
 spineScaleSlider.addEventListener('change', saveAll);
 
+globalRotSlider.addEventListener('input', () => {
+  globalRotation = parseInt(globalRotSlider.value);
+  globalRotVal.textContent = globalRotation + '°';
+  render();
+});
+globalRotSlider.addEventListener('change', saveAll);
+
 heightOffsetSlider.addEventListener('input', () => {
   heightOffset = parseInt(heightOffsetSlider.value);
   heightOffsetVal.textContent = heightOffset;
@@ -1260,6 +1280,9 @@ document.getElementById('btn-reset-scale').addEventListener('click', () => {
 document.getElementById('btn-clear-path').addEventListener('click', () => {
   controlPoints = [];
   perSpineOverrides = {};
+  globalRotation = 0;
+  globalRotSlider.value = 0;
+  globalRotVal.textContent = '0°';
   selectedSpineIdx = -1;
   overridePanel.style.display = 'none';
   render();
@@ -1289,7 +1312,7 @@ document.getElementById('btn-copy-curve').addEventListener('click', () => {
   const curveData = {
     key: currentPathKey(),
     controlPoints: controlPoints.map(p => ({ x: Math.round(p.x), y: Math.round(p.y) })),
-    spineCount, spineSpacing, spineScale, heightOffset,
+    spineCount, spineSpacing, spineScale, heightOffset, globalRotation,
     perSpineOverrides: { ...perSpineOverrides },
     spineType: currentSpine,
     spineHeight: currentHeight,
