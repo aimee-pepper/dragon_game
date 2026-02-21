@@ -292,23 +292,7 @@ const HEAD_SPINE_FILENAMES = {
   ridge: { low: null, medium: null, tall: null },
 };
 
-// Extra reference layers: head, legs (4-limb default), wings (2-wing default), and their fades
-// These use pair=1 anchors with standard limb/wing counts
 const HEAD_FILENAME = 'head_f';
-const EXTRA_REF_LAYERS = [
-  // Legs — bg then fg, 4-limb default
-  { file: 'leg_bg_f', anchorKey: (body) => `leg_bg_f:p1:${body}:4l` },
-  { file: 'leg_fg_f', anchorKey: (body) => `leg_fg_f:p1:${body}:4l` },
-  // Leg fades
-  { file: 'legfade_bg_f', anchorKey: (body) => `leg_bg_f:p1:${body}:4l` },
-  { file: 'legfade_fg_f', anchorKey: (body) => `leg_fg_f:p1:${body}:4l` },
-  // Wings — bg then fg, 2-wing default
-  { file: 'wing_bg_outer_f', anchorKey: (body) => `wing_bg_outer_f:p1:${body}:2w` },
-  { file: 'wing_fg_outer_f', anchorKey: (body) => `wing_fg_outer_f:p1:${body}:2w` },
-  // Wing fades
-  { file: 'wingfade_bg_outer_f', anchorKey: (body) => `wing_bg_outer_f:p1:${body}:2w` },
-  { file: 'wingfade_fg_outer_f', anchorKey: (body) => `wing_fg_outer_f:p1:${body}:2w` },
-];
 
 const POINT_RADIUS = 8;
 const CONTROL_POINT_COLOR = '#c4a265';
@@ -548,60 +532,41 @@ async function drawReferenceLayers() {
   ctx.save();
   ctx.globalAlpha = 0.3;
 
-  // Extra reference layers (legs, wings, fades) — drawn first (behind body)
-  for (const ref of EXTRA_REF_LAYERS) {
-    const img = await loadImage(ref.file);
-    if (!img) continue;
-    const anchorKeyStr = ref.anchorKey(currentBody);
-    const anchor = ANCHORS[anchorKeyStr] || { x: 0, y: 0 };
-    if (anchor.rot) {
-      ctx.save();
-      ctx.translate(anchor.x + img.width / 2, anchor.y + img.height / 2);
-      ctx.rotate(anchor.rot * Math.PI / 180);
-      ctx.drawImage(img, -img.width / 2, -img.height / 2);
-      ctx.restore();
-    } else {
-      ctx.drawImage(img, anchor.x, anchor.y);
-    }
+  // Helper: draw fill + outline for a given base filename and anchor
+  async function drawFillAndOutline(fillFile, outlineFile, anchorX, anchorY) {
+    const fillImg = await loadImage(fillFile);
+    if (fillImg) ctx.drawImage(fillImg, anchorX, anchorY);
+    const outImg = await loadImage(outlineFile);
+    if (outImg) ctx.drawImage(outImg, anchorX, anchorY);
   }
 
-  // Body silhouette
-  const bodyFile = BODY_FILENAMES[currentBody];
-  const bodyImg = await loadImage(bodyFile);
-  if (bodyImg) {
-    const anchor = getAnchor(bodyFile, currentBody);
-    ctx.drawImage(bodyImg, anchor.x, anchor.y);
+  // Body fill + outline
+  const bodyFill = BODY_FILENAMES[currentBody]; // e.g. body_stan_mf
+  const bodyOutline = bodyFill.replace('_mf', '_o'); // e.g. body_stan_o
+  const bodyAnchor = getAnchor(bodyFill, currentBody);
+  await drawFillAndOutline(bodyFill, bodyOutline, bodyAnchor.x, bodyAnchor.y);
+
+  // Tail fill + outline
+  const tailFill = TAIL_FILENAMES[currentTail]?.[currentLength];
+  if (tailFill) {
+    const tailOutline = tailFill.replace('_f', '_o'); // e.g. tail_normal_s_o
+    const tailAnchor = getAnchor(tailFill, currentBody);
+    await drawFillAndOutline(tailFill, tailOutline, tailAnchor.x, tailAnchor.y);
   }
 
-  // Tail silhouette
-  const tailFile = TAIL_FILENAMES[currentTail]?.[currentLength];
-  if (tailFile) {
-    const tailImg = await loadImage(tailFile);
-    if (tailImg) {
-      const anchor = getAnchor(tailFile, currentBody);
-      ctx.drawImage(tailImg, anchor.x, anchor.y);
-    }
-  }
-
-  // Head silhouette
-  const headImg = await loadImage(HEAD_FILENAME);
-  if (headImg) {
-    const headAnchorKey = `${HEAD_FILENAME}:${currentBody}`;
-    const anchor = ANCHORS[headAnchorKey] || { x: 0, y: 0 };
-    ctx.drawImage(headImg, anchor.x, anchor.y);
-  }
+  // Head fill + outline
+  const headAnchorKey = `${HEAD_FILENAME}:${currentBody}`;
+  const headAnchor = ANCHORS[headAnchorKey] || { x: 0, y: 0 };
+  await drawFillAndOutline(HEAD_FILENAME, 'head_o', headAnchor.x, headAnchor.y);
 
   // Head spines (anchored relative to head_o like horns)
   const headSpineFile = HEAD_SPINE_FILENAMES[currentSpine]?.[currentHeight];
   if (headSpineFile) {
     const headSpineImg = await loadImage(headSpineFile);
     if (headSpineImg) {
-      const headOAnchorKey = `head_o:${currentBody}`;
-      const headOAnchor = ANCHORS[headOAnchorKey] || { x: 0, y: 0 };
+      const headOAnchor = ANCHORS[`head_o:${currentBody}`] || { x: 0, y: 0 };
       const spineAnchor = ANCHORS[headSpineFile] || { x: 0, y: 0 };
-      const ax = headOAnchor.x + spineAnchor.x;
-      const ay = headOAnchor.y + spineAnchor.y;
-      ctx.drawImage(headSpineImg, ax, ay);
+      ctx.drawImage(headSpineImg, headOAnchor.x + spineAnchor.x, headOAnchor.y + spineAnchor.y);
     }
   }
 
