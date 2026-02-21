@@ -2041,16 +2041,18 @@
         }
       }
 
-      // Horns (chained to head, no body type in export key)
-      for (const layer of (LAYERS.horns || [])) {
-        const group = getLinkGroup(layer.id);
-        const off = layerOffsets[layer.id] || { x: 0, y: 0 };
-        let gx = 0, gy = 0;
-        if (group) {
-          const gPos = groupAnchors[group] || { x: 0, y: 0 };
-          gx = gPos.x; gy = gPos.y;
+      // Horns and head spines (chained to head, no body type in export key)
+      for (const batchName of ['horns', 'headspines']) {
+        for (const layer of (LAYERS[batchName] || [])) {
+          const group = getLinkGroup(layer.id);
+          const off = layerOffsets[layer.id] || { x: 0, y: 0 };
+          let gx = 0, gy = 0;
+          if (group) {
+            const gPos = groupAnchors[group] || { x: 0, y: 0 };
+            gx = gPos.x; gy = gPos.y;
+          }
+          flat[layer.id] = { x: gx + off.x, y: gy + off.y };
         }
-        flat[layer.id] = { x: gx + off.x, y: gy + off.y };
       }
 
       // Wings (config-dependent: body type × wing count × pair)
@@ -2118,7 +2120,7 @@
       };
 
       // Collect anchors grouped by part
-      const parts = { body: {}, head: {}, horns: {}, tail: {}, wings: {}, legs: {} };
+      const parts = { body: {}, head: {}, horns: {}, headspines: {}, tail: {}, wings: {}, legs: {} };
 
       // Body
       for (const layer of LAYERS.body || []) {
@@ -2153,6 +2155,18 @@
           gx = gPos.x; gy = gPos.y;
         }
         parts.horns[layer.id] = { x: gx + off.x, y: gy + off.y };
+      }
+
+      // Head spines (chained to head, same as horns)
+      for (const layer of (LAYERS.headspines || [])) {
+        const group = getLinkGroup(layer.id);
+        const off = layerOffsets[layer.id] || { x: 0, y: 0 };
+        let gx = 0, gy = 0;
+        if (group) {
+          const gPos = groupAnchors[group] || { x: 0, y: 0 };
+          gx = gPos.x; gy = gPos.y;
+        }
+        parts.headspines[layer.id] = { x: gx + off.x, y: gy + off.y };
       }
 
       // Tail
