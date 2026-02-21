@@ -513,11 +513,12 @@ function renderInjectedOutlines(processedLayers, dragonHsl, dragonRgb, hslOverri
   return c;
 }
 
-// ── Render Fade Layer: composite fade-sub → remove red → desaturate residual tint ──
+// ── Render Fade Layer: composite fade-sub → remove red → desaturate → re-color ──
 function renderFadeLayer(fadeSubLayers, dragonHsl, hslOverrides) {
   const raw = compositeLayersRaw(fadeSubLayers, dragonHsl, hslOverrides);
   removeRed(raw);
   desaturateToGrey(raw);
+  applyColorBlendHSL(raw, dragonHsl, 0, hslOverrides);
   const c = document.createElement('canvas');
   c.width = SPRITE_WIDTH; c.height = SPRITE_HEIGHT;
   c.getContext('2d').putImageData(raw, 0, 0);

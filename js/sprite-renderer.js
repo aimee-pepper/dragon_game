@@ -900,6 +900,7 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     const fadeRaw = compositeLayersRaw(fadeSubLayers, width, height);
     removeRed(fadeRaw);
     desaturateToGrey(fadeRaw);
+    applyColorBlend(fadeRaw, dragonRgb, 0);
     offscreenCompCtx.clearRect(0, 0, width, height);
     offscreenCompCtx.putImageData(fadeRaw, 0, 0);
     ctx.drawImage(offscreenComp, 0, 0);
@@ -943,6 +944,7 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     const fadeRaw = compositeLayersRaw(fadeSubLayers, width, height);
     removeRed(fadeRaw);
     desaturateToGrey(fadeRaw);
+    applyColorBlend(fadeRaw, dragonRgb, 0);
     offscreenCompCtx.clearRect(0, 0, width, height);
     offscreenCompCtx.putImageData(fadeRaw, 0, 0);
     ctx.drawImage(offscreenComp, 0, 0);
