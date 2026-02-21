@@ -1488,6 +1488,32 @@ document.getElementById('btn-copy-curve').addEventListener('click', () => {
   setTimeout(() => { btn.textContent = 'Copy Curve'; }, 1200);
 });
 
+// ── Migrate old storage keys ──
+// Old format: "body:tail_length" → New format: "body:tail_length_spine_height"
+// Old saved data has spineType/spineHeight fields we can use to build the new key.
+(function migrateOldKeys() {
+  const allPaths = loadAllPaths();
+  let changed = false;
+  for (const [key, data] of Object.entries(allPaths)) {
+    // Old keys have exactly one colon and one underscore, e.g. "standard:normal_medium"
+    // New keys have two extra underscores for spine+height, e.g. "standard:normal_medium_ridge_medium"
+    const parts = key.split('_');
+    if (parts.length === 2) {
+      // This is an old-format key — migrate it
+      const spineType = data.spineType || 'ridge';
+      const spineHeight = data.spineHeight || 'medium';
+      const newKey = `${key}_${spineType}_${spineHeight}`;
+      if (!allPaths[newKey]) {
+        allPaths[newKey] = data;
+        changed = true;
+      }
+    }
+  }
+  if (changed) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(allPaths));
+  }
+})();
+
 // ── Init ──
 restorePath();
 </script>
