@@ -937,9 +937,12 @@ function updateEnvelopeList() {
     const isEndpoint = i === 0 || i === heightControlPoints.length - 1;
 
     item.innerHTML = `
-      <span class="idx" style="color:#bb88dd;">#${i}</span>
-      <span class="info" style="min-width:50px;">t: ${tPct}%</span>
-      <span class="angle">${hcp.mul.toFixed(2)}x</span>
+      <div style="display:flex;align-items:center;width:100%;gap:4px;">
+        <span class="idx" style="color:#bb88dd;">#${i}</span>
+        <span class="info" style="min-width:50px;">t: ${tPct}%</span>
+        <span class="angle" style="flex:1;">${hcp.mul.toFixed(2)}x</span>
+        <button data-hcp-reset="${i}" style="background:none;border:1px solid #555;color:#8a7e72;border-radius:3px;cursor:pointer;font-size:11px;padding:1px 5px;" title="Reset rot & wid to defaults">↺</button>
+      </div>
       <div style="width:100%;display:flex;align-items:center;gap:6px;margin-top:2px;">
         <label style="font-size:10px;color:#8a7e72;min-width:28px;">Rot</label>
         <input type="range" min="-180" max="180" step="1" value="${Math.round(hcp.rot || 0)}"
@@ -981,6 +984,17 @@ function updateEnvelopeList() {
         render();
       });
       widSlider.addEventListener('change', saveAll);
+    }
+
+    const resetBtn = envelopeListEl.querySelector(`[data-hcp-reset="${i}"]`);
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        heightControlPoints[i].rot = 0;
+        heightControlPoints[i].wid = 1.0;
+        heightControlPoints[i].mul = 1.0;
+        saveAll();
+        render();
+      });
     }
   }
 }
