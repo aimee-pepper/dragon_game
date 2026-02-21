@@ -231,6 +231,34 @@
         </div>
       </div>
 
+      <!-- Copy From -->
+      <div class="panel-section">
+        <h3>Copy From</h3>
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 6px;font-size:11px;align-items:center;">
+          <label style="color:#8a7e72;">Body</label>
+          <select id="cf-body" style="background:#2a2520;color:#d4cdc4;border:1px solid #555;border-radius:3px;padding:2px;font-size:11px;">
+            <option value="standard">Standard</option><option value="sinuous">Sinuous</option><option value="bulky">Bulky</option>
+          </select>
+          <label style="color:#8a7e72;">Tail</label>
+          <select id="cf-tail" style="background:#2a2520;color:#d4cdc4;border:1px solid #555;border-radius:3px;padding:2px;font-size:11px;">
+            <option value="normal">Normal</option><option value="whip">Whip</option><option value="heavy">Heavy</option>
+          </select>
+          <label style="color:#8a7e72;">Length</label>
+          <select id="cf-length" style="background:#2a2520;color:#d4cdc4;border:1px solid #555;border-radius:3px;padding:2px;font-size:11px;">
+            <option value="medium">Medium</option><option value="short">Short</option><option value="long">Long</option>
+          </select>
+          <label style="color:#8a7e72;">Spine</label>
+          <select id="cf-spine" style="background:#2a2520;color:#d4cdc4;border:1px solid #555;border-radius:3px;padding:2px;font-size:11px;">
+            <option value="ridge">Ridge</option><option value="spike">Spike</option><option value="sail">Sail</option>
+          </select>
+          <label style="color:#8a7e72;">Height</label>
+          <select id="cf-height" style="background:#2a2520;color:#d4cdc4;border:1px solid #555;border-radius:3px;padding:2px;font-size:11px;">
+            <option value="medium">Medium</option><option value="low">Low</option><option value="tall">Tall</option>
+          </select>
+        </div>
+        <button id="btn-paste-from" style="margin-top:6px;width:100;">📋 Paste to Current</button>
+      </div>
+
       <!-- Height Envelope Points -->
       <div class="panel-section" style="flex:1;display:flex;flex-direction:column;">
         <h3>Envelope Points <span id="envelope-point-count" style="color:#8a7e72;font-weight:normal;">(2)</span></h3>
@@ -1566,6 +1594,57 @@ document.getElementById('btn-copy-curve').addEventListener('click', () => {
   const btn = document.getElementById('btn-copy-curve');
   btn.textContent = 'Copied!';
   setTimeout(() => { btn.textContent = 'Copy Curve'; }, 1200);
+});
+
+// ── Copy From handler ──
+document.getElementById('btn-paste-from').addEventListener('click', () => {
+  const srcBody = document.getElementById('cf-body').value;
+  const srcTail = document.getElementById('cf-tail').value;
+  const srcLength = document.getElementById('cf-length').value;
+  const srcSpine = document.getElementById('cf-spine').value;
+  const srcHeight = document.getElementById('cf-height').value;
+  const srcKey = `${srcBody}:${srcTail}_${srcLength}_${srcSpine}_${srcHeight}`;
+  // Also try old-format key as fallback
+  const srcKeyOld = `${srcBody}:${srcTail}_${srcLength}`;
+
+  const allPaths = loadAllPaths();
+  const srcData = allPaths[srcKey] || allPaths[srcKeyOld];
+  if (!srcData || !srcData.controlPoints || srcData.controlPoints.length === 0) {
+    const btn = document.getElementById('btn-paste-from');
+    btn.textContent = 'No data found!';
+    btn.style.color = '#cc5555';
+    setTimeout(() => { btn.textContent = '📋 Paste to Current'; btn.style.color = ''; }, 1500);
+    return;
+  }
+
+  // Deep copy source data into current state
+  controlPoints = srcData.controlPoints.map(p => ({ x: p.x, y: p.y }));
+  spineCount = srcData.spineCount || 10;
+  spineSpacing = srcData.spineSpacing || 1.0;
+  spineScale = srcData.spineScale || 1.0;
+  heightOffset = srcData.heightOffset || 60;
+  globalRotation = srcData.globalRotation || 0;
+  perSpineOverrides = JSON.parse(JSON.stringify(srcData.perSpineOverrides || {}));
+  heightControlPoints = JSON.parse(JSON.stringify(srcData.heightControlPoints || [{ t: 0, mul: 1.0, rot: 0, wid: 1.0, spc: 1.0 }, { t: 1, mul: 1.0, rot: 0, wid: 1.0, spc: 1.0 }]));
+
+  // Restore sliders
+  spineCountSlider.value = spineCount;
+  spineCountVal.textContent = spineCount;
+  spineSpacingSlider.value = spineSpacing;
+  spineSpacingVal.textContent = spineSpacing.toFixed(2);
+  spineScaleSlider.value = spineScale;
+  spineScaleVal.textContent = spineScale.toFixed(2);
+  heightOffsetSlider.value = heightOffset;
+  heightOffsetVal.textContent = heightOffset;
+  globalRotSlider.value = globalRotation;
+  globalRotVal.textContent = globalRotation + '°';
+
+  saveAll();
+  render();
+
+  const btn = document.getElementById('btn-paste-from');
+  btn.textContent = 'Pasted!';
+  setTimeout(() => { btn.textContent = '📋 Paste to Current'; }, 1200);
 });
 
 // ── Migrate old storage keys ──
