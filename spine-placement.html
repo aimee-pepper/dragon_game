@@ -319,7 +319,7 @@ let perSpineOverrides = {}; // legacy — kept for backwards compat with saved d
 //   mul — scale multiplier (1.0 = normal, 0 = zero, 2.0 = double)
 //   rot — additional rotation offset in degrees (0 = no extra rotation)
 // Spines linearly interpolate between adjacent control points.
-let heightControlPoints = [{ t: 0, mul: 1.0, rot: 0 }, { t: 1, mul: 1.0, rot: 0 }];
+let heightControlPoints = [{ t: 0, mul: 1.0, rot: 0, wid: 1.0 }, { t: 1, mul: 1.0, rot: 0, wid: 1.0 }];
 let heightOffset = 60;       // Visual distance from main curve at mul=1.0 (sprite-space px)
 let showHeightGuide = true;
 let isDraggingHeightCP = -1; // index of height control point being dragged
@@ -511,6 +511,28 @@ function sampleHeightRotation(t) {
   return 0;
 }
 
+function sampleHeightWidth(t) {
+  if (heightControlPoints.length === 0) return 1.0;
+  if (heightControlPoints.length === 1) return heightControlPoints[0].wid ?? 1.0;
+
+  const wid0 = heightControlPoints[0].wid ?? 1.0;
+  if (t <= heightControlPoints[0].t) return wid0;
+  const widLast = heightControlPoints[heightControlPoints.length - 1].wid ?? 1.0;
+  if (t >= heightControlPoints[heightControlPoints.length - 1].t) return widLast;
+
+  for (let i = 1; i < heightControlPoints.length; i++) {
+    if (t <= heightControlPoints[i].t) {
+      const prev = heightControlPoints[i - 1];
+      const curr = heightControlPoints[i];
+      const frac = (t - prev.t) / (curr.t - prev.t);
+      const prevW = prev.wid ?? 1.0;
+      const currW = curr.wid ?? 1.0;
+      return prevW + (currW - prevW) * frac;
+    }
+  }
+  return 0;
+}
+
 // Keep height control points sorted by t
 function sortHeightControlPoints() {
   heightControlPoints.sort((a, b) => a.t - b.t);
@@ -545,7 +567,10 @@ function computeSpinePositions() {
     const heightMul = sampleHeightMultiplier(t);
     const scale = baseScale * heightMul;
 
-    positions.push({ x: pt.x, y: pt.y, angleDeg, scale, t, idx: i, heightMul });
+    // Apply width envelope multiplier
+    const widthMul = sampleHeightWidth(t);
+
+    positions.push({ x: pt.x, y: pt.y, angleDeg, scale, widthMul, t, idx: i, heightMul });
   }
 
   return positions;
@@ -794,7 +819,7 @@ async function drawSpineSprites(positions) {
     ctx.save();
     ctx.translate(pos.x, pos.y);
     ctx.rotate(pos.angleDeg * Math.PI / 180);
-    ctx.scale(pos.scale, pos.scale);
+    ctx.scale(pos.scale * (pos.widthMul ?? 1.0), pos.scale);
 
     // Draw each layer (fill then outline) centered on the position
     for (const img of imgs) {
@@ -897,6 +922,13 @@ function updateEnvelopeList() {
         <span style="font-size:10px;color:#d4cdc4;font-family:monospace;min-width:32px;text-align:right;"
               data-hcp-rot-val="${i}">${Math.round(hcp.rot || 0)}°</span>
       </div>
+      <div style="width:100%;display:flex;align-items:center;gap:6px;margin-top:2px;">
+        <label style="font-size:10px;color:#8a7e72;min-width:28px;">Wid</label>
+        <input type="range" min="0" max="3" step="0.05" value="${(hcp.wid ?? 1.0).toFixed(2)}"
+               style="flex:1;accent-color:#bb88dd;height:3px;" data-hcp-wid="${i}">
+        <span style="font-size:10px;color:#d4cdc4;font-family:monospace;min-width:32px;text-align:right;"
+              data-hcp-wid-val="${i}">${(hcp.wid ?? 1.0).toFixed(2)}x</span>
+      </div>
     `;
 
     envelopeListEl.appendChild(item);
@@ -913,6 +945,17 @@ function updateEnvelopeList() {
         render();
       });
       slider.addEventListener('change', saveAll);
+    }
+
+    const widSlider = envelopeListEl.querySelector(`[data-hcp-wid="${i}"]`);
+    const widValSpan = envelopeListEl.querySelector(`[data-hcp-wid-val="${i}"]`);
+    if (widSlider) {
+      widSlider.addEventListener('input', () => {
+        heightControlPoints[i].wid = parseFloat(widSlider.value);
+        widValSpan.textContent = parseFloat(widSlider.value).toFixed(2) + 'x';
+        render();
+      });
+      widSlider.addEventListener('change', saveAll);
     }
   }
 }
@@ -939,7 +982,8 @@ function updateOutput(positions) {
   const lines = [`// Spine anchors for ${key}`, `// Spine type: ${currentSpine}, height: ${currentHeight}`];
   for (const pos of positions) {
     const hMul = pos.heightMul !== undefined ? pos.heightMul : 1.0;
-    lines.push(`  'spine_${pos.idx}:${key}': { x: ${Math.round(pos.x)}, y: ${Math.round(pos.y)}, rot: ${pos.angleDeg.toFixed(1)}, scale: ${pos.scale.toFixed(3)} },`);
+    const wMul = pos.widthMul ?? 1.0;
+    lines.push(`  'spine_${pos.idx}:${key}': { x: ${Math.round(pos.x)}, y: ${Math.round(pos.y)}, rot: ${pos.angleDeg.toFixed(1)}, scale: ${pos.scale.toFixed(3)}, wid: ${wMul.toFixed(3)} },`);
   }
 
   lines.push('');
@@ -972,7 +1016,7 @@ function saveAll() {
     controlPoints: controlPoints.map(p => ({ x: Math.round(p.x), y: Math.round(p.y) })),
     spineCount, spineSpacing, spineScale, heightOffset, globalRotation,
     perSpineOverrides: { ...perSpineOverrides },
-    heightControlPoints: heightControlPoints.map(p => ({ t: p.t, mul: p.mul, rot: p.rot || 0 })),
+    heightControlPoints: heightControlPoints.map(p => ({ t: p.t, mul: p.mul, rot: p.rot || 0, wid: p.wid ?? 1.0 })),
     spineType: currentSpine,
     spineHeight: currentHeight,
   };
@@ -997,7 +1041,7 @@ function restorePath(seedFrom) {
     heightOffset = data.heightOffset || 60;
     globalRotation = data.globalRotation || 0;
     perSpineOverrides = data.perSpineOverrides || {};
-    heightControlPoints = data.heightControlPoints || [{ t: 0, mul: 1.0, rot: 0 }, { t: 1, mul: 1.0, rot: 0 }];
+    heightControlPoints = data.heightControlPoints || [{ t: 0, mul: 1.0, rot: 0, wid: 1.0 }, { t: 1, mul: 1.0, rot: 0, wid: 1.0 }];
   } else if (seedFrom) {
     // No saved path — seed from current working path (deep copy)
     controlPoints = seedFrom.controlPoints.map(p => ({ x: p.x, y: p.y }));
@@ -1007,12 +1051,12 @@ function restorePath(seedFrom) {
     heightOffset = seedFrom.heightOffset;
     globalRotation = seedFrom.globalRotation || 0;
     perSpineOverrides = JSON.parse(JSON.stringify(seedFrom.perSpineOverrides));
-    heightControlPoints = JSON.parse(JSON.stringify(seedFrom.heightControlPoints || [{ t: 0, mul: 1.0, rot: 0 }, { t: 1, mul: 1.0, rot: 0 }]));
+    heightControlPoints = JSON.parse(JSON.stringify(seedFrom.heightControlPoints || [{ t: 0, mul: 1.0, rot: 0, wid: 1.0 }, { t: 1, mul: 1.0, rot: 0, wid: 1.0 }]));
   } else {
     // No saved path, no seed — blank
     controlPoints = [];
     perSpineOverrides = {};
-    heightControlPoints = [{ t: 0, mul: 1.0, rot: 0 }, { t: 1, mul: 1.0, rot: 0 }];
+    heightControlPoints = [{ t: 0, mul: 1.0, rot: 0, wid: 1.0 }, { t: 1, mul: 1.0, rot: 0, wid: 1.0 }];
     globalRotation = 0;
   }
   // Restore sliders to match loaded/seeded state
@@ -1167,7 +1211,8 @@ canvas.addEventListener('mousedown', (e) => {
       const t = nearestTForPoint(x, y);
       const mul = sampleHeightMultiplier(t); // start at the current interpolated value
       const rot = sampleHeightRotation(t); // start at current interpolated rotation
-      heightControlPoints.push({ t, mul, rot });
+      const wid = sampleHeightWidth(t); // start at current interpolated width
+      heightControlPoints.push({ t, mul, rot, wid });
       sortHeightControlPoints();
       // Find the new point's index and start dragging it
       const newIdx = heightControlPoints.findIndex(p => p.t === t && p.mul === mul);
@@ -1400,7 +1445,7 @@ showHeightGuideCheckbox.addEventListener('change', () => {
 document.getElementById('btn-clear-path').addEventListener('click', () => {
   controlPoints = [];
   perSpineOverrides = {};
-  heightControlPoints = [{ t: 0, mul: 1.0, rot: 0 }, { t: 1, mul: 1.0, rot: 0 }];
+  heightControlPoints = [{ t: 0, mul: 1.0, rot: 0, wid: 1.0 }, { t: 1, mul: 1.0, rot: 0, wid: 1.0 }];
   globalRotation = 0;
   globalRotSlider.value = 0;
   globalRotVal.textContent = '0°';
@@ -1433,7 +1478,7 @@ document.getElementById('btn-copy-curve').addEventListener('click', () => {
     controlPoints: controlPoints.map(p => ({ x: Math.round(p.x), y: Math.round(p.y) })),
     spineCount, spineSpacing, spineScale, heightOffset, globalRotation,
     perSpineOverrides: { ...perSpineOverrides },
-    heightControlPoints: heightControlPoints.map(p => ({ t: p.t, mul: p.mul, rot: p.rot || 0 })),
+    heightControlPoints: heightControlPoints.map(p => ({ t: p.t, mul: p.mul, rot: p.rot || 0, wid: p.wid ?? 1.0 })),
     spineType: currentSpine,
     spineHeight: currentHeight,
   };
