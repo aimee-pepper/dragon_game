@@ -1667,15 +1667,25 @@ document.getElementById('btn-env-copy').addEventListener('click', () => {
   envPasteBtn.disabled = false;
   envCpStatus.style.color = '#8a7e72';
   envCpStatus.textContent = `Copied: ${envClipboardLabel}`;
+  const copyBtn = document.getElementById('btn-env-copy');
+  copyBtn.textContent = '✓ Copied';
+  setTimeout(() => { copyBtn.textContent = '📋 Copy'; }, 1000);
 });
 
 envPasteBtn.addEventListener('click', () => {
-  if (!envClipboard) return;
+  if (!envClipboard || envClipboard.length === 0) {
+    envCpStatus.style.color = '#cc5555';
+    envCpStatus.textContent = 'Nothing in clipboard';
+    return;
+  }
   heightControlPoints = JSON.parse(JSON.stringify(envClipboard));
   saveAll();
   render();
   envCpStatus.style.color = '#6a9f5b';
-  envCpStatus.textContent = `Pasted from: ${envClipboardLabel}`;
+  envCpStatus.textContent = `Pasted ${heightControlPoints.length} pts from: ${envClipboardLabel}`;
+  // Flash the paste button to confirm
+  envPasteBtn.textContent = '✓ Pasted';
+  setTimeout(() => { envPasteBtn.textContent = '📥 Paste'; }, 1000);
 });
 
 // ── Migrate old storage keys ──
