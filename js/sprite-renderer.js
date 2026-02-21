@@ -893,12 +893,14 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
       if (layer.isFixedDetail) drawToCtx(ctx, layer.offscreen, layer, 1.0);
     }
 
-    // Final Outline: assemble _o assets → red→grey → darken color blend
-    const finalOutlines = assembleOutlineAssets(processedLayers, width, height);
-    redToGrey(finalOutlines);
-    applyColorBlend(finalOutlines, dragonRgb, darkenShift);
+    // Final Outline: composite all in z-order → surviving red → grey → darken
+    // Fills occlude outlines beneath, so only surface-visible outlines remain.
+    const finalRaw = compositeLayersRaw(processedLayers, width, height);
+    keepOnlyRed(finalRaw);
+    redToGrey(finalRaw);
+    applyColorBlend(finalRaw, dragonRgb, darkenShift);
     offscreenCompCtx.clearRect(0, 0, width, height);
-    offscreenCompCtx.putImageData(finalOutlines, 0, 0);
+    offscreenCompCtx.putImageData(finalRaw, 0, 0);
     ctx.drawImage(offscreenComp, 0, 0);
 
   } else if (needsFadePass) {
@@ -933,12 +935,13 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
       if (layer.isFixedDetail) drawToCtx(ctx, layer.offscreen, layer, 1.0);
     }
 
-    // Final Outline: assemble _o assets → red→grey → darken color blend
-    const finalOutlines = assembleOutlineAssets(processedLayers, width, height);
-    redToGrey(finalOutlines);
-    applyColorBlend(finalOutlines, dragonRgb, darkenShift);
+    // Final Outline: composite all in z-order → surviving red → grey → darken
+    const finalRaw = compositeLayersRaw(processedLayers, width, height);
+    keepOnlyRed(finalRaw);
+    redToGrey(finalRaw);
+    applyColorBlend(finalRaw, dragonRgb, darkenShift);
     offscreenCompCtx.clearRect(0, 0, width, height);
-    offscreenCompCtx.putImageData(finalOutlines, 0, 0);
+    offscreenCompCtx.putImageData(finalRaw, 0, 0);
     ctx.drawImage(offscreenComp, 0, 0);
 
   } else {
@@ -955,12 +958,13 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
       if (layer.isFixedDetail) drawToCtx(ctx, layer.offscreen, layer, 1.0);
     }
 
-    // Final Outline: assemble _o assets → red→grey → darken color blend
-    const finalOutlines = assembleOutlineAssets(processedLayers, width, height);
-    redToGrey(finalOutlines);
-    applyColorBlend(finalOutlines, dragonRgb, darkenShift);
+    // Final Outline: composite all in z-order → surviving red → grey → darken
+    const finalRaw = compositeLayersRaw(processedLayers, width, height);
+    keepOnlyRed(finalRaw);
+    redToGrey(finalRaw);
+    applyColorBlend(finalRaw, dragonRgb, darkenShift);
     offscreenCompCtx.clearRect(0, 0, width, height);
-    offscreenCompCtx.putImageData(finalOutlines, 0, 0);
+    offscreenCompCtx.putImageData(finalRaw, 0, 0);
     ctx.drawImage(offscreenComp, 0, 0);
   }
 

@@ -509,29 +509,17 @@ function renderFadeLayer(fadeSubLayers, dragonHsl, hslOverrides) {
   return c;
 }
 
-// ── Render Final Outline: assemble _o assets → red→grey → darken blend ──
+// ── Render Final Outline: composite all in z-order → surviving red → grey → darken ──
+// Fills occlude outlines beneath, so only surface-visible outlines remain.
 function renderFinalOutline(processedLayers, dragonHsl, hslOverrides) {
-  const w = SPRITE_WIDTH, h = SPRITE_HEIGHT;
-  const comp = document.createElement('canvas');
-  comp.width = w; comp.height = h;
-  const compCtx = comp.getContext('2d');
-
-  // Only draw _o outline assets
-  for (const layer of processedLayers) {
-    if (layer.isFixedDetail) continue;
-    if (!layer.asset.filename.endsWith('_o')) continue;
-    const colored = recolorLayer(layer, dragonHsl, hslOverrides);
-    drawToCanvas(compCtx, colored, layer);
-  }
-
-  const raw = compCtx.getImageData(0, 0, w, h);
+  const raw = compositeLayersRaw(processedLayers, dragonHsl, hslOverrides);
+  keepOnlyRed(raw);
   redToGrey(raw);
   const darkenShift = COLOR_ADJUSTMENTS.darken.luminanceShift;
   applyColorBlendHSL(raw, dragonHsl, darkenShift, hslOverrides);
   const c = document.createElement('canvas');
-  c.width = w; c.height = h;
+  c.width = SPRITE_WIDTH; c.height = SPRITE_HEIGHT;
   c.getContext('2d').putImageData(raw, 0, 0);
-  comp.width = 0; comp.height = 0;
   return c;
 }
 
