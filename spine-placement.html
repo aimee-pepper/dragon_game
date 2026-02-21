@@ -585,44 +585,40 @@ async function drawReferenceLayers() {
   ctx.save();
   ctx.globalAlpha = 0.3;
 
-  // Helper: draw fill + outline for a given base filename and anchor
-  async function drawFillAndOutline(fillFile, outlineFile, anchorX, anchorY) {
-    const fillImg = await loadImage(fillFile);
-    if (fillImg) ctx.drawImage(fillImg, anchorX, anchorY);
-    const outImg = await loadImage(outlineFile);
-    if (outImg) ctx.drawImage(outImg, anchorX, anchorY);
+  // Helper: draw a single layer at its own anchor position
+  async function drawLayer(filename, bodyType) {
+    const anchor = getAnchor(filename, bodyType);
+    const img = await loadImage(filename);
+    if (img) ctx.drawImage(img, anchor.x, anchor.y);
   }
 
-  // Body fill + outline
+  // Body fill + outline (each at its own anchor)
   const bodyFill = BODY_FILENAMES[currentBody]; // e.g. body_stan_mf
   const bodyOutline = bodyFill.replace('_mf', '_o'); // e.g. body_stan_o
-  const bodyAnchor = getAnchor(bodyFill, currentBody);
-  await drawFillAndOutline(bodyFill, bodyOutline, bodyAnchor.x, bodyAnchor.y);
+  await drawLayer(bodyFill, currentBody);
+  await drawLayer(bodyOutline, currentBody);
 
-  // Tail fill + outline
+  // Tail fill + outline (each at its own anchor)
   const tailFill = TAIL_FILENAMES[currentTail]?.[currentLength];
   if (tailFill) {
     const tailOutline = tailFill.replace('_f', '_o'); // e.g. tail_normal_s_o
-    const tailAnchor = getAnchor(tailFill, currentBody);
-    await drawFillAndOutline(tailFill, tailOutline, tailAnchor.x, tailAnchor.y);
+    await drawLayer(tailFill, currentBody);
+    await drawLayer(tailOutline, currentBody);
   }
 
-  // Head fill + outline
-  const headAnchorKey = `${HEAD_FILENAME}:${currentBody}`;
-  const headAnchor = ANCHORS[headAnchorKey] || { x: 0, y: 0 };
-  await drawFillAndOutline(HEAD_FILENAME, 'head_o', headAnchor.x, headAnchor.y);
+  // Head fill + outline (each at its own anchor)
+  await drawLayer(HEAD_FILENAME, currentBody);
+  await drawLayer('head_o', currentBody);
 
-  // Head spines (anchored relative to head_o like horns)
+  // Head spines (anchored relative to head_o, each file at its own offset)
   const headSpineEntry = HEAD_SPINE_FILENAMES[currentSpine]?.[currentHeight];
   if (headSpineEntry) {
-    // Entry is either a single filename string (spike) or an array of filenames (ridge/sail fill+outline)
     const headSpineFiles = Array.isArray(headSpineEntry) ? headSpineEntry : [headSpineEntry];
-    const headOAnchor = ANCHORS[`head_o:${currentBody}`] || { x: 0, y: 0 };
-    // Use first file's anchor for positioning (all layers in a set share the same anchor)
-    const spineAnchor = ANCHORS[headSpineFiles[0]] || { x: 0, y: 0 };
-    const ax = headOAnchor.x + spineAnchor.x;
-    const ay = headOAnchor.y + spineAnchor.y;
+    const headOAnchor = getAnchor('head_o', currentBody);
     for (const hsFile of headSpineFiles) {
+      const spineAnchor = ANCHORS[hsFile] || { x: 0, y: 0 };
+      const ax = headOAnchor.x + spineAnchor.x;
+      const ay = headOAnchor.y + spineAnchor.y;
       const hsImg = await loadImage(hsFile);
       if (hsImg) ctx.drawImage(hsImg, ax, ay);
     }
