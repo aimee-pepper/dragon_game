@@ -187,6 +187,24 @@ function removeRed(imgData) {
   }
 }
 
+// Desaturate any residual red tint in fill pixels that slipped below the
+// redAmount() threshold. Used on the Fade Layer only, after removeRed.
+function desaturateRedTint(imgData) {
+  const d = imgData.data;
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] === 0) continue;
+    const r = d[i], g = d[i + 1], b = d[i + 2];
+    const maxGB = Math.max(g, b);
+    if (r <= maxGB) continue;
+    const excess = (r - maxGB) / 255;
+    if (excess < 0.05) continue;
+    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+    d[i]     = Math.round(r + (lum - r) * excess);
+    d[i + 1] = Math.round(g + (lum - g) * excess);
+    d[i + 2] = Math.round(b + (lum - b) * excess);
+  }
+}
+
 function keepOnlyRed(imgData) {
   const d = imgData.data;
   for (let i = 0; i < d.length; i += 4) {
@@ -499,10 +517,11 @@ function renderInjectedOutlines(processedLayers, dragonHsl, dragonRgb, hslOverri
   return c;
 }
 
-// ── Render Fade Layer: composite fade-sub → remove red → fills only ──
+// ── Render Fade Layer: composite fade-sub → remove red → desaturate residual tint ──
 function renderFadeLayer(fadeSubLayers, dragonHsl, hslOverrides) {
   const raw = compositeLayersRaw(fadeSubLayers, dragonHsl, hslOverrides);
   removeRed(raw);
+  desaturateRedTint(raw);
   const c = document.createElement('canvas');
   c.width = SPRITE_WIDTH; c.height = SPRITE_HEIGHT;
   c.getContext('2d').putImageData(raw, 0, 0);
