@@ -1031,7 +1031,9 @@ function loadAllPaths() {
 
 function restorePath(seedFrom) {
   const allPaths = loadAllPaths();
-  const data = allPaths[currentPathKey()];
+  // Try new key first, fall back to old key format (body:tail_length without spine/height)
+  const oldKey = `${currentBody}:${currentTail}_${currentLength}`;
+  const data = allPaths[currentPathKey()] || allPaths[oldKey];
   if (data) {
     // Existing saved path — load it
     controlPoints = data.controlPoints || [];
@@ -1494,18 +1496,24 @@ document.getElementById('btn-copy-curve').addEventListener('click', () => {
 (function migrateOldKeys() {
   const allPaths = loadAllPaths();
   let changed = false;
+  const spineTypes = ['spike', 'sail', 'ridge'];
+  const spineHeights = ['low', 'medium', 'tall'];
   for (const [key, data] of Object.entries(allPaths)) {
-    // Old keys have exactly one colon and one underscore, e.g. "standard:normal_medium"
-    // New keys have two extra underscores for spine+height, e.g. "standard:normal_medium_ridge_medium"
+    // Old keys: "body:tail_length" (2 underscore-separated parts)
+    // New keys: "body:tail_length_spine_height" (4 underscore-separated parts)
     const parts = key.split('_');
     if (parts.length === 2) {
-      // This is an old-format key — migrate it
-      const spineType = data.spineType || 'ridge';
-      const spineHeight = data.spineHeight || 'medium';
-      const newKey = `${key}_${spineType}_${spineHeight}`;
-      if (!allPaths[newKey]) {
-        allPaths[newKey] = data;
-        changed = true;
+      // Old-format key — copy to ALL spine/height combos so no placements are lost
+      for (const st of spineTypes) {
+        for (const sh of spineHeights) {
+          const newKey = `${key}_${st}_${sh}`;
+          if (!allPaths[newKey]) {
+            allPaths[newKey] = JSON.parse(JSON.stringify(data));
+            allPaths[newKey].spineType = st;
+            allPaths[newKey].spineHeight = sh;
+            changed = true;
+          }
+        }
       }
     }
   }
