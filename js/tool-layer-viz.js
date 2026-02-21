@@ -287,7 +287,7 @@ async function decomposeIntoLayers(phenotype) {
       anchorCtx.pair = asset.pair; anchorCtx.bodyType = bodyVariant; anchorCtx.wingCount = actualWingCount;
     } else if (asset.gene === 'leg') {
       anchorCtx.pair = asset.pair; anchorCtx.bodyType = bodyVariant; anchorCtx.limbCount = actualLimbCount;
-    } else if (['head', 'tail', 'spines'].includes(asset.gene)) {
+    } else if (['head', 'tail', 'spines', 'headspines'].includes(asset.gene)) {
       anchorCtx.bodyType = bodyVariant;
     }
 
@@ -295,7 +295,7 @@ async function decomposeIntoLayers(phenotype) {
     let anchorX = anchor.x, anchorY = anchor.y;
     const rotation = anchor.rot || 0;
 
-    if (asset.gene === 'horns') {
+    if (asset.gene === 'horns' || asset.gene === 'headspines') {
       const headAnchor = getAnchor('head_o', { bodyType: bodyVariant });
       anchorX += headAnchor.x; anchorY += headAnchor.y;
     }

@@ -502,8 +502,8 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     let anchorY = anchor.y;
     const rotation = anchor.rot || 0;
 
-    // Horn chaining: horns are stored as offsets from head position
-    if (asset.gene === 'horns') {
+    // Horn/head-spine chaining: stored as offsets from head position
+    if (asset.gene === 'horns' || asset.gene === 'headspines') {
       const headAnchor = getAnchor('head_o', { bodyType: bodyVariant });
       anchorX += headAnchor.x;
       anchorY += headAnchor.y;

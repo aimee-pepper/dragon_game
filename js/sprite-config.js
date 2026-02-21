@@ -172,16 +172,11 @@ export const ASSET_TABLE = [
   { filename: 'horns_bg_kn_back_f',     layerGroup: 'horns',     gene: 'horns',  variant: 'knobbed', modifier: 'back',    z: 53, colorMode: 'horn',    opacityMode: 'body' },
   { filename: 'horns_bg_kn_back_o',     layerGroup: 'horns',     gene: 'horns',  variant: 'knobbed', modifier: 'back',    z: 54, colorMode: 'darken',  opacityMode: 'opaque' },
 
-  // ──── HEAD SPINES (on top of head) ────
-  { filename: 'spine_r_low',           layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'low',     z: 55, colorMode: 'base',    opacityMode: 'body' },
-  { filename: 'spine_r_medium',        layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'medium',  z: 55, colorMode: 'base',    opacityMode: 'body' },
-  { filename: 'spine_r_tall',          layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'tall',    z: 55, colorMode: 'base',    opacityMode: 'body' },
-  { filename: 'spine_sp_low',          layerGroup: 'spines',    gene: 'spines', variant: 'spike',   modifier: 'low',     z: 55, colorMode: 'base',    opacityMode: 'body' },
-  { filename: 'spine_sp_medium',       layerGroup: 'spines',    gene: 'spines', variant: 'spike',   modifier: 'medium',  z: 55, colorMode: 'base',    opacityMode: 'body' },
-  { filename: 'spine_sp_tall',         layerGroup: 'spines',    gene: 'spines', variant: 'spike',   modifier: 'tall',    z: 55, colorMode: 'base',    opacityMode: 'body' },
-  { filename: 'spine_sa_low',          layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'low',     z: 55, colorMode: 'base',    opacityMode: 'body' },
-  { filename: 'spine_sa_medium',       layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'medium',  z: 55, colorMode: 'base',    opacityMode: 'body' },
-  { filename: 'spine_sa_tall',         layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'tall',    z: 55, colorMode: 'base',    opacityMode: 'body' },
+  // ──── HEAD SPINES (on top of head — anchored relative to head_o like horns) ────
+  // Spike (outline-only, no fill)
+  { filename: 'spinehead_spike_S',     layerGroup: 'spines',    gene: 'headspines', variant: 'spike',   modifier: 'low',     z: 55, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'spinehead_spike_M',     layerGroup: 'spines',    gene: 'headspines', variant: 'spike',   modifier: 'medium',  z: 55, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'spinehead_spike_L',     layerGroup: 'spines',    gene: 'headspines', variant: 'spike',   modifier: 'tall',    z: 55, colorMode: 'darken',  opacityMode: 'opaque' },
 
   // ──── FG HORNS (in front of head — near-side horn) ────
   // Smooth
@@ -401,6 +396,11 @@ export function resolveAssetsForPhenotype(phenotype) {
         match = asset.variant === spineVariant && asset.modifier === spineModifier;
         break;
 
+      case 'headspines':
+        if (spineVariant === 'none') break;
+        match = asset.variant === spineVariant && asset.modifier === spineModifier;
+        break;
+
       case 'head':
         match = true; // head always renders
         break;
@@ -587,6 +587,10 @@ export const ANCHORS = {
   'horns_fg_sm_for_o':                               { x: 39, y: -84 },
   'horns_fg_sm_up_f':                                { x: 315, y: -73 },
   'horns_fg_sm_up_o':                                { x: 307, y: -99 },
+  // Head spines — offsets from head_o (same chaining as horns)
+  'spinehead_spike_S':                               { x: 55, y: -100 },
+  'spinehead_spike_M':                               { x: 25, y: -140 },
+  'spinehead_spike_L':                               { x: -50, y: -400 },
   'leg_bg_f:p1:bulky:2l':                            { x: 1013, y: 1338 },
   'leg_bg_f:p1:bulky:4l':                            { x: 958, y: 1323 },
   'leg_bg_f:p1:bulky:6l':                            { x: 1197, y: 1314 },

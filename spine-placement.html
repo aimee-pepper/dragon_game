@@ -266,6 +266,14 @@ const TAIL_LENGTHS = ['short', 'medium', 'long'];
 const SPINE_TYPES = ['ridge', 'spike', 'sail'];
 const SPINE_HEIGHTS = ['low', 'medium', 'tall'];
 
+// Repeating spine asset filenames per type and height
+// Each entry is an array of filenames to layer (fill first, then outline)
+const SPINE_FILENAMES = {
+  spike: { low: ['spine_spike_S'], medium: ['spine_spike_M'], tall: ['spine_spike_L'] },
+  sail:  { low: ['spine_sail_S_f', 'spine_sail_S_o'], medium: ['spine_sail_M_f', 'spine_sail_M_o'], tall: ['spine_sail_L_f', 'spine_sail_L_o'] },
+  ridge: { low: [], medium: [], tall: [] }, // no assets yet
+};
+
 const BODY_FILENAMES = {
   standard: 'body_stan_mf',
   sinuous:  'body_sin_mf',
@@ -494,8 +502,11 @@ async function render() {
   // Draw height guide (parallel line)
   drawHeightGuide();
 
-  // Draw spine markers
+  // Draw spine sprites (actual PNGs at computed positions)
   const positions = computeSpinePositions();
+  await drawSpineSprites(positions);
+
+  // Draw spine markers (direction indicators on top)
   drawSpineMarkers(positions);
 
   // Draw control points
@@ -615,6 +626,32 @@ function isNearHeightGuide(cx, cy) {
     if (Math.sqrt(dx * dx + dy * dy) < threshold) return true;
   }
   return false;
+}
+
+async function drawSpineSprites(positions) {
+  const files = SPINE_FILENAMES[currentSpine]?.[currentHeight] || [];
+  if (files.length === 0 || positions.length === 0) return;
+
+  // Load all layers for this spine type
+  const imgs = [];
+  for (const f of files) {
+    const img = await loadImage(f);
+    if (img) imgs.push(img);
+  }
+  if (imgs.length === 0) return;
+
+  for (const pos of positions) {
+    ctx.save();
+    ctx.translate(pos.x, pos.y);
+    ctx.rotate(pos.angleDeg * Math.PI / 180);
+    ctx.scale(pos.scale, pos.scale);
+
+    // Draw each layer (fill then outline) centered on the position
+    for (const img of imgs) {
+      ctx.drawImage(img, -img.width / 2, -img.height, img.width, img.height);
+    }
+    ctx.restore();
+  }
 }
 
 function drawSpineMarkers(positions) {
