@@ -173,10 +173,24 @@ export const ASSET_TABLE = [
   { filename: 'horns_bg_kn_back_o',     layerGroup: 'horns',     gene: 'horns',  variant: 'knobbed', modifier: 'back',    z: 54, colorMode: 'darken',  opacityMode: 'opaque' },
 
   // ──── HEAD SPINES (on top of head — anchored relative to head_o like horns) ────
-  // Spike (outline-only, no fill)
+  // Spike (single layer — outline only)
   { filename: 'spinehead_spike_S',     layerGroup: 'spines',    gene: 'headspines', variant: 'spike',   modifier: 'low',     z: 55, colorMode: 'darken',  opacityMode: 'opaque' },
   { filename: 'spinehead_spike_M',     layerGroup: 'spines',    gene: 'headspines', variant: 'spike',   modifier: 'medium',  z: 55, colorMode: 'darken',  opacityMode: 'opaque' },
   { filename: 'spinehead_spike_L',     layerGroup: 'spines',    gene: 'headspines', variant: 'spike',   modifier: 'tall',    z: 55, colorMode: 'darken',  opacityMode: 'opaque' },
+  // Ridge (fill + outline)
+  { filename: 'spinehead_ridge_S_f',   layerGroup: 'spines',    gene: 'headspines', variant: 'ridge',   modifier: 'low',     z: 54, colorMode: 'body',    opacityMode: 'body' },
+  { filename: 'spinehead_ridge_S_o',   layerGroup: 'spines',    gene: 'headspines', variant: 'ridge',   modifier: 'low',     z: 55, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'spinehead_ridge_M_f',   layerGroup: 'spines',    gene: 'headspines', variant: 'ridge',   modifier: 'medium',  z: 54, colorMode: 'body',    opacityMode: 'body' },
+  { filename: 'spinehead_ridge_M_o',   layerGroup: 'spines',    gene: 'headspines', variant: 'ridge',   modifier: 'medium',  z: 55, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'spinehead_ridge_L_f',   layerGroup: 'spines',    gene: 'headspines', variant: 'ridge',   modifier: 'tall',    z: 54, colorMode: 'body',    opacityMode: 'body' },
+  { filename: 'spinehead_ridge_L_o',   layerGroup: 'spines',    gene: 'headspines', variant: 'ridge',   modifier: 'tall',    z: 55, colorMode: 'darken',  opacityMode: 'opaque' },
+  // Sail (fill + outline)
+  { filename: 'spinehead_sail_S_f',    layerGroup: 'spines',    gene: 'headspines', variant: 'sail',    modifier: 'low',     z: 54, colorMode: 'body',    opacityMode: 'body' },
+  { filename: 'spinehead_sail_S_o',    layerGroup: 'spines',    gene: 'headspines', variant: 'sail',    modifier: 'low',     z: 55, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'spinehead_sail_M_f',    layerGroup: 'spines',    gene: 'headspines', variant: 'sail',    modifier: 'medium',  z: 54, colorMode: 'body',    opacityMode: 'body' },
+  { filename: 'spinehead_sail_M_o',    layerGroup: 'spines',    gene: 'headspines', variant: 'sail',    modifier: 'medium',  z: 55, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'spinehead_sail_L_f',    layerGroup: 'spines',    gene: 'headspines', variant: 'sail',    modifier: 'tall',    z: 54, colorMode: 'body',    opacityMode: 'body' },
+  { filename: 'spinehead_sail_L_o',    layerGroup: 'spines',    gene: 'headspines', variant: 'sail',    modifier: 'tall',    z: 55, colorMode: 'darken',  opacityMode: 'opaque' },
 
   // ──── FG HORNS (in front of head — near-side horn) ────
   // Smooth
@@ -591,6 +605,20 @@ export const ANCHORS = {
   'spinehead_spike_S':                               { x: 55, y: -100 },
   'spinehead_spike_M':                               { x: 25, y: -140 },
   'spinehead_spike_L':                               { x: -50, y: -400 },
+  // Ridge head spines — placeholder offsets from head_o (to be positioned in sprite-placement)
+  'spinehead_ridge_S_f':                             { x: 55, y: -100 },
+  'spinehead_ridge_S_o':                             { x: 55, y: -100 },
+  'spinehead_ridge_M_f':                             { x: 25, y: -140 },
+  'spinehead_ridge_M_o':                             { x: 25, y: -140 },
+  'spinehead_ridge_L_f':                             { x: -50, y: -400 },
+  'spinehead_ridge_L_o':                             { x: -50, y: -400 },
+  // Sail head spines — placeholder offsets from head_o (to be positioned in sprite-placement)
+  'spinehead_sail_S_f':                              { x: 55, y: -100 },
+  'spinehead_sail_S_o':                              { x: 55, y: -100 },
+  'spinehead_sail_M_f':                              { x: 25, y: -140 },
+  'spinehead_sail_M_o':                              { x: 25, y: -140 },
+  'spinehead_sail_L_f':                              { x: -50, y: -400 },
+  'spinehead_sail_L_o':                              { x: -50, y: -400 },
   'leg_bg_f:p1:bulky:2l':                            { x: 1013, y: 1338 },
   'leg_bg_f:p1:bulky:4l':                            { x: 958, y: 1323 },
   'leg_bg_f:p1:bulky:6l':                            { x: 1197, y: 1314 },

@@ -190,6 +190,7 @@
       <div class="tab-btn" data-batch="wings">Wings</div>
       <div class="tab-btn" data-batch="vestigial">Vest Wings</div>
       <div class="tab-btn" data-batch="horns">Horns</div>
+      <div class="tab-btn" data-batch="headspines">Head Spines</div>
       <div class="tab-btn" data-batch="all">All</div>
     </div>
     <span class="sep"></span>
@@ -374,6 +375,20 @@
         { id: 'wing_fg_vest_outer_f', file: 'wing_fg_vest_outer_f' },
         { id: 'wing_fg_vest_outer_o', file: 'wing_fg_vest_outer_o' },
       ],
+      headspines: [
+        // Spike (single layer)
+        { id: 'spinehead_spike_S', file: 'spinehead_spike_S' },
+        { id: 'spinehead_spike_M', file: 'spinehead_spike_M' },
+        { id: 'spinehead_spike_L', file: 'spinehead_spike_L' },
+        // Ridge (fill + outline)
+        { id: 'spinehead_ridge_S_f', file: 'spinehead_ridge_S_f' }, { id: 'spinehead_ridge_S_o', file: 'spinehead_ridge_S_o' },
+        { id: 'spinehead_ridge_M_f', file: 'spinehead_ridge_M_f' }, { id: 'spinehead_ridge_M_o', file: 'spinehead_ridge_M_o' },
+        { id: 'spinehead_ridge_L_f', file: 'spinehead_ridge_L_f' }, { id: 'spinehead_ridge_L_o', file: 'spinehead_ridge_L_o' },
+        // Sail (fill + outline)
+        { id: 'spinehead_sail_S_f', file: 'spinehead_sail_S_f' }, { id: 'spinehead_sail_S_o', file: 'spinehead_sail_S_o' },
+        { id: 'spinehead_sail_M_f', file: 'spinehead_sail_M_f' }, { id: 'spinehead_sail_M_o', file: 'spinehead_sail_M_o' },
+        { id: 'spinehead_sail_L_f', file: 'spinehead_sail_L_f' }, { id: 'spinehead_sail_L_o', file: 'spinehead_sail_L_o' },
+      ],
       horns: [
         { id: 'horns_bg_sm_for_f', file: 'horns_bg_sm_for_f' }, { id: 'horns_bg_sm_for_o', file: 'horns_bg_sm_for_o' },
         { id: 'horns_bg_sm_up_f', file: 'horns_bg_sm_up_f' }, { id: 'horns_bg_sm_up_o', file: 'horns_bg_sm_up_o' },
@@ -406,6 +421,7 @@
       if (tailMatch) return tailMatch[1];
       const hornMatch = layerId.match(/^(horns_[fb]g_\w+_\w+)_[fo]$/);
       if (hornMatch) return hornMatch[1];
+      if (layerId.startsWith('spinehead_')) return 'spines';
       if (layerId.includes('vest')) {
         return layerId.includes('_bg_') ? 'vest_bg' : 'vest_fg';
       }
@@ -420,7 +436,7 @@
 
     // Batch classification
     const BODY_DEPENDENT = new Set(['head', 'legs', 'tail', 'wings', 'vestigial']);
-    const CHAINED_TO_HEAD = new Set(['horns']);
+    const CHAINED_TO_HEAD = new Set(['horns', 'headspines']);
 
     const GHOST_BODY_FILES = {
       standard: ['body_stan_bf', 'body_stan_mf', 'body_stan_o'],
@@ -814,8 +830,8 @@
 
       filenames = [...new Set(filenames)];
       const ghostFiles = (batchName !== 'body') ? (GHOST_BODY_FILES[currentBodyType] || []) : [];
-      // Ghost head files for horns
-      const ghostHeadFiles = (batchName === 'horns') ? GHOST_HEAD_FILES : [];
+      // Ghost head files for horns and headspines
+      const ghostHeadFiles = (batchName === 'horns' || batchName === 'headspines') ? GHOST_HEAD_FILES : [];
       const allToLoad = [...new Set([...filenames, ...ghostFiles, ...ghostHeadFiles])];
       await Promise.all(allToLoad.map(f => loadImage(f)));
 
@@ -974,8 +990,20 @@
         }
       }
 
-      // Ghost head (for horns batch)
-      if (showGhost && currentBatch === 'horns') {
+      // Ghost body (for headspines batch)
+      if (showGhost && currentBatch === 'headspines') {
+        for (const gf of (GHOST_BODY_FILES[currentBodyType] || [])) {
+          const img = images[gf];
+          if (!img) continue;
+          const pos = layerOffsets[gf] || { x: 0, y: 0 };
+          ctx.save(); ctx.globalAlpha = 0.2;
+          ctx.drawImage(img, pos.x, pos.y);
+          ctx.restore();
+        }
+      }
+
+      // Ghost head (for horns and headspines batch)
+      if (showGhost && (currentBatch === 'horns' || currentBatch === 'headspines')) {
         const headGKey = 'head:' + currentBodyType;
         const headGPos = groupAnchors[headGKey] || { x: 0, y: 0 };
         for (const hf of GHOST_HEAD_FILES) {
@@ -1169,6 +1197,7 @@
       if (layer.id.startsWith('head_')) batchName = 'head';
       else if (layer.id.startsWith('tail_')) batchName = 'tail';
       else if (layer.id.startsWith('horns_')) batchName = 'horns';
+      else if (layer.id.startsWith('spinehead_')) batchName = 'headspines';
       else if (layer.id.includes('vest')) batchName = 'vestigial';
 
       const off = layerOffsets[layer.id] || { x: 0, y: 0 };

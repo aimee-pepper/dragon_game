@@ -288,8 +288,8 @@ const TAIL_FILENAMES = {
 // Head spine filenames per type/height (same type/height as body spines)
 const HEAD_SPINE_FILENAMES = {
   spike: { low: 'spinehead_spike_S', medium: 'spinehead_spike_M', tall: 'spinehead_spike_L' },
-  sail:  { low: null, medium: null, tall: null }, // no assets yet
-  ridge: { low: null, medium: null, tall: null },
+  sail:  { low: ['spinehead_sail_S_f', 'spinehead_sail_S_o'], medium: ['spinehead_sail_M_f', 'spinehead_sail_M_o'], tall: ['spinehead_sail_L_f', 'spinehead_sail_L_o'] },
+  ridge: { low: ['spinehead_ridge_S_f', 'spinehead_ridge_S_o'], medium: ['spinehead_ridge_M_f', 'spinehead_ridge_M_o'], tall: ['spinehead_ridge_L_f', 'spinehead_ridge_L_o'] },
 };
 
 const HEAD_FILENAME = 'head_f';
@@ -560,13 +560,18 @@ async function drawReferenceLayers() {
   await drawFillAndOutline(HEAD_FILENAME, 'head_o', headAnchor.x, headAnchor.y);
 
   // Head spines (anchored relative to head_o like horns)
-  const headSpineFile = HEAD_SPINE_FILENAMES[currentSpine]?.[currentHeight];
-  if (headSpineFile) {
-    const headSpineImg = await loadImage(headSpineFile);
-    if (headSpineImg) {
-      const headOAnchor = ANCHORS[`head_o:${currentBody}`] || { x: 0, y: 0 };
-      const spineAnchor = ANCHORS[headSpineFile] || { x: 0, y: 0 };
-      ctx.drawImage(headSpineImg, headOAnchor.x + spineAnchor.x, headOAnchor.y + spineAnchor.y);
+  const headSpineEntry = HEAD_SPINE_FILENAMES[currentSpine]?.[currentHeight];
+  if (headSpineEntry) {
+    // Entry is either a single filename string (spike) or an array of filenames (ridge/sail fill+outline)
+    const headSpineFiles = Array.isArray(headSpineEntry) ? headSpineEntry : [headSpineEntry];
+    const headOAnchor = ANCHORS[`head_o:${currentBody}`] || { x: 0, y: 0 };
+    // Use first file's anchor for positioning (all layers in a set share the same anchor)
+    const spineAnchor = ANCHORS[headSpineFiles[0]] || { x: 0, y: 0 };
+    const ax = headOAnchor.x + spineAnchor.x;
+    const ay = headOAnchor.y + spineAnchor.y;
+    for (const hsFile of headSpineFiles) {
+      const hsImg = await loadImage(hsFile);
+      if (hsImg) ctx.drawImage(hsImg, ax, ay);
     }
   }
 
