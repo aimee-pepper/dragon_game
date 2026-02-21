@@ -242,7 +242,12 @@
 
       <!-- Height Envelope Points -->
       <div class="panel-section" style="flex:1;display:flex;flex-direction:column;">
-        <h3>Envelope Points <span id="envelope-point-count" style="color:#8a7e72;font-weight:normal;">(2)</span></h3>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <h3 style="margin:0;flex:1;">Envelope Points <span id="envelope-point-count" style="color:#8a7e72;font-weight:normal;">(2)</span></h3>
+          <button id="btn-env-copy" class="secondary" style="font-size:10px;padding:2px 6px;">📋 Copy</button>
+          <button id="btn-env-paste" class="secondary" style="font-size:10px;padding:2px 6px;" disabled>📥 Paste</button>
+        </div>
+        <div id="env-cp-status" style="font-size:10px;color:#8a7e72;min-height:12px;"></div>
         <div class="spine-list" id="envelope-list"></div>
       </div>
 
@@ -1625,6 +1630,34 @@ cpPasteBtn.addEventListener('click', () => {
 
   cpStatus.style.color = '#6a9f5b';
   cpStatus.textContent = `Pasted from: ${clipboardSourceLabel}`;
+});
+
+// ── Envelope Copy / Paste ──
+let envClipboard = null;
+let envClipboardLabel = '';
+const envCpStatus = document.getElementById('env-cp-status');
+const envPasteBtn = document.getElementById('btn-env-paste');
+
+document.getElementById('btn-env-copy').addEventListener('click', () => {
+  if (heightControlPoints.length === 0) {
+    envCpStatus.textContent = 'No envelope points to copy';
+    envCpStatus.style.color = '#cc5555';
+    return;
+  }
+  envClipboard = JSON.parse(JSON.stringify(heightControlPoints));
+  envClipboardLabel = `${currentSpine} ${currentHeight} (${heightControlPoints.length} pts)`;
+  envPasteBtn.disabled = false;
+  envCpStatus.style.color = '#8a7e72';
+  envCpStatus.textContent = `Copied: ${envClipboardLabel}`;
+});
+
+envPasteBtn.addEventListener('click', () => {
+  if (!envClipboard) return;
+  heightControlPoints = JSON.parse(JSON.stringify(envClipboard));
+  saveAll();
+  render();
+  envCpStatus.style.color = '#6a9f5b';
+  envCpStatus.textContent = `Pasted from: ${envClipboardLabel}`;
 });
 
 // ── Migrate old storage keys ──
