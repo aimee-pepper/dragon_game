@@ -231,22 +231,10 @@
         </div>
       </div>
 
-      <!-- Spine Point List -->
+      <!-- Height Envelope Points -->
       <div class="panel-section" style="flex:1;display:flex;flex-direction:column;">
-        <h3>Spine Points <span id="spine-point-count" style="color:#8a7e72;font-weight:normal;">(0)</span></h3>
-        <div class="spine-list" id="spine-list"></div>
-        <div id="override-panel" style="display:none;">
-          <div class="override-row">
-            <label>Angle°</label>
-            <input type="number" id="override-angle" step="1" value="0">
-            <button class="secondary" id="btn-reset-angle" style="padding:3px 8px;">Reset</button>
-          </div>
-          <div class="override-row">
-            <label>Scale</label>
-            <input type="number" id="override-scale" step="0.05" value="1.0">
-            <button class="secondary" id="btn-reset-scale" style="padding:3px 8px;">Reset</button>
-          </div>
-        </div>
+        <h3>Envelope Points <span id="envelope-point-count" style="color:#8a7e72;font-weight:normal;">(2)</span></h3>
+        <div class="spine-list" id="envelope-list"></div>
       </div>
 
       <!-- Output -->
@@ -323,15 +311,15 @@ let spineCount = 10;
 let spineSpacing = 1.0;
 let spineScale = 1.0;
 let globalRotation = 0;    // degrees added to ALL spine angles
-let perSpineOverrides = {}; // { index: { angleDeg, scale } }
-let selectedSpineIdx = -1;
+let perSpineOverrides = {}; // legacy — kept for backwards compat with saved data
 
-// Height guide — an independent envelope curve controlling per-spine scale
-// Each height control point has a t (position along main curve, 0-1) and a
-// multiplier (scale factor: 1.0 = normal height, 0 = zero, 2.0 = double, etc.)
-// Default is two endpoints at multiplier 1.0. Spines linearly interpolate
-// between adjacent control points to get their individual scale multiplier.
-let heightControlPoints = [{ t: 0, mul: 1.0 }, { t: 1, mul: 1.0 }];
+// Height guide — an independent envelope curve controlling per-spine scale and rotation
+// Each height control point has:
+//   t   — position along main curve (0-1)
+//   mul — scale multiplier (1.0 = normal, 0 = zero, 2.0 = double)
+//   rot — additional rotation offset in degrees (0 = no extra rotation)
+// Spines linearly interpolate between adjacent control points.
+let heightControlPoints = [{ t: 0, mul: 1.0, rot: 0 }, { t: 1, mul: 1.0, rot: 0 }];
 let heightOffset = 60;       // Visual distance from main curve at mul=1.0 (sprite-space px)
 let showHeightGuide = true;
 let isDraggingHeightCP = -1; // index of height control point being dragged
@@ -364,11 +352,8 @@ const spineScaleSlider = document.getElementById('spine-scale');
 const spineScaleVal = document.getElementById('spine-scale-val');
 const globalRotSlider = document.getElementById('global-rotation');
 const globalRotVal = document.getElementById('global-rotation-val');
-const spineListEl = document.getElementById('spine-list');
-const spinePointCount = document.getElementById('spine-point-count');
-const overridePanel = document.getElementById('override-panel');
-const overrideAngle = document.getElementById('override-angle');
-const overrideScale = document.getElementById('override-scale');
+const envelopeListEl = document.getElementById('envelope-list');
+const envelopePointCount = document.getElementById('envelope-point-count');
 const outputText = document.getElementById('output-text');
 const heightOffsetSlider = document.getElementById('height-offset');
 const heightOffsetVal = document.getElementById('height-offset-val');
@@ -505,6 +490,27 @@ function sampleHeightMultiplier(t) {
   return 1.0;
 }
 
+// Sample the rotation offset from the envelope at a given t.
+function sampleHeightRotation(t) {
+  if (heightControlPoints.length === 0) return 0;
+  if (heightControlPoints.length === 1) return heightControlPoints[0].rot || 0;
+
+  if (t <= heightControlPoints[0].t) return heightControlPoints[0].rot || 0;
+  if (t >= heightControlPoints[heightControlPoints.length - 1].t) {
+    return heightControlPoints[heightControlPoints.length - 1].rot || 0;
+  }
+
+  for (let i = 1; i < heightControlPoints.length; i++) {
+    if (t <= heightControlPoints[i].t) {
+      const prev = heightControlPoints[i - 1];
+      const curr = heightControlPoints[i];
+      const frac = (t - prev.t) / (curr.t - prev.t);
+      return (prev.rot || 0) + ((curr.rot || 0) - (prev.rot || 0)) * frac;
+    }
+  }
+  return 0;
+}
+
 // Keep height control points sorted by t
 function sortHeightControlPoints() {
   heightControlPoints.sort((a, b) => a.t - b.t);
@@ -529,13 +535,11 @@ function computeSpinePositions() {
     const pt = catmullRomPoint(controlPoints, t);
     const tangentAngle = catmullRomTangentAngle(controlPoints, t);
 
-    // Default angle: perpendicular to curve (tangent - 90°) + global rotation offset
-    const defaultAngleDeg = (tangentAngle * 180 / Math.PI) - 90 + globalRotation;
+    // Default angle: perpendicular to curve (tangent - 90°) + global rotation + envelope rotation
+    const envelopeRot = sampleHeightRotation(t);
+    const angleDeg = (tangentAngle * 180 / Math.PI) - 90 + globalRotation + envelopeRot;
 
-    // Apply per-spine overrides (override replaces default entirely)
-    const override = perSpineOverrides[i] || {};
-    const angleDeg = override.angleDeg !== undefined ? override.angleDeg : defaultAngleDeg;
-    const baseScale = (override.scale !== undefined ? override.scale : 1.0) * spineScale;
+    const baseScale = spineScale;
 
     // Apply height envelope multiplier
     const heightMul = sampleHeightMultiplier(t);
@@ -570,8 +574,8 @@ async function render() {
   // Draw control points
   drawControlPoints();
 
-  // Update spine list
-  updateSpineList(positions);
+  // Update envelope list
+  updateEnvelopeList();
 
   // Update output
   updateOutput(positions);
@@ -706,12 +710,13 @@ function drawHeightGuide() {
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // Label with multiplier value
+    // Label with multiplier and rotation
     ctx.save();
     ctx.font = 'bold 10px monospace';
     ctx.fillStyle = '#dd99ff';
     ctx.textAlign = 'center';
-    ctx.fillText(hcp.mul.toFixed(2) + 'x', pt.x, pt.y - 10);
+    const rotLabel = (hcp.rot || 0) !== 0 ? ` ${Math.round(hcp.rot)}°` : '';
+    ctx.fillText(hcp.mul.toFixed(2) + 'x' + rotLabel, pt.x, pt.y - 10);
     ctx.restore();
   }
 }
@@ -805,9 +810,6 @@ async function drawSpineSprites(positions) {
 
 function drawSpineMarkers(positions) {
   for (const pos of positions) {
-    const isSelected = pos.idx === selectedSpineIdx;
-    const hasOverride = perSpineOverrides[pos.idx] !== undefined;
-
     ctx.save();
     ctx.translate(pos.x, pos.y);
     ctx.rotate(pos.angleDeg * Math.PI / 180);
@@ -817,21 +819,21 @@ function drawSpineMarkers(positions) {
     ctx.beginPath();
     ctx.moveTo(0, 0);
     ctx.lineTo(0, -len);
-    ctx.strokeStyle = isSelected ? '#ffffff' : (hasOverride ? '#cc8855' : SPINE_MARKER_COLOR);
-    ctx.lineWidth = isSelected ? 3 : 2;
+    ctx.strokeStyle = SPINE_MARKER_COLOR;
+    ctx.lineWidth = 2;
     ctx.stroke();
 
     // Draw marker dot
     ctx.beginPath();
-    ctx.arc(0, 0, isSelected ? 5 : 3, 0, Math.PI * 2);
-    ctx.fillStyle = isSelected ? '#ffffff' : (hasOverride ? '#cc8855' : SPINE_MARKER_COLOR);
+    ctx.arc(0, 0, 3, 0, Math.PI * 2);
+    ctx.fillStyle = SPINE_MARKER_COLOR;
     ctx.fill();
 
     // Index label
     ctx.restore();
     ctx.save();
     ctx.font = '10px monospace';
-    ctx.fillStyle = isSelected ? '#ffffff' : '#8a7e72';
+    ctx.fillStyle = '#8a7e72';
     ctx.textAlign = 'center';
     ctx.fillText(pos.idx, pos.x, pos.y + 16);
     ctx.restore();
@@ -874,37 +876,49 @@ function drawControlPoints() {
   }
 }
 
-// ── Spine List UI ──
-function updateSpineList(positions) {
-  spinePointCount.textContent = `(${positions.length})`;
-  spineListEl.innerHTML = '';
+// ── Envelope List UI ──
+function updateEnvelopeList() {
+  envelopePointCount.textContent = `(${heightControlPoints.length})`;
+  envelopeListEl.innerHTML = '';
 
-  for (const pos of positions) {
+  for (let i = 0; i < heightControlPoints.length; i++) {
+    const hcp = heightControlPoints[i];
     const item = document.createElement('div');
-    item.className = 'spine-item' + (pos.idx === selectedSpineIdx ? ' selected' : '');
+    item.className = 'spine-item';
+    item.style.flexWrap = 'wrap';
 
-    const hasOverride = perSpineOverrides[pos.idx] !== undefined;
+    const tPct = (hcp.t * 100).toFixed(0);
+    const isEndpoint = i === 0 || i === heightControlPoints.length - 1;
+
     item.innerHTML = `
-      <span class="idx">#${pos.idx}</span>
-      <span class="info">${Math.round(pos.x)}, ${Math.round(pos.y)}</span>
-      <span class="angle">${pos.angleDeg.toFixed(1)}°${hasOverride ? ' ✎' : ''}</span>
+      <span class="idx" style="color:#bb88dd;">#${i}</span>
+      <span class="info" style="min-width:50px;">t: ${tPct}%</span>
+      <span class="angle">${hcp.mul.toFixed(2)}x</span>
+      <div style="width:100%;display:flex;align-items:center;gap:6px;margin-top:2px;">
+        <label style="font-size:10px;color:#8a7e72;min-width:28px;">Rot</label>
+        <input type="range" min="-180" max="180" step="1" value="${Math.round(hcp.rot || 0)}"
+               style="flex:1;accent-color:#bb88dd;height:3px;" data-hcp-rot="${i}">
+        <span style="font-size:10px;color:#d4cdc4;font-family:monospace;min-width:32px;text-align:right;"
+              data-hcp-rot-val="${i}">${Math.round(hcp.rot || 0)}°</span>
+      </div>
     `;
 
-    item.addEventListener('click', () => {
-      selectedSpineIdx = pos.idx;
-      showOverridePanel(pos);
-      render();
-    });
-
-    spineListEl.appendChild(item);
+    envelopeListEl.appendChild(item);
   }
-}
 
-function showOverridePanel(pos) {
-  overridePanel.style.display = 'block';
-  const override = perSpineOverrides[pos.idx] || {};
-  overrideAngle.value = override.angleDeg !== undefined ? override.angleDeg : Math.round(pos.angleDeg);
-  overrideScale.value = override.scale !== undefined ? override.scale : 1.0;
+  // Attach slider handlers (after DOM insertion)
+  for (let i = 0; i < heightControlPoints.length; i++) {
+    const slider = envelopeListEl.querySelector(`[data-hcp-rot="${i}"]`);
+    const valSpan = envelopeListEl.querySelector(`[data-hcp-rot-val="${i}"]`);
+    if (slider) {
+      slider.addEventListener('input', () => {
+        heightControlPoints[i].rot = parseInt(slider.value);
+        valSpan.textContent = slider.value + '°';
+        render();
+      });
+      slider.addEventListener('change', saveAll);
+    }
+  }
 }
 
 // ── Output Generation ──
@@ -987,7 +1001,7 @@ function restorePath(seedFrom) {
     heightOffset = data.heightOffset || 60;
     globalRotation = data.globalRotation || 0;
     perSpineOverrides = data.perSpineOverrides || {};
-    heightControlPoints = data.heightControlPoints || [{ t: 0, mul: 1.0 }, { t: 1, mul: 1.0 }];
+    heightControlPoints = data.heightControlPoints || [{ t: 0, mul: 1.0, rot: 0 }, { t: 1, mul: 1.0, rot: 0 }];
   } else if (seedFrom) {
     // No saved path — seed from current working path (deep copy)
     controlPoints = seedFrom.controlPoints.map(p => ({ x: p.x, y: p.y }));
@@ -997,12 +1011,12 @@ function restorePath(seedFrom) {
     heightOffset = seedFrom.heightOffset;
     globalRotation = seedFrom.globalRotation || 0;
     perSpineOverrides = JSON.parse(JSON.stringify(seedFrom.perSpineOverrides));
-    heightControlPoints = JSON.parse(JSON.stringify(seedFrom.heightControlPoints || [{ t: 0, mul: 1.0 }, { t: 1, mul: 1.0 }]));
+    heightControlPoints = JSON.parse(JSON.stringify(seedFrom.heightControlPoints || [{ t: 0, mul: 1.0, rot: 0 }, { t: 1, mul: 1.0, rot: 0 }]));
   } else {
     // No saved path, no seed — blank
     controlPoints = [];
     perSpineOverrides = {};
-    heightControlPoints = [{ t: 0, mul: 1.0 }, { t: 1, mul: 1.0 }];
+    heightControlPoints = [{ t: 0, mul: 1.0, rot: 0 }, { t: 1, mul: 1.0, rot: 0 }];
     globalRotation = 0;
   }
   // Restore sliders to match loaded/seeded state
@@ -1016,8 +1030,6 @@ function restorePath(seedFrom) {
   heightOffsetVal.textContent = Math.round(heightOffset);
   globalRotSlider.value = globalRotation;
   globalRotVal.textContent = globalRotation + '°';
-  selectedSpineIdx = -1;
-  overridePanel.style.display = 'none';
   render();
 }
 
@@ -1108,13 +1120,6 @@ canvas.addEventListener('mousedown', (e) => {
     const idx = findPointAt(x, y);
     if (idx >= 0) {
       controlPoints.splice(idx, 1);
-      // Remap overrides
-      const newOverrides = {};
-      for (const [k, v] of Object.entries(perSpineOverrides)) {
-        const ki = parseInt(k);
-        if (ki < spineCount) newOverrides[ki] = v;
-      }
-      perSpineOverrides = newOverrides;
       render();
     }
     e.preventDefault();
@@ -1165,7 +1170,8 @@ canvas.addEventListener('mousedown', (e) => {
     if (isNearHeightGuide(x, y)) {
       const t = nearestTForPoint(x, y);
       const mul = sampleHeightMultiplier(t); // start at the current interpolated value
-      heightControlPoints.push({ t, mul });
+      const rot = sampleHeightRotation(t); // start at current interpolated rotation
+      heightControlPoints.push({ t, mul, rot });
       sortHeightControlPoints();
       // Find the new point's index and start dragging it
       const newIdx = heightControlPoints.findIndex(p => p.t === t && p.mul === mul);
@@ -1390,57 +1396,16 @@ showHeightGuideCheckbox.addEventListener('change', () => {
   render();
 });
 
-// ── Override Handlers ──
-overrideAngle.addEventListener('input', () => {
-  if (selectedSpineIdx < 0) return;
-  if (!perSpineOverrides[selectedSpineIdx]) perSpineOverrides[selectedSpineIdx] = {};
-  perSpineOverrides[selectedSpineIdx].angleDeg = parseFloat(overrideAngle.value) || 0;
-  render();
-});
-overrideAngle.addEventListener('change', saveAll);
-
-overrideScale.addEventListener('input', () => {
-  if (selectedSpineIdx < 0) return;
-  if (!perSpineOverrides[selectedSpineIdx]) perSpineOverrides[selectedSpineIdx] = {};
-  perSpineOverrides[selectedSpineIdx].scale = parseFloat(overrideScale.value) || 1.0;
-  render();
-});
-overrideScale.addEventListener('change', saveAll);
-
-document.getElementById('btn-reset-angle').addEventListener('click', () => {
-  if (selectedSpineIdx < 0) return;
-  if (perSpineOverrides[selectedSpineIdx]) {
-    delete perSpineOverrides[selectedSpineIdx].angleDeg;
-    if (Object.keys(perSpineOverrides[selectedSpineIdx]).length === 0) {
-      delete perSpineOverrides[selectedSpineIdx];
-    }
-  }
-  render();
-  saveAll();
-});
-
-document.getElementById('btn-reset-scale').addEventListener('click', () => {
-  if (selectedSpineIdx < 0) return;
-  if (perSpineOverrides[selectedSpineIdx]) {
-    delete perSpineOverrides[selectedSpineIdx].scale;
-    if (Object.keys(perSpineOverrides[selectedSpineIdx]).length === 0) {
-      delete perSpineOverrides[selectedSpineIdx];
-    }
-  }
-  render();
-  saveAll();
-});
+// (Per-spine overrides removed — rotation now controlled via envelope points)
 
 // ── Action Buttons ──
 document.getElementById('btn-clear-path').addEventListener('click', () => {
   controlPoints = [];
   perSpineOverrides = {};
-  heightControlPoints = [{ t: 0, mul: 1.0 }, { t: 1, mul: 1.0 }];
+  heightControlPoints = [{ t: 0, mul: 1.0, rot: 0 }, { t: 1, mul: 1.0, rot: 0 }];
   globalRotation = 0;
   globalRotSlider.value = 0;
   globalRotVal.textContent = '0°';
-  selectedSpineIdx = -1;
-  overridePanel.style.display = 'none';
   render();
   saveAll();
 });
