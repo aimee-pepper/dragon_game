@@ -319,7 +319,7 @@ let perSpineOverrides = {}; // legacy — kept for backwards compat with saved d
 //   mul — scale multiplier (1.0 = normal, 0 = zero, 2.0 = double)
 //   rot — additional rotation offset in degrees (0 = no extra rotation)
 // Spines linearly interpolate between adjacent control points.
-let heightControlPoints = [{ t: 0, mul: 1.0, rot: 0, wid: 1.0 }, { t: 1, mul: 1.0, rot: 0, wid: 1.0 }];
+let heightControlPoints = [{ t: 0, mul: 1.0, rot: 0, wid: 1.0, spc: 1.0 }, { t: 1, mul: 1.0, rot: 0, wid: 1.0, spc: 1.0 }];
 let heightOffset = 60;       // Visual distance from main curve at mul=1.0 (sprite-space px)
 let showHeightGuide = true;
 let isDraggingHeightCP = -1; // index of height control point being dragged
@@ -533,12 +533,34 @@ function sampleHeightWidth(t) {
   return 0;
 }
 
+function sampleHeightSpacing(t) {
+  if (heightControlPoints.length === 0) return 1.0;
+  if (heightControlPoints.length === 1) return heightControlPoints[0].spc ?? 1.0;
+
+  const spc0 = heightControlPoints[0].spc ?? 1.0;
+  if (t <= heightControlPoints[0].t) return spc0;
+  const spcLast = heightControlPoints[heightControlPoints.length - 1].spc ?? 1.0;
+  if (t >= heightControlPoints[heightControlPoints.length - 1].t) return spcLast;
+
+  for (let i = 1; i < heightControlPoints.length; i++) {
+    if (t <= heightControlPoints[i].t) {
+      const prev = heightControlPoints[i - 1];
+      const curr = heightControlPoints[i];
+      const frac = (t - prev.t) / (curr.t - prev.t);
+      const prevS = prev.spc ?? 1.0;
+      const currS = curr.spc ?? 1.0;
+      return prevS + (currS - prevS) * frac;
+    }
+  }
+  return 1.0;
+}
+
 // Keep height control points sorted by t
 function sortHeightControlPoints() {
   heightControlPoints.sort((a, b) => a.t - b.t);
 }
 
-// Distribute spines along the curve, tightening gaps where width is narrower
+// Distribute spines along the curve with envelope-based spacing
 function computeSpinePositions() {
   if (controlPoints.length < 2) return [];
 
@@ -548,28 +570,25 @@ function computeSpinePositions() {
 
   const baseGap = (totalLength / (spineCount - 1)) * spineSpacing;
 
-  // Pre-sample width at each uniform position to compute width-adjusted gaps.
-  // Each gap between spine i and i+1 is scaled by the average width of those two spines.
+  // Pre-sample envelope spacing at each uniform position to compute gap weights.
   const uniformDists = [];
   for (let i = 0; i < spineCount; i++) {
     uniformDists.push(i * baseGap);
   }
-  // Sample width at each uniform t
-  const uniformWidths = uniformDists.map(d => {
+  const uniformSpacings = uniformDists.map(d => {
     const t = tAtArcLength(arcData, Math.max(0, Math.min(totalLength, d)));
-    return sampleHeightWidth(t);
+    return sampleHeightSpacing(t);
   });
-  // Compute width-scaled gap weights
+  // Each gap is weighted by the average spacing of the two adjacent spines
   const gapWeights = [];
   for (let i = 0; i < spineCount - 1; i++) {
-    gapWeights.push((uniformWidths[i] + uniformWidths[i + 1]) / 2);
+    gapWeights.push((uniformSpacings[i] + uniformSpacings[i + 1]) / 2);
   }
   const totalWeight = gapWeights.reduce((a, b) => a + b, 0) || 1;
-  // Total span stays the same, but individual gaps are redistributed by width
   const totalSpan = baseGap * (spineCount - 1);
   const startOffset = (totalLength - totalSpan) / 2;
 
-  // Place spines with width-adjusted spacing
+  // Place spines with envelope-adjusted spacing
   let cumulativeDist = startOffset;
   for (let i = 0; i < spineCount; i++) {
     const dist = Math.max(0, Math.min(totalLength, cumulativeDist));
@@ -592,7 +611,7 @@ function computeSpinePositions() {
 
     positions.push({ x: pt.x, y: pt.y, angleDeg, scale, widthMul, t, idx: i, heightMul });
 
-    // Next gap scaled by width weight (narrower → smaller gap)
+    // Next gap scaled by envelope spacing weight
     if (i < spineCount - 1) {
       cumulativeDist += totalSpan * (gapWeights[i] / totalWeight);
     }
@@ -941,7 +960,7 @@ function updateEnvelopeList() {
         <span class="idx" style="color:#bb88dd;">#${i}</span>
         <span class="info" style="min-width:50px;">t: ${tPct}%</span>
         <span class="angle" style="flex:1;">${hcp.mul.toFixed(2)}x</span>
-        <button data-hcp-reset="${i}" style="background:none;border:1px solid #555;color:#8a7e72;border-radius:3px;cursor:pointer;font-size:11px;padding:1px 5px;" title="Reset rot & wid to defaults">↺</button>
+        <button data-hcp-reset="${i}" style="background:none;border:1px solid #555;color:#8a7e72;border-radius:3px;cursor:pointer;font-size:11px;padding:1px 5px;" title="Reset to defaults">↺</button>
       </div>
       <div style="width:100%;display:flex;align-items:center;gap:6px;margin-top:2px;">
         <label style="font-size:10px;color:#8a7e72;min-width:28px;">Rot</label>
@@ -956,6 +975,13 @@ function updateEnvelopeList() {
                style="flex:1;accent-color:#bb88dd;height:3px;" data-hcp-wid="${i}">
         <span style="font-size:10px;color:#d4cdc4;font-family:monospace;min-width:32px;text-align:right;"
               data-hcp-wid-val="${i}">${(hcp.wid ?? 1.0).toFixed(2)}x</span>
+      </div>
+      <div style="width:100%;display:flex;align-items:center;gap:6px;margin-top:2px;">
+        <label style="font-size:10px;color:#8a7e72;min-width:28px;">Spc</label>
+        <input type="range" min="0.1" max="3" step="0.05" value="${(hcp.spc ?? 1.0).toFixed(2)}"
+               style="flex:1;accent-color:#bb88dd;height:3px;" data-hcp-spc="${i}">
+        <span style="font-size:10px;color:#d4cdc4;font-family:monospace;min-width:32px;text-align:right;"
+              data-hcp-spc-val="${i}">${(hcp.spc ?? 1.0).toFixed(2)}x</span>
       </div>
     `;
 
@@ -986,11 +1012,23 @@ function updateEnvelopeList() {
       widSlider.addEventListener('change', saveAll);
     }
 
+    const spcSlider = envelopeListEl.querySelector(`[data-hcp-spc="${i}"]`);
+    const spcValSpan = envelopeListEl.querySelector(`[data-hcp-spc-val="${i}"]`);
+    if (spcSlider) {
+      spcSlider.addEventListener('input', () => {
+        heightControlPoints[i].spc = parseFloat(spcSlider.value);
+        spcValSpan.textContent = parseFloat(spcSlider.value).toFixed(2) + 'x';
+        render();
+      });
+      spcSlider.addEventListener('change', saveAll);
+    }
+
     const resetBtn = envelopeListEl.querySelector(`[data-hcp-reset="${i}"]`);
     if (resetBtn) {
       resetBtn.addEventListener('click', () => {
         heightControlPoints[i].rot = 0;
         heightControlPoints[i].wid = 1.0;
+        heightControlPoints[i].spc = 1.0;
         heightControlPoints[i].mul = 1.0;
         saveAll();
         render();
@@ -1055,7 +1093,7 @@ function saveAll() {
     controlPoints: controlPoints.map(p => ({ x: Math.round(p.x), y: Math.round(p.y) })),
     spineCount, spineSpacing, spineScale, heightOffset, globalRotation,
     perSpineOverrides: { ...perSpineOverrides },
-    heightControlPoints: heightControlPoints.map(p => ({ t: p.t, mul: p.mul, rot: p.rot || 0, wid: p.wid ?? 1.0 })),
+    heightControlPoints: heightControlPoints.map(p => ({ t: p.t, mul: p.mul, rot: p.rot || 0, wid: p.wid ?? 1.0, spc: p.spc ?? 1.0 })),
     spineType: currentSpine,
     spineHeight: currentHeight,
   };
@@ -1082,7 +1120,7 @@ function restorePath(seedFrom) {
     heightOffset = data.heightOffset || 60;
     globalRotation = data.globalRotation || 0;
     perSpineOverrides = data.perSpineOverrides || {};
-    heightControlPoints = data.heightControlPoints || [{ t: 0, mul: 1.0, rot: 0, wid: 1.0 }, { t: 1, mul: 1.0, rot: 0, wid: 1.0 }];
+    heightControlPoints = data.heightControlPoints || [{ t: 0, mul: 1.0, rot: 0, wid: 1.0, spc: 1.0 }, { t: 1, mul: 1.0, rot: 0, wid: 1.0, spc: 1.0 }];
   } else if (seedFrom) {
     // No saved path — seed from current working path (deep copy)
     controlPoints = seedFrom.controlPoints.map(p => ({ x: p.x, y: p.y }));
@@ -1092,12 +1130,12 @@ function restorePath(seedFrom) {
     heightOffset = seedFrom.heightOffset;
     globalRotation = seedFrom.globalRotation || 0;
     perSpineOverrides = JSON.parse(JSON.stringify(seedFrom.perSpineOverrides));
-    heightControlPoints = JSON.parse(JSON.stringify(seedFrom.heightControlPoints || [{ t: 0, mul: 1.0, rot: 0, wid: 1.0 }, { t: 1, mul: 1.0, rot: 0, wid: 1.0 }]));
+    heightControlPoints = JSON.parse(JSON.stringify(seedFrom.heightControlPoints || [{ t: 0, mul: 1.0, rot: 0, wid: 1.0, spc: 1.0 }, { t: 1, mul: 1.0, rot: 0, wid: 1.0, spc: 1.0 }]));
   } else {
     // No saved path, no seed — blank
     controlPoints = [];
     perSpineOverrides = {};
-    heightControlPoints = [{ t: 0, mul: 1.0, rot: 0, wid: 1.0 }, { t: 1, mul: 1.0, rot: 0, wid: 1.0 }];
+    heightControlPoints = [{ t: 0, mul: 1.0, rot: 0, wid: 1.0, spc: 1.0 }, { t: 1, mul: 1.0, rot: 0, wid: 1.0, spc: 1.0 }];
     globalRotation = 0;
   }
   // Restore sliders to match loaded/seeded state
@@ -1253,7 +1291,8 @@ canvas.addEventListener('mousedown', (e) => {
       const mul = sampleHeightMultiplier(t); // start at the current interpolated value
       const rot = sampleHeightRotation(t); // start at current interpolated rotation
       const wid = sampleHeightWidth(t); // start at current interpolated width
-      heightControlPoints.push({ t, mul, rot, wid });
+      const spc = sampleHeightSpacing(t); // start at current interpolated spacing
+      heightControlPoints.push({ t, mul, rot, wid, spc });
       sortHeightControlPoints();
       // Find the new point's index and start dragging it
       const newIdx = heightControlPoints.findIndex(p => p.t === t && p.mul === mul);
@@ -1486,7 +1525,7 @@ showHeightGuideCheckbox.addEventListener('change', () => {
 document.getElementById('btn-clear-path').addEventListener('click', () => {
   controlPoints = [];
   perSpineOverrides = {};
-  heightControlPoints = [{ t: 0, mul: 1.0, rot: 0, wid: 1.0 }, { t: 1, mul: 1.0, rot: 0, wid: 1.0 }];
+  heightControlPoints = [{ t: 0, mul: 1.0, rot: 0, wid: 1.0, spc: 1.0 }, { t: 1, mul: 1.0, rot: 0, wid: 1.0, spc: 1.0 }];
   globalRotation = 0;
   globalRotSlider.value = 0;
   globalRotVal.textContent = '0°';
@@ -1519,7 +1558,7 @@ document.getElementById('btn-copy-curve').addEventListener('click', () => {
     controlPoints: controlPoints.map(p => ({ x: Math.round(p.x), y: Math.round(p.y) })),
     spineCount, spineSpacing, spineScale, heightOffset, globalRotation,
     perSpineOverrides: { ...perSpineOverrides },
-    heightControlPoints: heightControlPoints.map(p => ({ t: p.t, mul: p.mul, rot: p.rot || 0, wid: p.wid ?? 1.0 })),
+    heightControlPoints: heightControlPoints.map(p => ({ t: p.t, mul: p.mul, rot: p.rot || 0, wid: p.wid ?? 1.0, spc: p.spc ?? 1.0 })),
     spineType: currentSpine,
     spineHeight: currentHeight,
   };
