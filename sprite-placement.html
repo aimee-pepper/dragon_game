@@ -421,7 +421,11 @@
       if (tailMatch) return tailMatch[1];
       const hornMatch = layerId.match(/^(horns_[fb]g_\w+_\w+)_[fo]$/);
       if (hornMatch) return hornMatch[1];
-      if (layerId.startsWith('spinehead_')) return 'spines';
+      if (layerId.startsWith('spinehead_')) {
+        // Group by size variant: spinehead_ridge_S_f + _o → spinehead_ridge_S
+        const spineMatch = layerId.match(/^(spinehead_\w+_[SML])(?:_[fo])?$/);
+        return spineMatch ? spineMatch[1] : layerId;
+      }
       if (layerId.includes('vest')) {
         return layerId.includes('_bg_') ? 'vest_bg' : 'vest_fg';
       }
