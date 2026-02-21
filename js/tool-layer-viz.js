@@ -67,13 +67,27 @@ function hslToRgb(h, s, l) {
   return { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255) };
 }
 
-/** Detect red outline marker pixels (threshold-based). */
+/**
+ * Measure how "red-outline-like" a pixel is, returning 0.0–1.0.
+ * Pure red markers score 1.0. Grey pixels score ~0.0.
+ * Anti-aliased edge pixels score in between.
+ */
+function redAmount(r, g, b) {
+  const total = r + g + b;
+  if (total === 0) return 0;
+  const ratio = r / total;
+  return Math.max(0, Math.min(1, (ratio - 0.45) / 0.30));
+}
+
+/** Binary red outline check using soft redAmount with 50% threshold. */
 function isRedOutline(r, g, b) {
-  return r >= 200 && g <= 50 && b <= 50;
+  return redAmount(r, g, b) >= 0.5;
 }
 
 /**
  * Apply color blend with adjustable HSL overrides, skipping red outline markers.
+ * When skipRed=true, partially-red pixels are desaturated proportionally
+ * before blending to prevent red haloing in fills.
  */
 function applyColorBlendHSL(imageData, dragonHsl, luminanceShift, hslOverrides = {}, skipRed = false) {
   const hShift = hslOverrides.hShift || 0;
@@ -82,8 +96,22 @@ function applyColorBlendHSL(imageData, dragonHsl, luminanceShift, hslOverrides =
   const data = imageData.data;
   for (let i = 0; i < data.length; i += 4) {
     if (data[i + 3] === 0) continue;
-    if (skipRed && isRedOutline(data[i], data[i + 1], data[i + 2])) continue;
-    const artHsl = rgbToHsl(data[i], data[i + 1], data[i + 2]);
+
+    let r = data[i], g = data[i + 1], b = data[i + 2];
+
+    if (skipRed) {
+      const rAmt = redAmount(r, g, b);
+      if (rAmt >= 1.0) continue; // pure red → skip
+      if (rAmt > 0) {
+        // Desaturate red tint proportionally before blending
+        const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+        r = Math.round(r + (lum - r) * rAmt);
+        g = Math.round(g + (lum - g) * rAmt);
+        b = Math.round(b + (lum - b) * rAmt);
+      }
+    }
+
+    const artHsl = rgbToHsl(r, g, b);
     const targetH = ((dragonHsl.h + hShift) % 1 + 1) % 1;
     const targetS = Math.max(0, Math.min(1, dragonHsl.s + sShift));
     const targetL = Math.max(0, Math.min(1, artHsl.l + luminanceShift + lShift));
@@ -109,9 +137,22 @@ function splitRedOutlines(srcData) {
   const fd = fillData.data, od = outlineData.data, sd = srcData.data;
   for (let i = 0; i < sd.length; i += 4) {
     if (sd[i + 3] === 0) continue;
-    if (isRedOutline(sd[i], sd[i + 1], sd[i + 2])) {
-      od[i] = sd[i]; od[i+1] = sd[i+1]; od[i+2] = sd[i+2]; od[i+3] = sd[i+3];
-      fd[i + 3] = 0;
+    const rAmt = redAmount(sd[i], sd[i + 1], sd[i + 2]);
+    if (rAmt <= 0) continue;
+
+    // Outline: copy pixel, scale alpha by redness
+    od[i] = sd[i]; od[i+1] = sd[i+1]; od[i+2] = sd[i+2];
+    od[i+3] = Math.round(sd[i+3] * rAmt);
+
+    // Fill: desaturate red tint, gentle fade
+    if (rAmt >= 1.0) {
+      fd[i+3] = 0;
+    } else {
+      const lum = 0.299 * sd[i] + 0.587 * sd[i+1] + 0.114 * sd[i+2];
+      fd[i]   = Math.round(sd[i] + (lum - sd[i]) * rAmt);
+      fd[i+1] = Math.round(sd[i+1] + (lum - sd[i+1]) * rAmt);
+      fd[i+2] = Math.round(sd[i+2] + (lum - sd[i+2]) * rAmt);
+      fd[i+3] = Math.round(sd[i+3] * (1 - rAmt * 0.5));
     }
   }
   return { fillData, outlineData };
@@ -131,7 +172,17 @@ function removeRed(imgData) {
   const d = imgData.data;
   for (let i = 0; i < d.length; i += 4) {
     if (d[i + 3] === 0) continue;
-    if (isRedOutline(d[i], d[i + 1], d[i + 2])) d[i + 3] = 0;
+    const rAmt = redAmount(d[i], d[i + 1], d[i + 2]);
+    if (rAmt <= 0) continue;
+    if (rAmt >= 1.0) {
+      d[i + 3] = 0;
+    } else {
+      const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+      d[i]     = Math.round(d[i] + (lum - d[i]) * rAmt);
+      d[i + 1] = Math.round(d[i + 1] + (lum - d[i + 1]) * rAmt);
+      d[i + 2] = Math.round(d[i + 2] + (lum - d[i + 2]) * rAmt);
+      d[i + 3] = Math.round(d[i + 3] * (1 - rAmt * 0.5));
+    }
   }
 }
 
@@ -139,7 +190,12 @@ function keepOnlyRed(imgData) {
   const d = imgData.data;
   for (let i = 0; i < d.length; i += 4) {
     if (d[i + 3] === 0) continue;
-    if (!isRedOutline(d[i], d[i + 1], d[i + 2])) d[i + 3] = 0;
+    const rAmt = redAmount(d[i], d[i + 1], d[i + 2]);
+    if (rAmt <= 0) {
+      d[i + 3] = 0;
+    } else if (rAmt < 1.0) {
+      d[i + 3] = Math.round(d[i + 3] * rAmt);
+    }
   }
 }
 
@@ -398,12 +454,36 @@ function renderBaseLayer(processedLayers, dragonHsl, hslOverrides) {
   return c;
 }
 
-// ── Render Injected Outlines: composite all → keep red → grey → L2 blend ──
+// ── Render Injected Outlines: extract red per-asset FIRST, then composite ──
+// Per-asset extraction ensures fills don't occlude outlines from other assets.
 function renderInjectedOutlines(processedLayers, dragonHsl, dragonRgb, hslOverrides) {
-  const raw = compositeLayersRaw(processedLayers, dragonHsl, hslOverrides);
-  keepOnlyRed(raw);
+  const w = SPRITE_WIDTH, h = SPRITE_HEIGHT;
+  const comp = document.createElement('canvas');
+  comp.width = w; comp.height = h;
+  const compCtx = comp.getContext('2d');
+
+  const assetCanvas = document.createElement('canvas');
+  assetCanvas.width = w; assetCanvas.height = h;
+  const assetCtx = assetCanvas.getContext('2d');
+
+  for (const layer of processedLayers) {
+    if (layer.isFixedDetail) continue;
+    // Draw single asset
+    assetCtx.clearRect(0, 0, w, h);
+    const colored = recolorLayer(layer, dragonHsl, hslOverrides);
+    drawToCanvas(assetCtx, colored, layer);
+    // Extract only red from this asset
+    const imgData = assetCtx.getImageData(0, 0, w, h);
+    keepOnlyRed(imgData);
+    assetCtx.putImageData(imgData, 0, 0);
+    // Composite onto shared canvas
+    compCtx.drawImage(assetCanvas, 0, 0);
+  }
+
+  // Now convert red → grey → L2 blend
+  const raw = compCtx.getImageData(0, 0, w, h);
   redToGrey(raw);
-  // Apply Layer 2 blend with sat/lum corrections + any HSL overrides
+
   const satCorr = LAYER2_OUTLINE_CORRECTION.saturationShift;
   const lumCorr = LAYER2_OUTLINE_CORRECTION.luminanceShift;
   const baseLum = COLOR_ADJUSTMENTS.darken.luminanceShift;
@@ -420,9 +500,12 @@ function renderInjectedOutlines(processedLayers, dragonHsl, dragonRgb, hslOverri
     const result = hslToRgb(targetH, targetS, targetL);
     d[i] = result.r; d[i+1] = result.g; d[i+2] = result.b;
   }
+
   const c = document.createElement('canvas');
-  c.width = SPRITE_WIDTH; c.height = SPRITE_HEIGHT;
+  c.width = w; c.height = h;
   c.getContext('2d').putImageData(raw, 0, 0);
+  assetCanvas.width = 0; assetCanvas.height = 0;
+  comp.width = 0; comp.height = 0;
   return c;
 }
 

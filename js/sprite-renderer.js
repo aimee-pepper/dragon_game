@@ -254,20 +254,39 @@ function applyColorBlend(imageData, dragonRgb, luminanceShift = 0) {
 }
 
 /**
- * Detect red outline marker pixels.
- * Uses a threshold rather than exact R=255,G=0,B=0 because canvas alpha
- * compositing can slightly blend red markers with underlying pixels,
- * producing near-red values like R=254,G=1,B=1.
- * Threshold: R >= 200, G <= 50, B <= 50.
+ * Measure how "red-outline-like" a pixel is, returning 0.0–1.0.
+ * Uses the ratio of red to total RGB brightness. Pure red markers
+ * (R=255, G=0, B=0) score 1.0. Grey pixels score ~0.33. Anti-aliased
+ * edge pixels between red outlines and grey fills score in between.
+ *
+ * Pixels above ~50% red ratio are considered outline-dominant.
+ * The soft zone (roughly 40-60% red ratio) is claimed by BOTH the
+ * outline and fill passes to prevent haloing at edges.
+ *
+ * Returns 0.0 for non-red pixels, 1.0 for pure red, smooth ramp between.
+ */
+function redAmount(r, g, b) {
+  const total = r + g + b;
+  if (total === 0) return 0;
+  const ratio = r / total; // 0.33 for grey, 1.0 for pure red
+  // Ramp from 0 at ratio=0.45 to 1 at ratio=0.75
+  // This captures anti-aliased edge pixels in the overlap zone
+  return Math.max(0, Math.min(1, (ratio - 0.45) / 0.30));
+}
+
+/**
+ * Binary red outline check (kept for backward compat in simple paths).
+ * Uses the soft redAmount with a 50% threshold.
  */
 function isRedOutline(r, g, b) {
-  return r >= 200 && g <= 50 && b <= 50;
+  return redAmount(r, g, b) >= 0.5;
 }
 
 /**
  * Apply color blend to greyscale pixel data, skipping red outline markers.
- * Red pixels are outline markers that get extracted later during compositing
- * — they pass through untouched here.
+ * Pure red pixels pass through untouched. Partially-red pixels (anti-aliased
+ * edges) are desaturated proportionally — the red tint is neutralized to
+ * grey before color blending, so they blend smoothly into fills.
  */
 function applyColorBlendSkipRed(imageData, dragonRgb, luminanceShift = 0) {
   const dragonHsl = rgbToHsl(dragonRgb.r, dragonRgb.g, dragonRgb.b);
@@ -277,14 +296,24 @@ function applyColorBlendSkipRed(imageData, dragonRgb, luminanceShift = 0) {
     const a = data[i + 3];
     if (a === 0) continue;
 
-    // Skip red outline markers
-    if (isRedOutline(data[i], data[i + 1], data[i + 2])) continue;
+    const r = data[i], g = data[i + 1], b = data[i + 2];
+    const rAmt = redAmount(r, g, b);
 
-    const artR = data[i];
-    const artG = data[i + 1];
-    const artB = data[i + 2];
+    // Fully red → skip entirely (outline marker)
+    if (rAmt >= 1.0) continue;
+
+    // For partially-red pixels, desaturate the red tint before blending.
+    // Convert to luminance-equivalent grey, then color-blend that.
+    let artR = r, artG = g, artB = b;
+    if (rAmt > 0) {
+      // Neutralize the red tint: blend toward the pixel's luminance grey
+      const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+      artR = Math.round(r + (lum - r) * rAmt);
+      artG = Math.round(g + (lum - g) * rAmt);
+      artB = Math.round(b + (lum - b) * rAmt);
+    }
+
     const artHsl = rgbToHsl(artR, artG, artB);
-
     let targetL = artHsl.l + luminanceShift;
     targetL = Math.max(0, Math.min(1, targetL));
 
@@ -702,11 +731,11 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     return imgData;
   }
 
-  // ── Utility: split ImageData into fills-only and outlines-only ──
-  // Red-ish pixels (detected by isRedOutline threshold) → outline.
-  // Everything else → fill. Because layers are composited in z-order,
-  // fills naturally paint over outlines beneath, so only surface-visible
-  // outlines remain red.
+  // ── Utility: soft-split ImageData into fills and outlines ──
+  // Uses redAmount() ratio for soft extraction. Both layers claim the
+  // anti-aliased overlap zone to prevent haloing:
+  //   - Outlines: red pixels at full strength, edge pixels proportionally
+  //   - Fills: non-red at full strength, edge pixels desaturated + kept
   function splitRedOutlines(srcData) {
     const w = srcData.width;
     const h = srcData.height;
@@ -718,13 +747,26 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
 
     for (let i = 0; i < sd.length; i += 4) {
       if (sd[i + 3] === 0) continue;
-      if (isRedOutline(sd[i], sd[i + 1], sd[i + 2])) {
-        // Red pixel → outline layer, remove from fill layer
-        od[i]     = sd[i];
-        od[i + 1] = sd[i + 1];
-        od[i + 2] = sd[i + 2];
-        od[i + 3] = sd[i + 3];
-        fd[i + 3] = 0; // transparent in fill layer
+      const rAmt = redAmount(sd[i], sd[i + 1], sd[i + 2]);
+
+      if (rAmt <= 0) continue; // pure fill — already in fillData, nothing for outline
+
+      // Outline layer: copy pixel, scale alpha by redness
+      od[i]     = sd[i];
+      od[i + 1] = sd[i + 1];
+      od[i + 2] = sd[i + 2];
+      od[i + 3] = Math.round(sd[i + 3] * rAmt);
+
+      // Fill layer: desaturate the red tint, scale alpha by (1 - redness)
+      if (rAmt >= 1.0) {
+        fd[i + 3] = 0; // pure red → fully removed from fill
+      } else {
+        // Neutralize red tint toward luminance grey
+        const lum = 0.299 * sd[i] + 0.587 * sd[i + 1] + 0.114 * sd[i + 2];
+        fd[i]     = Math.round(sd[i] + (lum - sd[i]) * rAmt);
+        fd[i + 1] = Math.round(sd[i + 1] + (lum - sd[i + 1]) * rAmt);
+        fd[i + 2] = Math.round(sd[i + 2] + (lum - sd[i + 2]) * rAmt);
+        fd[i + 3] = Math.round(sd[i + 3] * (1 - rAmt * 0.5)); // gentle fade
       }
     }
     return { fillData, outlineData };
@@ -743,26 +785,76 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     }
   }
 
-  // ── Utility: remove red outline pixels (make transparent) ──
+  // ── Utility: soft-remove red from fills (desaturate + fade proportionally) ──
   function removeRed(imgData) {
     const d = imgData.data;
     for (let i = 0; i < d.length; i += 4) {
       if (d[i + 3] === 0) continue;
-      if (isRedOutline(d[i], d[i + 1], d[i + 2])) {
-        d[i + 3] = 0;
+      const rAmt = redAmount(d[i], d[i + 1], d[i + 2]);
+      if (rAmt <= 0) continue;
+      if (rAmt >= 1.0) {
+        d[i + 3] = 0; // pure red → fully transparent
+      } else {
+        // Desaturate red tint and fade proportionally
+        const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        d[i]     = Math.round(d[i] + (lum - d[i]) * rAmt);
+        d[i + 1] = Math.round(d[i + 1] + (lum - d[i + 1]) * rAmt);
+        d[i + 2] = Math.round(d[i + 2] + (lum - d[i + 2]) * rAmt);
+        d[i + 3] = Math.round(d[i + 3] * (1 - rAmt * 0.5));
       }
     }
   }
 
-  // ── Utility: keep only red pixels, make everything else transparent ──
+  // ── Utility: soft-keep red pixels (proportional strength) ──
   function keepOnlyRed(imgData) {
     const d = imgData.data;
     for (let i = 0; i < d.length; i += 4) {
       if (d[i + 3] === 0) continue;
-      if (!isRedOutline(d[i], d[i + 1], d[i + 2])) {
-        d[i + 3] = 0; // not red → transparent
+      const rAmt = redAmount(d[i], d[i + 1], d[i + 2]);
+      if (rAmt <= 0) {
+        d[i + 3] = 0; // no red → transparent
+      } else if (rAmt < 1.0) {
+        d[i + 3] = Math.round(d[i + 3] * rAmt); // proportional
       }
+      // rAmt === 1.0 → keep as-is
     }
+  }
+
+  // ── Utility: composite per-asset extracted outlines ──
+  // Extracts red from each asset INDIVIDUALLY, then composites them.
+  // This ensures fills from one asset don't occlude outlines from another.
+  // The result is a pure outline assembly where all outlines are visible.
+  function compositeOutlinesPerAsset(layerList, targetWidth, targetHeight) {
+    const comp = document.createElement('canvas');
+    comp.width = targetWidth;
+    comp.height = targetHeight;
+    const compCtx = comp.getContext('2d');
+
+    const assetCanvas = document.createElement('canvas');
+    assetCanvas.width = targetWidth;
+    assetCanvas.height = targetHeight;
+    const assetCtx = assetCanvas.getContext('2d');
+
+    for (const layer of layerList) {
+      if (layer.isFixedDetail) continue;
+
+      // Draw this single asset onto a clean canvas
+      assetCtx.clearRect(0, 0, targetWidth, targetHeight);
+      drawToCtx(assetCtx, layer.offscreen, layer, 1.0);
+
+      // Extract only the red pixels from this single asset
+      const imgData = assetCtx.getImageData(0, 0, targetWidth, targetHeight);
+      keepOnlyRed(imgData);
+
+      // Stamp this asset's outlines onto the shared compositor
+      assetCtx.putImageData(imgData, 0, 0);
+      compCtx.drawImage(assetCanvas, 0, 0);
+    }
+
+    const result = compCtx.getImageData(0, 0, targetWidth, targetHeight);
+    comp.width = 0; comp.height = 0;
+    assetCanvas.width = 0; assetCanvas.height = 0;
+    return result;
   }
 
   // ── Utility: apply Layer 2 color blend with sat/lum corrections ──
@@ -799,12 +891,12 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
   if (isNoneOpacity) {
     // ── NONE OPACITY: no base layer ──
 
-    // Injected Outlines: composite all assets → keep only red → grey → L2 blend
-    const rawAll = compositeLayersRaw(processedLayers, width, height);
-    keepOnlyRed(rawAll);
-    redToGrey(rawAll);
-    applyLayer2Blend(rawAll, dragonRgb);
-    offscreenCompCtx.putImageData(rawAll, 0, 0);
+    // Injected Outlines: extract red from each asset individually, then composite.
+    // Per-asset extraction ensures fills don't occlude outlines from other assets.
+    const injOutlines = compositeOutlinesPerAsset(processedLayers, width, height);
+    redToGrey(injOutlines);
+    applyLayer2Blend(injOutlines, dragonRgb);
+    offscreenCompCtx.putImageData(injOutlines, 0, 0);
     ctx.drawImage(offscreenComp, 0, 0);
 
     // Fade Layer: composite fade-substituted layers → remove red → fills only
@@ -842,13 +934,13 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     ctx.drawImage(offscreenComp, 0, 0);
     ctx.restore();
 
-    // Injected Outlines: composite all assets → keep only red → grey → L2 blend
-    const rawAll = compositeLayersRaw(processedLayers, width, height);
-    keepOnlyRed(rawAll);
-    redToGrey(rawAll);
-    applyLayer2Blend(rawAll, dragonRgb);
+    // Injected Outlines: extract red from each asset individually, then composite.
+    // Per-asset extraction ensures fills don't occlude outlines from other assets.
+    const injOutlines = compositeOutlinesPerAsset(processedLayers, width, height);
+    redToGrey(injOutlines);
+    applyLayer2Blend(injOutlines, dragonRgb);
     offscreenCompCtx.clearRect(0, 0, width, height);
-    offscreenCompCtx.putImageData(rawAll, 0, 0);
+    offscreenCompCtx.putImageData(injOutlines, 0, 0);
     ctx.drawImage(offscreenComp, 0, 0);
 
     // Fade Layer: composite fade-substituted layers → remove red → fills only
