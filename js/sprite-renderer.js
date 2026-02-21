@@ -470,6 +470,19 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
   // No per-asset color blending — assets are composited raw (greyscale + red
   // markers). Color blending happens once per compositing group (base, fade,
   // injected outlines, final outline) after extraction/separation.
+
+  // For spine z-level split: find the tail attachment x threshold.
+  // Spines to the right of this point are "tail" spines (z:47),
+  // spines to the left are "body" spines (z:22).
+  let tailSplitX = Infinity;
+  for (const asset of matchedAssets) {
+    if (asset.gene === 'tail') {
+      const tailAnchor = getAnchor(asset.filename, { bodyType: bodyVariant });
+      tailSplitX = Math.min(tailSplitX, tailAnchor.x);
+      break; // only need the first tail asset's anchor
+    }
+  }
+
   const processedLayers = [];
   for (const asset of matchedAssets) {
     const fullname = asset.filename + '.png';
@@ -495,6 +508,30 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
       anchorCtx.limbCount = actualLimbCount;
     } else if (asset.gene === 'head' || asset.gene === 'tail' || asset.gene === 'spines') {
       anchorCtx.bodyType = bodyVariant;
+    }
+
+    // Multi-stamp spines: if placements exist, create N entries instead of one
+    if (asset.gene === 'spines' && asset._spinePlacements) {
+      const isBodyZ = asset.z === 22;
+      const isTailZ = asset.z === 47;
+      for (const placement of asset._spinePlacements) {
+        // Z-level split: body spines (z:22) get positions left of tail,
+        // tail spines (z:47) get positions at/right of tail
+        const isInTailZone = placement.x >= tailSplitX;
+        if ((isBodyZ && isInTailZone) || (isTailZ && !isInTailZone)) continue;
+
+        processedLayers.push({
+          asset,
+          offscreen,
+          anchorX: placement.x,
+          anchorY: placement.y,
+          rotation: placement.rot || 0,
+          isFixedDetail: false,
+          _spineScale: placement.scale || 1.0,
+          _spineWid: placement.wid ?? 1.0,
+        });
+      }
+      continue; // skip normal single-position processing
     }
 
     const anchor = getAnchor(asset.filename, anchorCtx);
@@ -548,6 +585,29 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
   // ── Shared draw helper: draws a canvas onto a target context at position ──
   function drawToCtx(targetCtx, sourceCanvas, layer, alpha) {
     const { asset, anchorX, anchorY, rotation } = layer;
+
+    // Spine stamp path: translate → rotate → scale(scale×wid, scale) → draw at bottom-center
+    if (layer._spineScale !== undefined) {
+      const ss = layer._spineScale;
+      const sw = layer._spineWid ?? 1.0;
+      targetCtx.save();
+      targetCtx.globalAlpha = alpha;
+      if (compact) {
+        const scaleX = width / SPRITE_WIDTH;
+        const scaleY = height / SPRITE_HEIGHT;
+        targetCtx.translate(anchorX * scaleX, anchorY * scaleY);
+        targetCtx.rotate(rotation * Math.PI / 180);
+        targetCtx.scale(ss * sw * scaleX, ss * scaleY);
+      } else {
+        targetCtx.translate(anchorX, anchorY);
+        targetCtx.rotate(rotation * Math.PI / 180);
+        targetCtx.scale(ss * sw, ss);
+      }
+      targetCtx.drawImage(sourceCanvas, -sourceCanvas.width / 2, -sourceCanvas.height);
+      targetCtx.restore();
+      return;
+    }
+
     const groupKey = asset.pair ? `${asset.layerGroup}:p${asset.pair}` : null;
     const groupPivot = groupKey ? groupPivots[groupKey] : null;
     const hasRot = Math.abs(rotation) > 0.01;

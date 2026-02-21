@@ -63,15 +63,24 @@ export const ASSET_TABLE = [
   { filename: 'leg_bg_o',              layerGroup: 'back leg',  gene: 'leg',  variant: 'six',       modifier: null,      z: 21, colorMode: 'darken',  opacityMode: 'opaque' },
 
   // ──── BODY SPINES (behind body — peek out above spine ridge) ────
-  { filename: 'spine_r_low',           layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'low',     z: 22, colorMode: 'base',    opacityMode: 'body' },
-  { filename: 'spine_r_medium',        layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'medium',  z: 22, colorMode: 'base',    opacityMode: 'body' },
-  { filename: 'spine_r_tall',          layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'tall',    z: 22, colorMode: 'base',    opacityMode: 'body' },
-  { filename: 'spine_sp_low',          layerGroup: 'spines',    gene: 'spines', variant: 'spike',   modifier: 'low',     z: 22, colorMode: 'base',    opacityMode: 'body' },
-  { filename: 'spine_sp_medium',       layerGroup: 'spines',    gene: 'spines', variant: 'spike',   modifier: 'medium',  z: 22, colorMode: 'base',    opacityMode: 'body' },
-  { filename: 'spine_sp_tall',         layerGroup: 'spines',    gene: 'spines', variant: 'spike',   modifier: 'tall',    z: 22, colorMode: 'base',    opacityMode: 'body' },
-  { filename: 'spine_sa_low',          layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'low',     z: 22, colorMode: 'base',    opacityMode: 'body' },
-  { filename: 'spine_sa_medium',       layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'medium',  z: 22, colorMode: 'base',    opacityMode: 'body' },
-  { filename: 'spine_sa_tall',         layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'tall',    z: 22, colorMode: 'base',    opacityMode: 'body' },
+  // Spike (outline-only, single layer)
+  { filename: 'spine_spike_S',         layerGroup: 'spines',    gene: 'spines', variant: 'spike',   modifier: 'low',     z: 22, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'spine_spike_M',         layerGroup: 'spines',    gene: 'spines', variant: 'spike',   modifier: 'medium',  z: 22, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'spine_spike_L',         layerGroup: 'spines',    gene: 'spines', variant: 'spike',   modifier: 'tall',    z: 22, colorMode: 'darken',  opacityMode: 'opaque' },
+  // Ridge (fill + outline)
+  { filename: 'spine_ridge_S_f',       layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'low',     z: 22, colorMode: 'base',    opacityMode: 'body' },
+  { filename: 'spine_ridge_S_o',       layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'low',     z: 22, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'spine_ridge_M_f',       layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'medium',  z: 22, colorMode: 'base',    opacityMode: 'body' },
+  { filename: 'spine_ridge_M_o',       layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'medium',  z: 22, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'spine_ridge_L_f',       layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'tall',    z: 22, colorMode: 'base',    opacityMode: 'body' },
+  { filename: 'spine_ridge_L_o',       layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'tall',    z: 22, colorMode: 'darken',  opacityMode: 'opaque' },
+  // Sail (fill + outline)
+  { filename: 'spine_sail_S_f',        layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'low',     z: 22, colorMode: 'base',    opacityMode: 'body' },
+  { filename: 'spine_sail_S_o',        layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'low',     z: 22, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'spine_sail_M_f',        layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'medium',  z: 22, colorMode: 'base',    opacityMode: 'body' },
+  { filename: 'spine_sail_M_o',        layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'medium',  z: 22, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'spine_sail_L_f',        layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'tall',    z: 22, colorMode: 'base',    opacityMode: 'body' },
+  { filename: 'spine_sail_L_o',        layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'tall',    z: 22, colorMode: 'darken',  opacityMode: 'opaque' },
 
   // ──── BODY ────
   { filename: 'body_sin_bf',           layerGroup: 'body',      gene: 'body',   variant: 'sinuous',  modifier: null,     z: 23, colorMode: 'lighten', opacityMode: 'body' },
@@ -114,15 +123,24 @@ export const ASSET_TABLE = [
   { filename: 'leg_fg_o',              layerGroup: 'front leg',  gene: 'leg',  variant: 'six',       modifier: null,    z: 46, colorMode: 'darken',  opacityMode: 'opaque' },
 
   // ──── TAIL SPINES (between fg legs and tail — behind tail) ────
-  { filename: 'spine_r_low',           layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'low',     z: 47, colorMode: 'base',    opacityMode: 'body' },
-  { filename: 'spine_r_medium',        layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'medium',  z: 47, colorMode: 'base',    opacityMode: 'body' },
-  { filename: 'spine_r_tall',          layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'tall',    z: 47, colorMode: 'base',    opacityMode: 'body' },
-  { filename: 'spine_sp_low',          layerGroup: 'spines',    gene: 'spines', variant: 'spike',   modifier: 'low',     z: 47, colorMode: 'base',    opacityMode: 'body' },
-  { filename: 'spine_sp_medium',       layerGroup: 'spines',    gene: 'spines', variant: 'spike',   modifier: 'medium',  z: 47, colorMode: 'base',    opacityMode: 'body' },
-  { filename: 'spine_sp_tall',         layerGroup: 'spines',    gene: 'spines', variant: 'spike',   modifier: 'tall',    z: 47, colorMode: 'base',    opacityMode: 'body' },
-  { filename: 'spine_sa_low',          layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'low',     z: 47, colorMode: 'base',    opacityMode: 'body' },
-  { filename: 'spine_sa_medium',       layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'medium',  z: 47, colorMode: 'base',    opacityMode: 'body' },
-  { filename: 'spine_sa_tall',         layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'tall',    z: 47, colorMode: 'base',    opacityMode: 'body' },
+  // Spike (outline-only, single layer)
+  { filename: 'spine_spike_S',         layerGroup: 'spines',    gene: 'spines', variant: 'spike',   modifier: 'low',     z: 47, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'spine_spike_M',         layerGroup: 'spines',    gene: 'spines', variant: 'spike',   modifier: 'medium',  z: 47, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'spine_spike_L',         layerGroup: 'spines',    gene: 'spines', variant: 'spike',   modifier: 'tall',    z: 47, colorMode: 'darken',  opacityMode: 'opaque' },
+  // Ridge (fill + outline)
+  { filename: 'spine_ridge_S_f',       layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'low',     z: 47, colorMode: 'base',    opacityMode: 'body' },
+  { filename: 'spine_ridge_S_o',       layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'low',     z: 47, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'spine_ridge_M_f',       layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'medium',  z: 47, colorMode: 'base',    opacityMode: 'body' },
+  { filename: 'spine_ridge_M_o',       layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'medium',  z: 47, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'spine_ridge_L_f',       layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'tall',    z: 47, colorMode: 'base',    opacityMode: 'body' },
+  { filename: 'spine_ridge_L_o',       layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'tall',    z: 47, colorMode: 'darken',  opacityMode: 'opaque' },
+  // Sail (fill + outline)
+  { filename: 'spine_sail_S_f',        layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'low',     z: 47, colorMode: 'base',    opacityMode: 'body' },
+  { filename: 'spine_sail_S_o',        layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'low',     z: 47, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'spine_sail_M_f',        layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'medium',  z: 47, colorMode: 'base',    opacityMode: 'body' },
+  { filename: 'spine_sail_M_o',        layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'medium',  z: 47, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'spine_sail_L_f',        layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'tall',    z: 47, colorMode: 'base',    opacityMode: 'body' },
+  { filename: 'spine_sail_L_o',        layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'tall',    z: 47, colorMode: 'darken',  opacityMode: 'opaque' },
 
   // ──── TAIL ────
   { filename: 'tail_whip_s_f',         layerGroup: 'tail',      gene: 'tail',   variant: 'whip',    modifier: 'short',   z: 48, colorMode: 'base',    opacityMode: 'body' },
@@ -454,6 +472,18 @@ export function resolveAssetsForPhenotype(phenotype) {
     }
   }
 
+  // Attach spine placement data so the renderer can stamp multiple copies.
+  // Look up pre-computed positions for this body+tail combo.
+  const spinePlacementKey = `${bodyVariant}:${tailVariant}_${tailModifier}`;
+  const placements = SPINE_PLACEMENTS[spinePlacementKey];
+  if (placements && placements.length > 0) {
+    for (const asset of matched) {
+      if (asset.gene === 'spines') {
+        asset._spinePlacements = placements;
+      }
+    }
+  }
+
   return matched;
 }
 
@@ -539,6 +569,20 @@ export const SPRITE_HEIGHT_COMPACT = 516;
 // ANCHOR POSITIONS — where each trimmed PNG sits on the canvas
 // ============================================================
 // Key: filename (without .png) → { x, y } pixel offset on composition canvas.
+// ============================================================
+// SPINE PLACEMENTS — pre-computed positions from spine-placement tool
+// ============================================================
+// Each key is "bodyType:tailVariant_tailLength".
+// Each value is an array of { x, y, rot, scale, wid } positions
+// where spines should be stamped along the dragon's back/tail curve.
+// Exported from spine-placement.html via "Export for Renderer".
+export const SPINE_PLACEMENTS = {
+  // Will be populated as the user exports from the spine-placement tool
+};
+
+// ============================================================
+// ANCHORS — per-asset positioning data
+// ============================================================
 // Parts not listed here default to { x: 0, y: 0 }.
 // We'll tune these in batches using the sprite test page.
 //
