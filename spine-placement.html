@@ -231,32 +231,13 @@
         </div>
       </div>
 
-      <!-- Copy From -->
+      <!-- Copy / Paste -->
       <div class="panel-section">
-        <h3>Copy From</h3>
-        <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 6px;font-size:11px;align-items:center;">
-          <label style="color:#8a7e72;">Body</label>
-          <select id="cf-body" style="background:#2a2520;color:#d4cdc4;border:1px solid #555;border-radius:3px;padding:2px;font-size:11px;">
-            <option value="standard">Standard</option><option value="sinuous">Sinuous</option><option value="bulky">Bulky</option>
-          </select>
-          <label style="color:#8a7e72;">Tail</label>
-          <select id="cf-tail" style="background:#2a2520;color:#d4cdc4;border:1px solid #555;border-radius:3px;padding:2px;font-size:11px;">
-            <option value="normal">Normal</option><option value="whip">Whip</option><option value="heavy">Heavy</option>
-          </select>
-          <label style="color:#8a7e72;">Length</label>
-          <select id="cf-length" style="background:#2a2520;color:#d4cdc4;border:1px solid #555;border-radius:3px;padding:2px;font-size:11px;">
-            <option value="medium">Medium</option><option value="short">Short</option><option value="long">Long</option>
-          </select>
-          <label style="color:#8a7e72;">Spine</label>
-          <select id="cf-spine" style="background:#2a2520;color:#d4cdc4;border:1px solid #555;border-radius:3px;padding:2px;font-size:11px;">
-            <option value="ridge">Ridge</option><option value="spike">Spike</option><option value="sail">Sail</option>
-          </select>
-          <label style="color:#8a7e72;">Height</label>
-          <select id="cf-height" style="background:#2a2520;color:#d4cdc4;border:1px solid #555;border-radius:3px;padding:2px;font-size:11px;">
-            <option value="medium">Medium</option><option value="low">Low</option><option value="tall">Tall</option>
-          </select>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <button id="btn-cp-copy" class="secondary" style="flex:1;">📋 Copy</button>
+          <button id="btn-cp-paste" class="secondary" style="flex:1;" disabled>📥 Paste</button>
         </div>
-        <button id="btn-paste-from" style="margin-top:6px;width:100;">📋 Paste to Current</button>
+        <div id="cp-status" style="font-size:10px;color:#8a7e72;margin-top:4px;min-height:14px;"></div>
       </div>
 
       <!-- Height Envelope Points -->
@@ -1596,36 +1577,36 @@ document.getElementById('btn-copy-curve').addEventListener('click', () => {
   setTimeout(() => { btn.textContent = 'Copy Curve'; }, 1200);
 });
 
-// ── Copy From handler ──
-document.getElementById('btn-paste-from').addEventListener('click', () => {
-  const srcBody = document.getElementById('cf-body').value;
-  const srcTail = document.getElementById('cf-tail').value;
-  const srcLength = document.getElementById('cf-length').value;
-  const srcSpine = document.getElementById('cf-spine').value;
-  const srcHeight = document.getElementById('cf-height').value;
-  const srcKey = `${srcBody}:${srcTail}_${srcLength}_${srcSpine}_${srcHeight}`;
-  // Also try old-format key as fallback
-  const srcKeyOld = `${srcBody}:${srcTail}_${srcLength}`;
+// ── Copy / Paste ──
+let clipboardData = null;
+let clipboardSourceLabel = '';
+const cpStatus = document.getElementById('cp-status');
+const cpPasteBtn = document.getElementById('btn-cp-paste');
 
-  const allPaths = loadAllPaths();
-  const srcData = allPaths[srcKey] || allPaths[srcKeyOld];
-  if (!srcData || !srcData.controlPoints || srcData.controlPoints.length === 0) {
-    const btn = document.getElementById('btn-paste-from');
-    btn.textContent = 'No data found!';
-    btn.style.color = '#cc5555';
-    setTimeout(() => { btn.textContent = '📋 Paste to Current'; btn.style.color = ''; }, 1500);
+document.getElementById('btn-cp-copy').addEventListener('click', () => {
+  if (controlPoints.length === 0) {
+    cpStatus.textContent = 'Nothing to copy — no path drawn';
+    cpStatus.style.color = '#cc5555';
     return;
   }
+  clipboardData = snapshotCurrentPath();
+  clipboardSourceLabel = `${currentBody} / ${currentTail} ${currentLength} / ${currentSpine} ${currentHeight}`;
+  cpPasteBtn.disabled = false;
+  cpStatus.style.color = '#8a7e72';
+  cpStatus.textContent = `Copied: ${clipboardSourceLabel}`;
+});
 
-  // Deep copy source data into current state
-  controlPoints = srcData.controlPoints.map(p => ({ x: p.x, y: p.y }));
-  spineCount = srcData.spineCount || 10;
-  spineSpacing = srcData.spineSpacing || 1.0;
-  spineScale = srcData.spineScale || 1.0;
-  heightOffset = srcData.heightOffset || 60;
-  globalRotation = srcData.globalRotation || 0;
-  perSpineOverrides = JSON.parse(JSON.stringify(srcData.perSpineOverrides || {}));
-  heightControlPoints = JSON.parse(JSON.stringify(srcData.heightControlPoints || [{ t: 0, mul: 1.0, rot: 0, wid: 1.0, spc: 1.0 }, { t: 1, mul: 1.0, rot: 0, wid: 1.0, spc: 1.0 }]));
+cpPasteBtn.addEventListener('click', () => {
+  if (!clipboardData) return;
+
+  controlPoints = clipboardData.controlPoints.map(p => ({ x: p.x, y: p.y }));
+  spineCount = clipboardData.spineCount;
+  spineSpacing = clipboardData.spineSpacing;
+  spineScale = clipboardData.spineScale;
+  heightOffset = clipboardData.heightOffset;
+  globalRotation = clipboardData.globalRotation || 0;
+  perSpineOverrides = JSON.parse(JSON.stringify(clipboardData.perSpineOverrides));
+  heightControlPoints = JSON.parse(JSON.stringify(clipboardData.heightControlPoints || [{ t: 0, mul: 1.0, rot: 0, wid: 1.0, spc: 1.0 }, { t: 1, mul: 1.0, rot: 0, wid: 1.0, spc: 1.0 }]));
 
   // Restore sliders
   spineCountSlider.value = spineCount;
@@ -1642,9 +1623,8 @@ document.getElementById('btn-paste-from').addEventListener('click', () => {
   saveAll();
   render();
 
-  const btn = document.getElementById('btn-paste-from');
-  btn.textContent = 'Pasted!';
-  setTimeout(() => { btn.textContent = '📋 Paste to Current'; }, 1200);
+  cpStatus.style.color = '#6a9f5b';
+  cpStatus.textContent = `Pasted from: ${clipboardSourceLabel}`;
 });
 
 // ── Migrate old storage keys ──
