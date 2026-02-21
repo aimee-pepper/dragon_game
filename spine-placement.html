@@ -224,7 +224,10 @@
           <kbd>Alt+Click</kbd> curve to delete nearest point.
           <kbd>Right-click</kbd> point to delete.
           <kbd>Scroll</kbd> to zoom. <kbd>Space+drag</kbd> to pan.
-          <br>Drag the <span style="color:#aa77cc;">purple height line</span> to adjust spine heights.
+          <br><span style="color:#aa77cc;">Purple line</span> = height envelope.
+          <kbd>Click</kbd> line to add control point.
+          <kbd>Drag</kbd> points ↕ to adjust scale.
+          <kbd>Right-click</kbd> to remove.
         </div>
       </div>
 
@@ -323,10 +326,16 @@ let globalRotation = 0;    // degrees added to ALL spine angles
 let perSpineOverrides = {}; // { index: { angleDeg, scale } }
 let selectedSpineIdx = -1;
 
-// Height guide
-let heightOffset = 60;       // Perpendicular distance from main curve (in sprite-space px)
+// Height guide — an independent envelope curve controlling per-spine scale
+// Each height control point has a t (position along main curve, 0-1) and a
+// multiplier (scale factor: 1.0 = normal height, 0 = zero, 2.0 = double, etc.)
+// Default is two endpoints at multiplier 1.0. Spines linearly interpolate
+// between adjacent control points to get their individual scale multiplier.
+let heightControlPoints = [{ t: 0, mul: 1.0 }, { t: 1, mul: 1.0 }];
+let heightOffset = 60;       // Visual distance from main curve at mul=1.0 (sprite-space px)
 let showHeightGuide = true;
-let isDraggingHeightGuide = false;
+let isDraggingHeightCP = -1; // index of height control point being dragged
+let isDraggingHeightGuide = false;   // dragging the line itself (global offset)
 let heightGuideStartY = 0;
 let heightGuideStartOffset = 0;
 
@@ -473,6 +482,34 @@ function tAtArcLength(arcTable, targetDist) {
   return 1;
 }
 
+// Sample the height envelope at a given t (0-1 along main curve).
+// Linearly interpolates between adjacent height control points.
+function sampleHeightMultiplier(t) {
+  if (heightControlPoints.length === 0) return 1.0;
+  if (heightControlPoints.length === 1) return heightControlPoints[0].mul;
+
+  // heightControlPoints are kept sorted by t
+  if (t <= heightControlPoints[0].t) return heightControlPoints[0].mul;
+  if (t >= heightControlPoints[heightControlPoints.length - 1].t) {
+    return heightControlPoints[heightControlPoints.length - 1].mul;
+  }
+
+  for (let i = 1; i < heightControlPoints.length; i++) {
+    if (t <= heightControlPoints[i].t) {
+      const prev = heightControlPoints[i - 1];
+      const curr = heightControlPoints[i];
+      const frac = (t - prev.t) / (curr.t - prev.t);
+      return prev.mul + (curr.mul - prev.mul) * frac;
+    }
+  }
+  return 1.0;
+}
+
+// Keep height control points sorted by t
+function sortHeightControlPoints() {
+  heightControlPoints.sort((a, b) => a.t - b.t);
+}
+
 // Distribute spines evenly along the curve
 function computeSpinePositions() {
   if (controlPoints.length < 2) return [];
@@ -498,9 +535,13 @@ function computeSpinePositions() {
     // Apply per-spine overrides (override replaces default entirely)
     const override = perSpineOverrides[i] || {};
     const angleDeg = override.angleDeg !== undefined ? override.angleDeg : defaultAngleDeg;
-    const scale = (override.scale !== undefined ? override.scale : 1.0) * spineScale;
+    const baseScale = (override.scale !== undefined ? override.scale : 1.0) * spineScale;
 
-    positions.push({ x: pt.x, y: pt.y, angleDeg, scale, t, idx: i });
+    // Apply height envelope multiplier
+    const heightMul = sampleHeightMultiplier(t);
+    const scale = baseScale * heightMul;
+
+    positions.push({ x: pt.x, y: pt.y, angleDeg, scale, t, idx: i, heightMul });
   }
 
   return positions;
@@ -619,54 +660,108 @@ function heightGuidePoint(points, t, offset) {
 function drawHeightGuide() {
   if (!showHeightGuide || controlPoints.length < 2) return;
 
+  // Draw the height envelope curve (sampled at many points along main curve)
   const steps = controlPoints.length * 30;
-  const offset = -heightOffset; // negative = above the curve
-
-  // Draw the parallel curve
   ctx.beginPath();
-  const first = heightGuidePoint(controlPoints, 0, offset);
-  ctx.moveTo(first.x, first.y);
-
-  for (let i = 1; i <= steps; i++) {
+  for (let i = 0; i <= steps; i++) {
     const t = i / steps;
+    const mul = sampleHeightMultiplier(t);
+    const offset = -heightOffset * mul; // scale the visual offset by the multiplier
     const pt = heightGuidePoint(controlPoints, t, offset);
-    ctx.lineTo(pt.x, pt.y);
+    if (i === 0) ctx.moveTo(pt.x, pt.y);
+    else ctx.lineTo(pt.x, pt.y);
   }
-
   ctx.strokeStyle = '#aa77cc80';
   ctx.lineWidth = 2;
   ctx.setLineDash([8, 4]);
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // Draw connecting lines from each spine position to the height guide
+  // Draw connecting lines from each spine position to the height guide at that t
   const positions = computeSpinePositions();
   ctx.strokeStyle = '#aa77cc30';
   ctx.lineWidth = 1;
   for (const pos of positions) {
-    const hPt = heightGuidePoint(controlPoints, pos.t, offset);
+    const mul = sampleHeightMultiplier(pos.t);
+    const hPt = heightGuidePoint(controlPoints, pos.t, -heightOffset * mul);
     ctx.beginPath();
     ctx.moveTo(pos.x, pos.y);
     ctx.lineTo(hPt.x, hPt.y);
     ctx.stroke();
   }
+
+  // Draw height control points as draggable dots on the envelope curve
+  for (let i = 0; i < heightControlPoints.length; i++) {
+    const hcp = heightControlPoints[i];
+    const offset = -heightOffset * hcp.mul;
+    const pt = heightGuidePoint(controlPoints, hcp.t, offset);
+    const isDragging = isDraggingHeightCP === i;
+
+    // Draw the dot
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, isDragging ? 7 : 5, 0, Math.PI * 2);
+    ctx.fillStyle = isDragging ? '#dd99ff' : '#bb88dd';
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff80';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Label with multiplier value
+    ctx.save();
+    ctx.font = 'bold 10px monospace';
+    ctx.fillStyle = '#dd99ff';
+    ctx.textAlign = 'center';
+    ctx.fillText(hcp.mul.toFixed(2) + 'x', pt.x, pt.y - 10);
+    ctx.restore();
+  }
 }
 
-// Check if a point is near the height guide curve (for dragging)
+// Find which height control point is near (cx, cy), returns index or -1
+function findHeightControlPoint(cx, cy) {
+  if (!showHeightGuide || controlPoints.length < 2) return -1;
+  const threshold = 10 / zoom;
+  for (let i = 0; i < heightControlPoints.length; i++) {
+    const hcp = heightControlPoints[i];
+    const offset = -heightOffset * hcp.mul;
+    const pt = heightGuidePoint(controlPoints, hcp.t, offset);
+    const dx = pt.x - cx;
+    const dy = pt.y - cy;
+    if (Math.sqrt(dx * dx + dy * dy) < threshold) return i;
+  }
+  return -1;
+}
+
+// Check if a point is near the height guide envelope curve (for adding new control points)
 function isNearHeightGuide(cx, cy) {
   if (!showHeightGuide || controlPoints.length < 2) return false;
-  const offset = -heightOffset;
   const steps = controlPoints.length * 20;
   const threshold = 12 / zoom;
 
   for (let i = 0; i <= steps; i++) {
     const t = i / steps;
+    const mul = sampleHeightMultiplier(t);
+    const offset = -heightOffset * mul;
     const pt = heightGuidePoint(controlPoints, t, offset);
     const dx = pt.x - cx;
     const dy = pt.y - cy;
     if (Math.sqrt(dx * dx + dy * dy) < threshold) return true;
   }
   return false;
+}
+
+// Find the nearest t on the main curve for a given screen point (for inserting height CPs)
+function nearestTForPoint(cx, cy) {
+  const steps = controlPoints.length * 40;
+  let bestT = 0, bestDist = Infinity;
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const pt = catmullRomPoint(controlPoints, t);
+    const dx = pt.x - cx;
+    const dy = pt.y - cy;
+    const d = dx * dx + dy * dy;
+    if (d < bestDist) { bestDist = d; bestT = t; }
+  }
+  return bestT;
 }
 
 async function drawSpineSprites(positions) {
@@ -833,7 +928,8 @@ function updateOutput(positions) {
   // Anchor format output
   const lines = [`// Spine anchors for ${key}`, `// Spine type: ${currentSpine}, height: ${currentHeight}`];
   for (const pos of positions) {
-    lines.push(`  'spine_${pos.idx}:${key}': { x: ${Math.round(pos.x)}, y: ${Math.round(pos.y)}, rot: ${pos.angleDeg.toFixed(1)} },`);
+    const hMul = pos.heightMul !== undefined ? pos.heightMul : 1.0;
+    lines.push(`  'spine_${pos.idx}:${key}': { x: ${Math.round(pos.x)}, y: ${Math.round(pos.y)}, rot: ${pos.angleDeg.toFixed(1)}, scale: ${pos.scale.toFixed(3)} },`);
   }
 
   lines.push('');
@@ -855,6 +951,7 @@ function snapshotCurrentPath() {
     controlPoints: controlPoints.map(p => ({ x: p.x, y: p.y })),
     spineCount, spineSpacing, spineScale, heightOffset, globalRotation,
     perSpineOverrides: JSON.parse(JSON.stringify(perSpineOverrides)),
+    heightControlPoints: JSON.parse(JSON.stringify(heightControlPoints)),
   };
 }
 
@@ -865,6 +962,7 @@ function saveAll() {
     controlPoints: controlPoints.map(p => ({ x: Math.round(p.x), y: Math.round(p.y) })),
     spineCount, spineSpacing, spineScale, heightOffset, globalRotation,
     perSpineOverrides: { ...perSpineOverrides },
+    heightControlPoints: heightControlPoints.map(p => ({ t: p.t, mul: p.mul })),
     spineType: currentSpine,
     spineHeight: currentHeight,
   };
@@ -889,6 +987,7 @@ function restorePath(seedFrom) {
     heightOffset = data.heightOffset || 60;
     globalRotation = data.globalRotation || 0;
     perSpineOverrides = data.perSpineOverrides || {};
+    heightControlPoints = data.heightControlPoints || [{ t: 0, mul: 1.0 }, { t: 1, mul: 1.0 }];
   } else if (seedFrom) {
     // No saved path — seed from current working path (deep copy)
     controlPoints = seedFrom.controlPoints.map(p => ({ x: p.x, y: p.y }));
@@ -898,10 +997,12 @@ function restorePath(seedFrom) {
     heightOffset = seedFrom.heightOffset;
     globalRotation = seedFrom.globalRotation || 0;
     perSpineOverrides = JSON.parse(JSON.stringify(seedFrom.perSpineOverrides));
+    heightControlPoints = JSON.parse(JSON.stringify(seedFrom.heightControlPoints || [{ t: 0, mul: 1.0 }, { t: 1, mul: 1.0 }]));
   } else {
     // No saved path, no seed — blank
     controlPoints = [];
     perSpineOverrides = {};
+    heightControlPoints = [{ t: 0, mul: 1.0 }, { t: 1, mul: 1.0 }];
     globalRotation = 0;
   }
   // Restore sliders to match loaded/seeded state
@@ -992,7 +1093,18 @@ canvas.addEventListener('mousedown', (e) => {
   }
 
   if (e.button === 2) {
-    // Right-click: delete point
+    // Right-click: delete height control point first (if near one, keep min 2)
+    if (showHeightGuide && controlPoints.length >= 2) {
+      const hcpIdx = findHeightControlPoint(x, y);
+      if (hcpIdx >= 0 && heightControlPoints.length > 2) {
+        heightControlPoints.splice(hcpIdx, 1);
+        render();
+        saveAll();
+        e.preventDefault();
+        return;
+      }
+    }
+    // Right-click: delete curve control point
     const idx = findPointAt(x, y);
     if (idx >= 0) {
       controlPoints.splice(idx, 1);
@@ -1037,16 +1149,33 @@ canvas.addEventListener('mousedown', (e) => {
     return;
   }
 
-  // Check if clicking on height guide line (for dragging)
-  if (showHeightGuide && isNearHeightGuide(x, y)) {
-    isDraggingHeightGuide = true;
-    const rect = container.getBoundingClientRect();
-    heightGuideStartY = e.clientY - rect.top; // screen-space Y
-    heightGuideStartOffset = heightOffset;
-    canvas.classList.add('dragging');
-    canvas.style.cursor = 'ns-resize';
-    e.preventDefault();
-    return;
+  // Check height guide interactions (before regular point adding)
+  if (showHeightGuide && controlPoints.length >= 2) {
+    // Check for clicking on an existing height control point
+    const hcpIdx = findHeightControlPoint(x, y);
+    if (hcpIdx >= 0) {
+      isDraggingHeightCP = hcpIdx;
+      canvas.classList.add('dragging');
+      canvas.style.cursor = 'ns-resize';
+      e.preventDefault();
+      return;
+    }
+
+    // Check for clicking on the height guide line → add new control point
+    if (isNearHeightGuide(x, y)) {
+      const t = nearestTForPoint(x, y);
+      const mul = sampleHeightMultiplier(t); // start at the current interpolated value
+      heightControlPoints.push({ t, mul });
+      sortHeightControlPoints();
+      // Find the new point's index and start dragging it
+      const newIdx = heightControlPoints.findIndex(p => p.t === t && p.mul === mul);
+      isDraggingHeightCP = newIdx >= 0 ? newIdx : -1;
+      canvas.classList.add('dragging');
+      canvas.style.cursor = 'ns-resize';
+      render();
+      e.preventDefault();
+      return;
+    }
   }
 
   // Left-click: drag existing point or add new one
@@ -1071,6 +1200,25 @@ canvas.addEventListener('mousemove', (e) => {
     return;
   }
 
+  if (isDraggingHeightCP >= 0) {
+    // Dragging a height control point: compute perpendicular distance from cursor
+    // to the main curve at this point's t, then convert to multiplier
+    const { x: mx, y: my } = canvasCoords(e);
+    const hcp = heightControlPoints[isDraggingHeightCP];
+    const curvePt = catmullRomPoint(controlPoints, hcp.t);
+    const angle = catmullRomTangentAngle(controlPoints, hcp.t);
+    const nx = -Math.sin(angle);
+    const ny =  Math.cos(angle);
+    // Project mouse offset onto normal direction (negative = above curve)
+    const dx = mx - curvePt.x;
+    const dy = my - curvePt.y;
+    const projDist = -(dx * nx + dy * ny); // positive = above curve
+    // Convert pixel distance to multiplier: projDist / heightOffset
+    hcp.mul = Math.max(0, Math.round((projDist / heightOffset) * 20) / 20); // snap to 0.05 increments
+    render();
+    return;
+  }
+
   if (isDraggingHeightGuide) {
     // Use screen-space delta for smooth, zoom-independent dragging
     const rect = container.getBoundingClientRect();
@@ -1092,10 +1240,10 @@ canvas.addEventListener('mousemove', (e) => {
     render();
   }
 
-  // Update cursor when hovering over height guide
-  if (isDraggingPoint < 0 && !isPanning && showHeightGuide) {
+  // Update cursor when hovering over height guide points or line
+  if (isDraggingPoint < 0 && isDraggingHeightCP < 0 && !isPanning && showHeightGuide) {
     const { x, y } = canvasCoords(e);
-    if (isNearHeightGuide(x, y)) {
+    if (findHeightControlPoint(x, y) >= 0 || isNearHeightGuide(x, y)) {
       canvas.style.cursor = 'ns-resize';
     } else if (!spaceHeld) {
       canvas.style.cursor = 'crosshair';
@@ -1107,6 +1255,13 @@ canvas.addEventListener('mouseup', () => {
   if (isPanning) {
     isPanning = false;
     canvas.classList.remove('dragging');
+    return;
+  }
+  if (isDraggingHeightCP >= 0) {
+    isDraggingHeightCP = -1;
+    canvas.classList.remove('dragging');
+    canvas.style.cursor = 'crosshair';
+    saveAll();
     return;
   }
   if (isDraggingHeightGuide) {
@@ -1280,6 +1435,7 @@ document.getElementById('btn-reset-scale').addEventListener('click', () => {
 document.getElementById('btn-clear-path').addEventListener('click', () => {
   controlPoints = [];
   perSpineOverrides = {};
+  heightControlPoints = [{ t: 0, mul: 1.0 }, { t: 1, mul: 1.0 }];
   globalRotation = 0;
   globalRotSlider.value = 0;
   globalRotVal.textContent = '0°';
@@ -1314,6 +1470,7 @@ document.getElementById('btn-copy-curve').addEventListener('click', () => {
     controlPoints: controlPoints.map(p => ({ x: Math.round(p.x), y: Math.round(p.y) })),
     spineCount, spineSpacing, spineScale, heightOffset, globalRotation,
     perSpineOverrides: { ...perSpineOverrides },
+    heightControlPoints: heightControlPoints.map(p => ({ t: p.t, mul: p.mul })),
     spineType: currentSpine,
     spineHeight: currentHeight,
   };
