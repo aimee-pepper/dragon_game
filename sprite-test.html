@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dragon Sprite Test — Color Pipeline</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #1e1a16;
+      color: #d4cdc4;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      padding: 20px;
+    }
+    h1 { text-align: center; margin-bottom: 8px; color: #c4a265; }
+    .subtitle { text-align: center; color: #8a7e72; margin-bottom: 20px; font-size: 14px; }
+
+    .controls {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .controls label { font-size: 13px; color: #8a7e72; }
+    .controls input[type="color"] {
+      width: 60px; height: 36px; border: 2px solid #3d3530;
+      border-radius: 6px; cursor: pointer; background: transparent;
+    }
+    .controls select, .controls input[type="range"] {
+      background: #2a2420; color: #d4cdc4; border: 1px solid #3d3530;
+      border-radius: 6px; padding: 6px 10px; font-size: 13px;
+    }
+    button.render-btn {
+      background: #c4a265; color: #1e1a16; border: none;
+      padding: 8px 20px; border-radius: 6px; cursor: pointer; font-weight: bold;
+    }
+    button.render-btn:hover { background: #d4b275; }
+
+    .preview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    .preview-card {
+      background: #2a2420;
+      border: 1px solid #3d3530;
+      border-radius: 12px;
+      padding: 12px;
+      text-align: center;
+    }
+    .preview-card canvas {
+      width: 100%;
+      max-width: 256px;
+      height: auto;
+      border-radius: 8px;
+      background: repeating-conic-gradient(#1a1a1a 0% 25%, #222 0% 50%) 50% / 20px 20px;
+    }
+    .preview-label {
+      font-size: 12px;
+      color: #8a7e72;
+      margin-top: 8px;
+    }
+    .preview-label strong { color: #c4a265; }
+
+    .section-header {
+      text-align: center;
+      color: #c4a265;
+      font-size: 18px;
+      margin: 32px 0 16px;
+      border-bottom: 1px solid #3d3530;
+      padding-bottom: 8px;
+    }
+
+    /* Asset pipeline test section */
+    .pipeline-controls {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      align-items: flex-end;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .pipeline-controls .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .pipeline-controls .control-group label {
+      font-size: 11px;
+      color: #8a7e72;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .asset-list {
+      background: #1a1715;
+      border: 1px solid #3d3530;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin: 16px auto;
+      max-width: 700px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .asset-list .asset-row {
+      display: flex;
+      gap: 8px;
+      color: #8a7e72;
+    }
+    .asset-list .z-col { color: #c4a265; min-width: 30px; }
+    .asset-list .file-col { color: #d4cdc4; min-width: 240px; }
+    .asset-list .color-col { min-width: 60px; }
+    .asset-list .opacity-col { min-width: 55px; }
+    .asset-list .group-col { color: #6a8a72; }
+
+    .render-result {
+      display: flex;
+      justify-content: center;
+      margin: 20px 0;
+    }
+    .render-result canvas {
+      border-radius: 8px;
+      background: repeating-conic-gradient(#1a1a1a 0% 25%, #222 0% 50%) 50% / 20px 20px;
+      border: 2px solid #3d3530;
+    }
+  </style>
+</head>
+<body>
+  <h1>Dragon Sprite Test</h1>
+  <p class="subtitle">Color blending pipeline preview — body, belly (lighter), outline (darker), wing membrane (transparent)</p>
+
+  <!-- ===== SECTION 1: Color Pipeline Test (procedural shapes) ===== -->
+  <div class="section-header">Color Pipeline Preview</div>
+  <div class="controls">
+    <label>
+      Dragon Color:
+      <input type="color" id="colorPicker" value="#cc4444">
+    </label>
+    <label>
+      Opacity Gene:
+      <select id="opacityLevel">
+        <option value="0">None (0) — Phantom</option>
+        <option value="1">Low (1) — Translucent</option>
+        <option value="2">Med (2) — Cloudy</option>
+        <option value="3" selected>High (3) — Opaque</option>
+      </select>
+    </label>
+    <button id="renderBtn" class="render-btn">Render</button>
+  </div>
+
+  <div id="customPreview" class="preview-grid"></div>
+
+  <div class="section-header">Color Gallery — All Opacity Levels</div>
+  <div id="galleryGrid" class="preview-grid"></div>
+
+  <!-- ===== SECTION 2: Asset Pipeline Test (real PNGs if available) ===== -->
+  <div class="section-header">Asset Pipeline — Phenotype Resolver</div>
+  <p class="subtitle">Configure dragon traits to see which PNG assets resolve and how they composite</p>
+
+  <div class="pipeline-controls">
+    <div class="control-group">
+      <label>Color</label>
+      <input type="color" id="pipeColor" value="#2850dc">
+    </div>
+    <div class="control-group">
+      <label>Opacity</label>
+      <select id="pipeOpacity">
+        <option value="0">0 Phantom</option>
+        <option value="1">1 Translucent</option>
+        <option value="2">2 Cloudy</option>
+        <option value="3" selected>3 Opaque</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>Body</label>
+      <select id="pipeBody">
+        <option value="serpentine">Sinuous</option>
+        <option value="normal" selected>Standard</option>
+        <option value="bulky">Bulky</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>Wings</label>
+      <select id="pipeWings">
+        <option value="0">None</option>
+        <option value="1">Vestigial</option>
+        <option value="2" selected>Pair (2)</option>
+        <option value="3">Quad (4)</option>
+        <option value="4">Six (6)</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>Limbs</label>
+      <select id="pipeLimbs">
+        <option value="0">Limbless</option>
+        <option value="1">Wyvern (2)</option>
+        <option value="2" selected>Quadruped (4)</option>
+        <option value="3">Hexapod (6)</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>Horns</label>
+      <select id="pipeHornStyle">
+        <option value="none">None</option>
+        <option value="sleek">Smooth</option>
+        <option value="gnarled" selected>Gnarled</option>
+        <option value="knobbed">Knobbed</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>Horn Dir</label>
+      <select id="pipeHornDir">
+        <option value="forward" selected>Forward</option>
+        <option value="swept-back">Swept-back</option>
+        <option value="upward">Upward</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>Spines</label>
+      <select id="pipeSpineStyle">
+        <option value="none">None</option>
+        <option value="ridge" selected>Ridge</option>
+        <option value="spikes">Spikes</option>
+        <option value="sail">Sail</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>Spine Ht</label>
+      <select id="pipeSpineHeight">
+        <option value="low">Low</option>
+        <option value="medium" selected>Medium</option>
+        <option value="tall">Tall</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>Tail</label>
+      <select id="pipeTailShape">
+        <option value="whip">Whip</option>
+        <option value="normal" selected>Normal</option>
+        <option value="heavy">Heavy</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>Tail Len</label>
+      <select id="pipeTailLength">
+        <option value="short">Short</option>
+        <option value="medium" selected>Medium</option>
+        <option value="long">Long</option>
+      </select>
+    </div>
+    <button id="pipeRenderBtn" class="render-btn">Resolve & Render</button>
+  </div>
+
+  <div id="pipeAssetList" class="asset-list">
+    <em style="color:#6a6a5a;">Click "Resolve & Render" to see asset list</em>
+  </div>
+  <div id="pipeRenderResult" class="render-result"></div>
+
+  <script type="module">
+    import { renderTestSprite, renderDragon, debugAssetList } from './js/sprite-renderer.js';
+    import { resolveAssetsForPhenotype, BODY_TRANSPARENCY, WING_TRANSPARENCY } from './js/sprite-config.js';
+
+    // ===== Color Pipeline Test (Section 1) =====
+    const colorPicker = document.getElementById('colorPicker');
+    const opacitySelect = document.getElementById('opacityLevel');
+    const renderBtn = document.getElementById('renderBtn');
+    const customPreview = document.getElementById('customPreview');
+    const galleryGrid = document.getElementById('galleryGrid');
+
+    function hexToRgb(hex) {
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      return { r, g, b };
+    }
+
+    function renderCustom() {
+      customPreview.innerHTML = '';
+      const rgb = hexToRgb(colorPicker.value);
+      const opacity = parseInt(opacitySelect.value);
+
+      for (let op = 0; op <= 3; op++) {
+        const card = document.createElement('div');
+        card.className = 'preview-card';
+
+        const canvas = renderTestSprite(rgb, op);
+        canvas.style.width = '100%';
+        canvas.style.maxWidth = '256px';
+        canvas.style.height = 'auto';
+        card.appendChild(canvas);
+
+        const label = document.createElement('div');
+        label.className = 'preview-label';
+        label.innerHTML = `<strong>Opacity ${op}</strong> — Body: ${(BODY_TRANSPARENCY[op] * 100).toFixed(0)}% · Wing: ${(WING_TRANSPARENCY[op] * 100).toFixed(0)}%`;
+        card.appendChild(label);
+
+        if (op === opacity) card.style.borderColor = '#c4a265';
+        customPreview.appendChild(card);
+      }
+    }
+
+    function renderGallery() {
+      galleryGrid.innerHTML = '';
+      const colors = [
+        { name: 'Red', hex: '#dc2828' },
+        { name: 'Coral', hex: '#e87850' },
+        { name: 'Gold', hex: '#dcb428' },
+        { name: 'Green', hex: '#28b43c' },
+        { name: 'Teal', hex: '#28b4b4' },
+        { name: 'Blue', hex: '#2850dc' },
+        { name: 'Purple', hex: '#a028c8' },
+        { name: 'Fuchsia', hex: '#dc28a0' },
+        { name: 'White', hex: '#f0f0f0' },
+        { name: 'Silver', hex: '#a0a0a0' },
+        { name: 'Brown', hex: '#8b5e3c' },
+        { name: 'Black', hex: '#1e1e1e' },
+      ];
+
+      for (const color of colors) {
+        const rgb = hexToRgb(color.hex);
+        for (const op of [3, 1]) {
+          const card = document.createElement('div');
+          card.className = 'preview-card';
+
+          const canvas = renderTestSprite(rgb, op);
+          canvas.style.width = '100%';
+          canvas.style.maxWidth = '256px';
+          canvas.style.height = 'auto';
+          card.appendChild(canvas);
+
+          const label = document.createElement('div');
+          label.className = 'preview-label';
+          label.innerHTML = `<strong>${color.name}</strong> — Opacity ${op}`;
+          card.appendChild(label);
+
+          galleryGrid.appendChild(card);
+        }
+      }
+    }
+
+    renderBtn.addEventListener('click', renderCustom);
+    colorPicker.addEventListener('input', renderCustom);
+    opacitySelect.addEventListener('change', renderCustom);
+
+    // ===== Asset Pipeline Test (Section 2) =====
+
+    /**
+     * Build a mock phenotype object from the pipeline controls.
+     * This mimics the structure that resolveFullPhenotype() produces,
+     * just enough for resolveAssetsForPhenotype() to work.
+     */
+    function buildMockPhenotype() {
+      const color = hexToRgb(document.getElementById('pipeColor').value);
+      const opLevel = parseInt(document.getElementById('pipeOpacity').value);
+
+      return {
+        traits: {
+          body_type:      { name: document.getElementById('pipeBody').value, rounded: null },
+          frame_wings:    { rounded: parseInt(document.getElementById('pipeWings').value) },
+          frame_limbs:    { rounded: parseInt(document.getElementById('pipeLimbs').value) },
+          horn_style:     { name: document.getElementById('pipeHornStyle').value },
+          horn_direction: { name: document.getElementById('pipeHornDir').value },
+          spine_style:    { name: document.getElementById('pipeSpineStyle').value },
+          spine_height:   { name: document.getElementById('pipeSpineHeight').value },
+          tail_shape:     { name: document.getElementById('pipeTailShape').value },
+          tail_length:    { name: document.getElementById('pipeTailLength').value },
+        },
+        color: {
+          rgb: color,
+          hex: document.getElementById('pipeColor').value,
+        },
+        finish: {
+          levels: [opLevel, 1.5, 1.5], // [opacity, shine, schiller]
+          displayName: 'Opaque',
+        },
+      };
+    }
+
+    function renderPipeline() {
+      const phenotype = buildMockPhenotype();
+
+      // Resolve assets
+      const matched = resolveAssetsForPhenotype(phenotype);
+
+      // Show asset list
+      const listEl = document.getElementById('pipeAssetList');
+      listEl.innerHTML = '';
+
+      if (matched.length === 0) {
+        listEl.innerHTML = '<em style="color:#8a5a3a;">No assets matched for this trait combination</em>';
+      } else {
+        // Header
+        const header = document.createElement('div');
+        header.className = 'asset-row';
+        header.innerHTML = `
+          <span class="z-col" style="color:#6a6a5a;">Z</span>
+          <span class="file-col" style="color:#6a6a5a;">Filename</span>
+          <span class="color-col" style="color:#6a6a5a;">Color</span>
+          <span class="opacity-col" style="color:#6a6a5a;">Alpha</span>
+          <span class="group-col" style="color:#6a6a5a;">Layer Group</span>
+        `;
+        listEl.appendChild(header);
+
+        for (const asset of matched) {
+          const row = document.createElement('div');
+          row.className = 'asset-row';
+          const modStr = asset.modifier ? ` [${asset.modifier}]` : '';
+          row.innerHTML = `
+            <span class="z-col">${String(asset.z).padStart(2, '0')}</span>
+            <span class="file-col">${asset.filename}.png</span>
+            <span class="color-col">${asset.colorMode}</span>
+            <span class="opacity-col">${asset.opacityMode}</span>
+            <span class="group-col">${asset.layerGroup}${modStr}</span>
+          `;
+          listEl.appendChild(row);
+        }
+
+        // Summary
+        const summary = document.createElement('div');
+        summary.style.cssText = 'margin-top: 8px; padding-top: 8px; border-top: 1px solid #3d3530; color: #c4a265;';
+        summary.textContent = `${matched.length} layers resolved`;
+        listEl.appendChild(summary);
+      }
+
+      // Try to render with real PNGs (falls back to test sprite)
+      const resultEl = document.getElementById('pipeRenderResult');
+      resultEl.innerHTML = '<em style="color:#6a6a5a;">Rendering...</em>';
+
+      renderDragon(phenotype, { fallbackToTest: true }).then(canvas => {
+        resultEl.innerHTML = '';
+        canvas.style.width = '512px';
+        canvas.style.maxWidth = '100%';
+        canvas.style.height = 'auto';
+        resultEl.appendChild(canvas);
+      });
+
+      // Also log to console for debugging
+      debugAssetList(phenotype);
+    }
+
+    document.getElementById('pipeRenderBtn').addEventListener('click', renderPipeline);
+
+    // Initial render
+    renderCustom();
+    renderGallery();
+    renderPipeline();
+  </script>
+</body>
+</html>

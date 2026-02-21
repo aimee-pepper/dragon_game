@@ -34,10 +34,28 @@
     }
     .slot-count-btn.active { background: #4a90d9; color: #fff; border-color: #4a90d9; }
     .slot-count-btn:hover:not(.active) { border-color: #999; }
+    .gap-count-btn {
+      padding: 6px 16px; border-radius: 6px; border: 2px solid #ccc;
+      background: #fff; cursor: pointer; font-size: 13px; font-weight: 600;
+    }
+    .gap-count-btn.active { background: #4a90d9; color: #fff; border-color: #4a90d9; }
+    .gap-count-btn:hover:not(.active) { border-color: #999; }
 
     .slot-strip {
       display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
       min-height: 130px; align-items: flex-end;
+    }
+    .slot-strip.quad-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-rows: auto auto auto;
+      gap: 8px;
+      justify-items: center;
+      align-items: center;
+      min-height: auto;
+    }
+    .slot-strip.quad-layout .quad-empty {
+      visibility: hidden;
     }
     .slot-box {
       min-width: 100px;
@@ -68,12 +86,38 @@
     .slot-box.filled .slot-graphic { background: #ffffff; }
     .slot-box .slot-graphic img { display: block; }
     .slot-box .slot-name {
-      font-size: 11px; font-weight: 600; margin-top: 4px;
-      min-height: 14px; color: #333;
+      font-size: 14px; font-weight: 700; margin-top: 6px;
+      min-height: 16px; color: #222;
     }
     .slot-box .slot-levels {
-      font-size: 9px; color: #888; margin-top: 2px; min-height: 12px;
+      font-size: 12px; font-weight: 600; color: #555; margin-top: 3px; min-height: 14px;
     }
+    .slot-box.slot-spacer {
+      border: 2px dashed #e8e8e8;
+      background: #ffffff;
+      cursor: default;
+    }
+    .slot-box.slot-spacer .slot-graphic {
+      border-color: #eee;
+      background: #ffffff;
+    }
+
+    .slot-box .slot-size-slider {
+      margin-top: 4px;
+      display: flex; align-items: center; gap: 4px;
+      justify-content: center;
+    }
+    .slot-box .slot-size-slider input[type="range"] {
+      width: 90px; accent-color: #4a90d9;
+    }
+    .slot-box .slot-size-slider span {
+      font-size: 10px; color: #999; min-width: 30px;
+    }
+    .slot-box .slot-size-slider-placeholder {
+      margin-top: 4px;
+      height: 20px; /* matches slider row height */
+    }
+
     .slot-box .slot-clear {
       position: absolute; top: 2px; right: 4px;
       background: none; border: none; cursor: pointer;
@@ -182,6 +226,11 @@
       <button class="slot-count-btn" data-count="2">2</button>
       <button class="slot-count-btn active" data-count="4">4</button>
       <button class="slot-count-btn" data-count="6">6</button>
+      <button class="slot-count-btn" data-count="quad">Quad</button>
+      <span class="gap-spacer" style="margin-left:12px"></span>
+      <label class="gap-label">Gaps:</label>
+      <button class="gap-count-btn" data-gaps="1">1</button>
+      <button class="gap-count-btn" data-gaps="2">2</button>
     </div>
     <div class="slot-strip" id="slotStrip"></div>
   </div>
@@ -277,10 +326,26 @@ const LIGHTNING_TIER_LABELS = ['Lightning None', 'Lightning Low', 'Lightning Med
 const STORAGE_KEY = 'breath-elements-v1';
 
 // ── State ──
-let slotCount = 4;
+let slotCount = 4;            // display count from buttons (2/4/6) or 'quad'
+let slotMode = 'linear';      // 'linear' or 'quad'
+let spacerCount = 1;          // blank panels between each element slot (1 or 2)
 let selectedSlotIdx = 0;
 let slots = []; // { elementIdx: number | null }
+
+// Total panel count depends on mode
+function totalPanels() {
+  if (slotMode === 'quad') return 5; // center + top/right/bottom/left
+  // element slots + (spacerCount blanks between each pair)
+  return slotCount + (slotCount - 1) * spacerCount;
+}
+// Is this panel index a blank (spacer) panel? Only applies in linear mode.
+function isBlankPanel(i) {
+  if (slotMode === 'quad') return false; // no blanks in quad mode
+  const groupSize = 1 + spacerCount; // e.g. 2 for 1-gap, 3 for 2-gap
+  return (i % groupSize) !== 0;
+}
 let graphics = {}; // { elementIdx: dataURL }
+let slotSizes = {}; // { slotIdx: number (px) } — per-slot image size overrides
 
 // ── DOM refs ──
 const slotStrip = document.getElementById('slotStrip');
@@ -290,7 +355,7 @@ let uploadTargetIdx = -1; // which element cell is being uploaded to
 
 // ── Persistence ──
 function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ slotCount, slots, graphics }));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ slotCount, slotMode, spacerCount, slots, graphics, slotSizes }));
 }
 
 function loadState() {
@@ -298,8 +363,11 @@ function loadState() {
     const data = JSON.parse(localStorage.getItem(STORAGE_KEY));
     if (data) {
       slotCount = data.slotCount || 4;
+      slotMode = data.slotMode || 'linear';
+      spacerCount = data.spacerCount || 1;
       slots = data.slots || [];
       graphics = data.graphics || {};
+      slotSizes = data.slotSizes || {};
     }
   } catch {}
 }
@@ -313,44 +381,109 @@ function levelPips(value, type, max = 3) {
   return `<span class="level-bar">${html}</span>`;
 }
 
+function capitalize(s) { return s.replace(/\b\w/g, c => c.toUpperCase()); }
+
 function levelText(el) {
-  return `F:${LEVEL_LABELS[el.fire]} I:${LEVEL_LABELS[el.ice]} L:${LEVEL_LABELS[el.lightning]}`;
+  return `Fire: ${capitalize(LEVEL_LABELS[el.fire])} • Ice: ${capitalize(LEVEL_LABELS[el.ice])} • Lightning: ${capitalize(LEVEL_LABELS[el.lightning])}`;
 }
 
 // ── Render Slots ──
+// Quad labels: [0]=Center, [1]=Top, [2]=Right, [3]=Bottom, [4]=Left
+const QUAD_LABELS = ['Center', 'Top', 'Right', 'Bottom', 'Left'];
+// Quad grid order: 3×3 grid positions (row-major) → slot index or -1 for empty corner
+const QUAD_GRID_ORDER = [-1, 1, -1, 4, 0, 2, -1, 3, -1];
+
 function renderSlots() {
-  // Ensure slots array matches count
-  while (slots.length < slotCount) slots.push({ elementIdx: null });
-  slots.length = slotCount;
+  const total = totalPanels();
+  // Ensure slots array matches total panel count
+  while (slots.length < total) slots.push({ elementIdx: null });
+  slots.length = total;
 
   slotStrip.innerHTML = '';
-  for (let i = 0; i < slotCount; i++) {
+
+  if (slotMode === 'quad') {
+    slotStrip.classList.add('quad-layout');
+    // Build 9 cells for the 3×3 grid
+    for (let g = 0; g < 9; g++) {
+      const slotIdx = QUAD_GRID_ORDER[g];
+      if (slotIdx === -1) {
+        // Empty corner cell
+        const empty = document.createElement('div');
+        empty.className = 'quad-empty';
+        slotStrip.appendChild(empty);
+        continue;
+      }
+      slotStrip.appendChild(buildSlotBox(slotIdx, QUAD_LABELS[slotIdx]));
+    }
+  } else {
+    slotStrip.classList.remove('quad-layout');
+    let elementNum = 0;
+    for (let i = 0; i < total; i++) {
+      const blank = isBlankPanel(i);
+      let label;
+      if (blank) {
+        label = '&nbsp;';
+      } else {
+        elementNum++;
+        label = `Slot ${elementNum}`;
+      }
+      slotStrip.appendChild(buildSlotBox(i, label, blank));
+    }
+  }
+
+  // Set all slot-graphic boxes to a uniform size (675px capped to largest image)
+  equalizeSlotBoxes();
+}
+
+function buildSlotBox(i, label, isLinearBlank = false) {
     const slot = slots[i];
     const el = slot.elementIdx !== null ? ELEMENTS[slot.elementIdx] : null;
     const isSelected = i === selectedSlotIdx;
     const isFilled = el !== null;
 
     const box = document.createElement('div');
-    box.className = 'slot-box' + (isSelected ? ' selected' : '') + (isFilled ? ' filled' : '');
+    box.className = 'slot-box'
+      + (isSelected ? ' selected' : '')
+      + (isFilled ? ' filled' : '')
+      + (isLinearBlank && !isFilled ? ' slot-spacer' : '');
 
     let graphicContent = '<span>empty</span>';
     if (isFilled && graphics[slot.elementIdx]) {
       graphicContent = `<img src="${graphics[slot.elementIdx]}" alt="${el.name}">`;
     } else if (isFilled) {
-      graphicContent = '<span>no graphic</span>';
+      graphicContent = '<span></span>';
     }
 
+    const currentSize = slotSizes[i] || 300;
+    const hasGraphic = isFilled && graphics[slot.elementIdx];
+
     box.innerHTML = `
-      <div class="slot-label">Slot ${i + 1}</div>
+      <div class="slot-label">${label}</div>
       <div class="slot-graphic">${graphicContent}</div>
-      <div class="slot-name">${isFilled ? el.name : ''}</div>
+      <div class="slot-name">${isFilled ? 'Name: ' + capitalize(el.name) : ''}</div>
       <div class="slot-levels">${isFilled ? levelText(el) : ''}</div>
+      ${hasGraphic ? `<div class="slot-size-slider">
+        <input type="range" min="50" max="675" step="5" value="${currentSize}" data-slot="${i}">
+        <span>${currentSize}px</span>
+      </div>` : '<div class="slot-size-slider-placeholder"></div>'}
       ${isFilled ? '<button class="slot-clear" title="Clear slot">&times;</button>' : ''}
     `;
 
+    // Apply per-slot size to image
+    if (hasGraphic) {
+      const img = box.querySelector('.slot-graphic img');
+      if (img) {
+        img.style.maxWidth = currentSize + 'px';
+        img.style.maxHeight = currentSize + 'px';
+      }
+    }
+
     box.addEventListener('click', (e) => {
+      // Don't select slot when interacting with slider
+      if (e.target.closest('.slot-size-slider')) return;
       if (e.target.classList.contains('slot-clear')) {
         slots[i].elementIdx = null;
+        delete slotSizes[i];
         saveState();
         renderSlots();
         renderGrid();
@@ -360,8 +493,64 @@ function renderSlots() {
       renderSlots();
     });
 
-    slotStrip.appendChild(box);
+    // Size slider handler
+    const slider = box.querySelector('.slot-size-slider input');
+    if (slider) {
+      slider.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value);
+        slotSizes[i] = val;
+        e.target.nextElementSibling.textContent = val + 'px';
+        const img = box.querySelector('.slot-graphic img');
+        if (img) {
+          img.style.maxWidth = val + 'px';
+          img.style.maxHeight = val + 'px';
+        }
+      });
+      slider.addEventListener('change', () => saveState());
+    }
+
+    return box;
+}
+
+function equalizeSlotBoxes() {
+  const imgs = slotStrip.querySelectorAll('.slot-graphic img');
+  const allBoxes = slotStrip.querySelectorAll('.slot-graphic');
+  if (allBoxes.length === 0) return;
+
+  if (imgs.length === 0) {
+    // No images yet — use default min size
+    allBoxes.forEach(box => { box.style.width = '300px'; box.style.height = '300px'; });
+    return;
   }
+
+  let loaded = 0;
+  const check = () => {
+    loaded++;
+    if (loaded < imgs.length) return;
+    // Find max natural dimensions across all images
+    let maxW = 0, maxH = 0;
+    imgs.forEach(img => {
+      if (img.naturalWidth > maxW) maxW = img.naturalWidth;
+      if (img.naturalHeight > maxH) maxH = img.naturalHeight;
+    });
+    if (maxW === 0 || maxH === 0) return;
+    // Cap to 675px max, scale proportionally
+    const MAX_SIZE = 675;
+    if (maxW > MAX_SIZE || maxH > MAX_SIZE) {
+      const scale = MAX_SIZE / Math.max(maxW, maxH);
+      maxW = Math.round(maxW * scale);
+      maxH = Math.round(maxH * scale);
+    }
+    // Apply uniform size to ALL boxes (filled, empty, spacers)
+    allBoxes.forEach(box => {
+      box.style.width = maxW + 'px';
+      box.style.height = maxH + 'px';
+    });
+  };
+  imgs.forEach(img => {
+    if (img.complete) check();
+    else img.addEventListener('load', check);
+  });
 }
 
 // ── Render Grid ──
@@ -409,7 +598,7 @@ function renderGrid() {
           ${graphicContent}
           <div class="upload-overlay" data-upload="${idx}" title="Upload graphic">+</div>
         </div>
-        <div class="cell-name">${el.name}</div>
+        <div class="cell-name">Name: ${capitalize(el.name)}</div>
       `;
 
       // Click cell → assign to selected slot
@@ -459,7 +648,37 @@ document.querySelectorAll('.slot-count-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.slot-count-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    slotCount = parseInt(btn.dataset.count);
+    const val = btn.dataset.count;
+    if (val === 'quad') {
+      slotMode = 'quad';
+      slotCount = 5; // not used in quad but keep consistent
+    } else {
+      slotMode = 'linear';
+      slotCount = parseInt(val);
+    }
+    selectedSlotIdx = 0;
+    updateGapVisibility();
+    saveState();
+    renderSlots();
+    renderGrid();
+  });
+});
+
+function updateGapVisibility() {
+  const show = slotMode !== 'quad';
+  document.querySelectorAll('.gap-count-btn').forEach(b => b.style.display = show ? '' : 'none');
+  const gapLabel = document.querySelector('.gap-label');
+  if (gapLabel) gapLabel.style.display = show ? '' : 'none';
+  const gapSpacer = document.querySelector('.gap-spacer');
+  if (gapSpacer) gapSpacer.style.display = show ? '' : 'none';
+}
+
+// ── Gap count buttons ──
+document.querySelectorAll('.gap-count-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.gap-count-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    spacerCount = parseInt(btn.dataset.gaps);
     selectedSlotIdx = 0;
     saveState();
     renderSlots();
@@ -471,8 +690,18 @@ document.querySelectorAll('.slot-count-btn').forEach(btn => {
 loadState();
 // Set active button to match loaded state
 document.querySelectorAll('.slot-count-btn').forEach(btn => {
-  btn.classList.toggle('active', parseInt(btn.dataset.count) === slotCount);
+  const val = btn.dataset.count;
+  if (slotMode === 'quad') {
+    btn.classList.toggle('active', val === 'quad');
+  } else {
+    btn.classList.toggle('active', parseInt(val) === slotCount);
+  }
 });
+// Set active gap button to match loaded state
+document.querySelectorAll('.gap-count-btn').forEach(btn => {
+  btn.classList.toggle('active', parseInt(btn.dataset.gaps) === spacerCount);
+});
+updateGapVisibility();
 renderSlots();
 renderGrid();
 </script>

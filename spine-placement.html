@@ -205,7 +205,7 @@
         </div>
         <div class="slider-row">
           <label>Height Offset</label>
-          <input type="range" id="height-offset" min="10" max="200" step="1" value="60">
+          <input type="range" id="height-offset" min="1" max="400" step="1" value="60">
           <span class="val" id="height-offset-val">60</span>
         </div>
         <label style="font-size:11px; color:#8a7e72; display:flex; align-items:center; gap:4px; margin-top:2px; cursor:pointer;">
@@ -284,6 +284,31 @@ const TAIL_FILENAMES = {
   whip:   { short: 'tail_whip_s_f',   medium: 'tail_whip_m_f',   long: 'tail_whip_l_f' },
   heavy:  { short: 'tail_heavy_s_f',  medium: 'tail_heavy_m_f',  long: 'tail_heavy_l_f' },
 };
+
+// Head spine filenames per type/height (same type/height as body spines)
+const HEAD_SPINE_FILENAMES = {
+  spike: { low: 'spinehead_spike_S', medium: 'spinehead_spike_M', tall: 'spinehead_spike_L' },
+  sail:  { low: null, medium: null, tall: null }, // no assets yet
+  ridge: { low: null, medium: null, tall: null },
+};
+
+// Extra reference layers: head, legs (4-limb default), wings (2-wing default), and their fades
+// These use pair=1 anchors with standard limb/wing counts
+const HEAD_FILENAME = 'head_f';
+const EXTRA_REF_LAYERS = [
+  // Legs — bg then fg, 4-limb default
+  { file: 'leg_bg_f', anchorKey: (body) => `leg_bg_f:p1:${body}:4l` },
+  { file: 'leg_fg_f', anchorKey: (body) => `leg_fg_f:p1:${body}:4l` },
+  // Leg fades
+  { file: 'legfade_bg_f', anchorKey: (body) => `leg_bg_f:p1:${body}:4l` },
+  { file: 'legfade_fg_f', anchorKey: (body) => `leg_fg_f:p1:${body}:4l` },
+  // Wings — bg then fg, 2-wing default
+  { file: 'wing_bg_outer_f', anchorKey: (body) => `wing_bg_outer_f:p1:${body}:2w` },
+  { file: 'wing_fg_outer_f', anchorKey: (body) => `wing_fg_outer_f:p1:${body}:2w` },
+  // Wing fades
+  { file: 'wingfade_bg_outer_f', anchorKey: (body) => `wing_bg_outer_f:p1:${body}:2w` },
+  { file: 'wingfade_fg_outer_f', anchorKey: (body) => `wing_fg_outer_f:p1:${body}:2w` },
+];
 
 const POINT_RADIUS = 8;
 const CONTROL_POINT_COLOR = '#c4a265';
@@ -520,15 +545,32 @@ async function render() {
 }
 
 async function drawReferenceLayers() {
+  ctx.save();
+  ctx.globalAlpha = 0.3;
+
+  // Extra reference layers (legs, wings, fades) — drawn first (behind body)
+  for (const ref of EXTRA_REF_LAYERS) {
+    const img = await loadImage(ref.file);
+    if (!img) continue;
+    const anchorKeyStr = ref.anchorKey(currentBody);
+    const anchor = ANCHORS[anchorKeyStr] || { x: 0, y: 0 };
+    if (anchor.rot) {
+      ctx.save();
+      ctx.translate(anchor.x + img.width / 2, anchor.y + img.height / 2);
+      ctx.rotate(anchor.rot * Math.PI / 180);
+      ctx.drawImage(img, -img.width / 2, -img.height / 2);
+      ctx.restore();
+    } else {
+      ctx.drawImage(img, anchor.x, anchor.y);
+    }
+  }
+
   // Body silhouette
   const bodyFile = BODY_FILENAMES[currentBody];
   const bodyImg = await loadImage(bodyFile);
   if (bodyImg) {
     const anchor = getAnchor(bodyFile, currentBody);
-    ctx.save();
-    ctx.globalAlpha = 0.3;
     ctx.drawImage(bodyImg, anchor.x, anchor.y);
-    ctx.restore();
   }
 
   // Tail silhouette
@@ -537,12 +579,33 @@ async function drawReferenceLayers() {
     const tailImg = await loadImage(tailFile);
     if (tailImg) {
       const anchor = getAnchor(tailFile, currentBody);
-      ctx.save();
-      ctx.globalAlpha = 0.3;
       ctx.drawImage(tailImg, anchor.x, anchor.y);
-      ctx.restore();
     }
   }
+
+  // Head silhouette
+  const headImg = await loadImage(HEAD_FILENAME);
+  if (headImg) {
+    const headAnchorKey = `${HEAD_FILENAME}:${currentBody}`;
+    const anchor = ANCHORS[headAnchorKey] || { x: 0, y: 0 };
+    ctx.drawImage(headImg, anchor.x, anchor.y);
+  }
+
+  // Head spines (anchored relative to head_o like horns)
+  const headSpineFile = HEAD_SPINE_FILENAMES[currentSpine]?.[currentHeight];
+  if (headSpineFile) {
+    const headSpineImg = await loadImage(headSpineFile);
+    if (headSpineImg) {
+      const headOAnchorKey = `head_o:${currentBody}`;
+      const headOAnchor = ANCHORS[headOAnchorKey] || { x: 0, y: 0 };
+      const spineAnchor = ANCHORS[headSpineFile] || { x: 0, y: 0 };
+      const ax = headOAnchor.x + spineAnchor.x;
+      const ay = headOAnchor.y + spineAnchor.y;
+      ctx.drawImage(headSpineImg, ax, ay);
+    }
+  }
+
+  ctx.restore();
 }
 
 function drawCurve() {
@@ -630,7 +693,20 @@ function isNearHeightGuide(cx, cy) {
 
 async function drawSpineSprites(positions) {
   const files = SPINE_FILENAMES[currentSpine]?.[currentHeight] || [];
-  if (files.length === 0 || positions.length === 0) return;
+  if (positions.length === 0) return;
+
+  if (files.length === 0) {
+    // Show "no assets" label near the first spine position
+    if (positions.length > 0) {
+      ctx.save();
+      ctx.font = '14px sans-serif';
+      ctx.fillStyle = '#884444';
+      ctx.textAlign = 'center';
+      ctx.fillText(`No ${currentSpine} ${currentHeight} assets`, positions[0].x, positions[0].y - 30);
+      ctx.restore();
+    }
+    return;
+  }
 
   // Load all layers for this spine type
   const imgs = [];
@@ -981,7 +1057,8 @@ canvas.addEventListener('mousedown', (e) => {
   // Check if clicking on height guide line (for dragging)
   if (showHeightGuide && isNearHeightGuide(x, y)) {
     isDraggingHeightGuide = true;
-    heightGuideStartY = y;
+    const rect = container.getBoundingClientRect();
+    heightGuideStartY = e.clientY - rect.top; // screen-space Y
     heightGuideStartOffset = heightOffset;
     canvas.classList.add('dragging');
     canvas.style.cursor = 'ns-resize';
@@ -1012,10 +1089,13 @@ canvas.addEventListener('mousemove', (e) => {
   }
 
   if (isDraggingHeightGuide) {
-    const { y } = canvasCoords(e);
-    // Moving mouse up → larger offset, down → smaller
-    const delta = heightGuideStartY - y;
-    heightOffset = Math.max(10, Math.min(200, heightGuideStartOffset + delta));
+    // Use screen-space delta for smooth, zoom-independent dragging
+    const rect = container.getBoundingClientRect();
+    const screenY = e.clientY - rect.top;
+    const screenDelta = heightGuideStartY - screenY;
+    // Scale: 1 screen pixel = 0.5 sprite-space units for fine control
+    const spriteDelta = screenDelta * 0.5;
+    heightOffset = Math.max(1, Math.min(400, heightGuideStartOffset + spriteDelta));
     heightOffsetSlider.value = Math.round(heightOffset);
     heightOffsetVal.textContent = Math.round(heightOffset);
     render();

@@ -1,0 +1,12 @@
+// anchors-body.txt
+// 9 entries
+
+  'body_bulk_bf':                          { x: 833, y: 1016 },
+  'body_bulk_mf':                          { x: 821, y: 887 },
+  'body_bulk_o':                           { x: 827, y: 863 },
+  'body_sin_bf':                           { x: 897, y: 1007 },
+  'body_sin_mf':                           { x: 964, y: 878 },
+  'body_sin_o':                            { x: 842, y: 860 },
+  'body_stan_bf':                          { x: 834, y: 1019 },
+  'body_stan_mf':                          { x: 923, y: 897 },
+  'body_stan_o':                           { x: 843, y: 863 },

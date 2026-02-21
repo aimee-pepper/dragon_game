@@ -1,0 +1,12 @@
+// anchors-head.txt
+// 9 entries
+
+  'head_d:bulky':                          { x: 719, y: 873 },
+  'head_d:sinuous':                        { x: 762, y: 852 },
+  'head_d:standard':                       { x: 719, y: 859 },
+  'head_f:bulky':                          { x: 658, y: 747 },
+  'head_f:sinuous':                        { x: 701, y: 726 },
+  'head_f:standard':                       { x: 658, y: 733 },
+  'head_o:bulky':                          { x: 658, y: 738 },
+  'head_o:sinuous':                        { x: 701, y: 717 },
+  'head_o:standard':                       { x: 658, y: 724 },
