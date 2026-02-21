@@ -269,9 +269,9 @@ function redAmount(r, g, b) {
   const total = r + g + b;
   if (total === 0) return 0;
   const ratio = r / total; // 0.33 for grey, 1.0 for pure red
-  // Ramp from 0 at ratio=0.45 to 1 at ratio=0.75
-  // This captures anti-aliased edge pixels in the overlap zone
-  return Math.max(0, Math.min(1, (ratio - 0.45) / 0.30));
+  // Ramp from 0 at ratio=0.60 to 1 at ratio=0.85
+  // Tighter window: grey (0.33) is well below, pure red (1.0) is well above
+  return Math.max(0, Math.min(1, (ratio - 0.60) / 0.25));
 }
 
 /**
@@ -820,40 +820,23 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     }
   }
 
-  // ── Utility: composite per-asset extracted outlines ──
-  // Extracts red from each asset INDIVIDUALLY, then composites them.
-  // This ensures fills from one asset don't occlude outlines from another.
-  // The result is a pure outline assembly where all outlines are visible.
-  function compositeOutlinesPerAsset(layerList, targetWidth, targetHeight) {
+  // ── Utility: assemble outline assets (_o) into a single composited layer ──
+  // Outline PNGs are already pure red lines — no extraction needed.
+  // Just composite them together, convert red→grey, then return for coloring.
+  function assembleOutlineAssets(layerList, targetWidth, targetHeight) {
     const comp = document.createElement('canvas');
     comp.width = targetWidth;
     comp.height = targetHeight;
     const compCtx = comp.getContext('2d');
 
-    const assetCanvas = document.createElement('canvas');
-    assetCanvas.width = targetWidth;
-    assetCanvas.height = targetHeight;
-    const assetCtx = assetCanvas.getContext('2d');
-
     for (const layer of layerList) {
       if (layer.isFixedDetail) continue;
-
-      // Draw this single asset onto a clean canvas
-      assetCtx.clearRect(0, 0, targetWidth, targetHeight);
-      drawToCtx(assetCtx, layer.offscreen, layer, 1.0);
-
-      // Extract only the red pixels from this single asset
-      const imgData = assetCtx.getImageData(0, 0, targetWidth, targetHeight);
-      keepOnlyRed(imgData);
-
-      // Stamp this asset's outlines onto the shared compositor
-      assetCtx.putImageData(imgData, 0, 0);
-      compCtx.drawImage(assetCanvas, 0, 0);
+      if (!layer.asset.filename.endsWith('_o')) continue;
+      drawToCtx(compCtx, layer.offscreen, layer, 1.0);
     }
 
     const result = compCtx.getImageData(0, 0, targetWidth, targetHeight);
     comp.width = 0; comp.height = 0;
-    assetCanvas.width = 0; assetCanvas.height = 0;
     return result;
   }
 
@@ -891,9 +874,8 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
   if (isNoneOpacity) {
     // ── NONE OPACITY: no base layer ──
 
-    // Injected Outlines: extract red from each asset individually, then composite.
-    // Per-asset extraction ensures fills don't occlude outlines from other assets.
-    const injOutlines = compositeOutlinesPerAsset(processedLayers, width, height);
+    // Injected Outlines: assemble _o assets → red→grey → L2 color blend
+    const injOutlines = assembleOutlineAssets(processedLayers, width, height);
     redToGrey(injOutlines);
     applyLayer2Blend(injOutlines, dragonRgb);
     offscreenCompCtx.putImageData(injOutlines, 0, 0);
@@ -911,32 +893,28 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
       if (layer.isFixedDetail) drawToCtx(ctx, layer.offscreen, layer, 1.0);
     }
 
-    // Final Outline: composite all base assets → extract red → grey → darken
-    const baseRaw = compositeLayersRaw(processedLayers, width, height);
-    const { outlineData: finalOutData } = splitRedOutlines(baseRaw);
-    redToGrey(finalOutData);
-    applyColorBlend(finalOutData, dragonRgb, darkenShift);
+    // Final Outline: assemble _o assets → red→grey → darken color blend
+    const finalOutlines = assembleOutlineAssets(processedLayers, width, height);
+    redToGrey(finalOutlines);
+    applyColorBlend(finalOutlines, dragonRgb, darkenShift);
     offscreenCompCtx.clearRect(0, 0, width, height);
-    offscreenCompCtx.putImageData(finalOutData, 0, 0);
+    offscreenCompCtx.putImageData(finalOutlines, 0, 0);
     ctx.drawImage(offscreenComp, 0, 0);
 
   } else if (needsFadePass) {
     // ── LOW & MID OPACITY ──
 
-    // Composite all base assets → split fills and outlines
+    // Base Layer: composite all assets → remove red → fills at bodyAlpha
     const baseRaw = compositeLayersRaw(processedLayers, width, height);
-    const { fillData: baseFills, outlineData: baseOutlines } = splitRedOutlines(baseRaw);
-
-    // Base Layer: fills at bodyAlpha
-    offscreenCompCtx.putImageData(baseFills, 0, 0);
+    removeRed(baseRaw);
+    offscreenCompCtx.putImageData(baseRaw, 0, 0);
     ctx.save();
     ctx.globalAlpha = bodyAlpha;
     ctx.drawImage(offscreenComp, 0, 0);
     ctx.restore();
 
-    // Injected Outlines: extract red from each asset individually, then composite.
-    // Per-asset extraction ensures fills don't occlude outlines from other assets.
-    const injOutlines = compositeOutlinesPerAsset(processedLayers, width, height);
+    // Injected Outlines: assemble _o assets → red→grey → L2 color blend
+    const injOutlines = assembleOutlineAssets(processedLayers, width, height);
     redToGrey(injOutlines);
     applyLayer2Blend(injOutlines, dragonRgb);
     offscreenCompCtx.clearRect(0, 0, width, height);
@@ -955,22 +933,21 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
       if (layer.isFixedDetail) drawToCtx(ctx, layer.offscreen, layer, 1.0);
     }
 
-    // Final Outline: extracted red → grey → darken blend
-    redToGrey(baseOutlines);
-    applyColorBlend(baseOutlines, dragonRgb, darkenShift);
+    // Final Outline: assemble _o assets → red→grey → darken color blend
+    const finalOutlines = assembleOutlineAssets(processedLayers, width, height);
+    redToGrey(finalOutlines);
+    applyColorBlend(finalOutlines, dragonRgb, darkenShift);
     offscreenCompCtx.clearRect(0, 0, width, height);
-    offscreenCompCtx.putImageData(baseOutlines, 0, 0);
+    offscreenCompCtx.putImageData(finalOutlines, 0, 0);
     ctx.drawImage(offscreenComp, 0, 0);
 
   } else {
     // ── FULL OPACITY ──
 
-    // Composite all base assets → split fills and outlines
+    // Base Layer: composite all assets → remove red → fills only
     const baseRaw = compositeLayersRaw(processedLayers, width, height);
-    const { fillData: baseFills, outlineData: baseOutlines } = splitRedOutlines(baseRaw);
-
-    // Base Layer: fills at full opacity
-    offscreenCompCtx.putImageData(baseFills, 0, 0);
+    removeRed(baseRaw);
+    offscreenCompCtx.putImageData(baseRaw, 0, 0);
     ctx.drawImage(offscreenComp, 0, 0);
 
     // Detail Layer: face details at full opacity
@@ -978,11 +955,12 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
       if (layer.isFixedDetail) drawToCtx(ctx, layer.offscreen, layer, 1.0);
     }
 
-    // Final Outline: extracted red → grey → darken blend
-    redToGrey(baseOutlines);
-    applyColorBlend(baseOutlines, dragonRgb, darkenShift);
+    // Final Outline: assemble _o assets → red→grey → darken color blend
+    const finalOutlines = assembleOutlineAssets(processedLayers, width, height);
+    redToGrey(finalOutlines);
+    applyColorBlend(finalOutlines, dragonRgb, darkenShift);
     offscreenCompCtx.clearRect(0, 0, width, height);
-    offscreenCompCtx.putImageData(baseOutlines, 0, 0);
+    offscreenCompCtx.putImageData(finalOutlines, 0, 0);
     ctx.drawImage(offscreenComp, 0, 0);
   }
 

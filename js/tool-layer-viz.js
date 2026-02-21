@@ -76,7 +76,8 @@ function redAmount(r, g, b) {
   const total = r + g + b;
   if (total === 0) return 0;
   const ratio = r / total;
-  return Math.max(0, Math.min(1, (ratio - 0.45) / 0.30));
+  // Ramp from 0 at ratio=0.60 to 1 at ratio=0.85
+  return Math.max(0, Math.min(1, (ratio - 0.60) / 0.25));
 }
 
 /** Binary red outline check using soft redAmount with 50% threshold. */
@@ -444,43 +445,33 @@ function compositeLayersRaw(layers, dragonHsl, hslOverrides) {
   return imgData;
 }
 
-// ── Render Base Layer: composite all → split → fills only ──
+// ── Render Base Layer: composite all → remove red → fills only ──
 function renderBaseLayer(processedLayers, dragonHsl, hslOverrides) {
   const raw = compositeLayersRaw(processedLayers, dragonHsl, hslOverrides);
-  const { fillData } = splitRedOutlines(raw);
+  removeRed(raw);
   const c = document.createElement('canvas');
   c.width = SPRITE_WIDTH; c.height = SPRITE_HEIGHT;
-  c.getContext('2d').putImageData(fillData, 0, 0);
+  c.getContext('2d').putImageData(raw, 0, 0);
   return c;
 }
 
-// ── Render Injected Outlines: extract red per-asset FIRST, then composite ──
-// Per-asset extraction ensures fills don't occlude outlines from other assets.
+// ── Render Injected Outlines: assemble _o assets → red→grey → L2 blend ──
+// Outline PNGs are already pure red lines. Just composite them, convert, color.
 function renderInjectedOutlines(processedLayers, dragonHsl, dragonRgb, hslOverrides) {
   const w = SPRITE_WIDTH, h = SPRITE_HEIGHT;
   const comp = document.createElement('canvas');
   comp.width = w; comp.height = h;
   const compCtx = comp.getContext('2d');
 
-  const assetCanvas = document.createElement('canvas');
-  assetCanvas.width = w; assetCanvas.height = h;
-  const assetCtx = assetCanvas.getContext('2d');
-
+  // Only draw _o (outline) assets — they're already red lines, no extraction needed
   for (const layer of processedLayers) {
     if (layer.isFixedDetail) continue;
-    // Draw single asset
-    assetCtx.clearRect(0, 0, w, h);
+    if (!layer.asset.filename.endsWith('_o')) continue;
     const colored = recolorLayer(layer, dragonHsl, hslOverrides);
-    drawToCanvas(assetCtx, colored, layer);
-    // Extract only red from this asset
-    const imgData = assetCtx.getImageData(0, 0, w, h);
-    keepOnlyRed(imgData);
-    assetCtx.putImageData(imgData, 0, 0);
-    // Composite onto shared canvas
-    compCtx.drawImage(assetCanvas, 0, 0);
+    drawToCanvas(compCtx, colored, layer);
   }
 
-  // Now convert red → grey → L2 blend
+  // Convert red → grey → L2 blend
   const raw = compCtx.getImageData(0, 0, w, h);
   redToGrey(raw);
 
@@ -504,7 +495,6 @@ function renderInjectedOutlines(processedLayers, dragonHsl, dragonRgb, hslOverri
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
   c.getContext('2d').putImageData(raw, 0, 0);
-  assetCanvas.width = 0; assetCanvas.height = 0;
   comp.width = 0; comp.height = 0;
   return c;
 }
@@ -519,16 +509,29 @@ function renderFadeLayer(fadeSubLayers, dragonHsl, hslOverrides) {
   return c;
 }
 
-// ── Render Final Outline: composite all → extract red → grey → darken ──
+// ── Render Final Outline: assemble _o assets → red→grey → darken blend ──
 function renderFinalOutline(processedLayers, dragonHsl, hslOverrides) {
-  const raw = compositeLayersRaw(processedLayers, dragonHsl, hslOverrides);
-  const { outlineData } = splitRedOutlines(raw);
-  redToGrey(outlineData);
+  const w = SPRITE_WIDTH, h = SPRITE_HEIGHT;
+  const comp = document.createElement('canvas');
+  comp.width = w; comp.height = h;
+  const compCtx = comp.getContext('2d');
+
+  // Only draw _o outline assets
+  for (const layer of processedLayers) {
+    if (layer.isFixedDetail) continue;
+    if (!layer.asset.filename.endsWith('_o')) continue;
+    const colored = recolorLayer(layer, dragonHsl, hslOverrides);
+    drawToCanvas(compCtx, colored, layer);
+  }
+
+  const raw = compCtx.getImageData(0, 0, w, h);
+  redToGrey(raw);
   const darkenShift = COLOR_ADJUSTMENTS.darken.luminanceShift;
-  applyColorBlendHSL(outlineData, dragonHsl, darkenShift, hslOverrides);
+  applyColorBlendHSL(raw, dragonHsl, darkenShift, hslOverrides);
   const c = document.createElement('canvas');
-  c.width = SPRITE_WIDTH; c.height = SPRITE_HEIGHT;
-  c.getContext('2d').putImageData(outlineData, 0, 0);
+  c.width = w; c.height = h;
+  c.getContext('2d').putImageData(raw, 0, 0);
+  comp.width = 0; comp.height = 0;
   return c;
 }
 
