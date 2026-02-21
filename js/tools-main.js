@@ -21,6 +21,16 @@ function initTabs() {
   });
 }
 
+// ── Theme toggle ──
+function initThemeToggle() {
+  const btn = document.getElementById('theme-toggle');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    const isLight = document.body.classList.toggle('light-mode');
+    btn.textContent = isLight ? '☾ Dark' : '☀ Light';
+  });
+}
+
 // ── External tool openers ──
 // These open standalone pages in new windows without disrupting the current page.
 function initExternalLinks() {
@@ -39,6 +49,7 @@ function initExternalLinks() {
 // ── Boot ──
 function init() {
   initTabs();
+  initThemeToggle();
   initExternalLinks();
   initLayerVisualizer(document.getElementById('tool-layers'));
 }
