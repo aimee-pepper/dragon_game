@@ -241,6 +241,12 @@
     <div class="side-panel">
       <div class="status-bar" id="statusBar">Select a batch to begin placement</div>
 
+      <div id="layerToolbar" style="display:flex;gap:4px;padding:4px 0;">
+        <button id="exportCurrentPartBtn" class="secondary" style="flex:1;font-size:11px;padding:4px 8px;">💾 Export Part</button>
+        <button id="toggleVisAllBtn" class="secondary" style="font-size:11px;padding:4px 8px;">👁 Show All</button>
+        <button id="toggleVisNoneBtn" class="secondary" style="font-size:11px;padding:4px 8px;">🚫 Hide All</button>
+      </div>
+
       <div class="layer-list" id="layerList"></div>
 
       <div class="pos-editor" id="posEditor">
@@ -2266,6 +2272,188 @@
       }
       statusBar.innerHTML = `<strong style="color:#6a8a72;">✓ Downloading ${count} files</strong>`;
       setTimeout(buildLayerList, 3000);
+    });
+
+    // ── Export Current Part ──
+    function collectParts() {
+      // Re-use the same export logic from Export by Part but return the parts object
+      const fmt = (a) => {
+        const rot = a.rot || 0;
+        return rot ? `{ x: ${a.x}, y: ${a.y}, rot: ${rot} }` : `{ x: ${a.x}, y: ${a.y} }`;
+      };
+      const parts = { body: {}, head: {}, horns: {}, headspines: {}, tail: {}, wings: {}, legs: {} };
+
+      for (const layer of LAYERS.body || []) {
+        const off = layerOffsets[layer.id] || { x: 0, y: 0 };
+        parts.body[layer.id] = { x: off.x, y: off.y };
+      }
+      for (const bt of BODY_TYPES) {
+        for (const layer of (LAYERS.head || [])) {
+          const group = getLinkGroup(layer.id);
+          const off = layerOffsets[layer.id] || { x: 0, y: 0 };
+          let gx = 0, gy = 0, rot = 0;
+          if (group) {
+            const gKey = groupAnchorKeyFor(group, 'head', bt, currentWingCount, currentLimbCount);
+            const gPos = groupAnchors[gKey] || { x: 0, y: 0, rot: 0 };
+            gx = gPos.x; gy = gPos.y; rot = gPos.rot || 0;
+          }
+          const key = layer.id + ':' + bt;
+          parts.head[key] = { x: gx + off.x, y: gy + off.y };
+          if (rot) parts.head[key].rot = rot;
+        }
+      }
+      for (const layer of (LAYERS.horns || [])) {
+        const group = getLinkGroup(layer.id);
+        const off = layerOffsets[layer.id] || { x: 0, y: 0 };
+        let gx = 0, gy = 0;
+        if (group) {
+          const gPos = groupAnchors[group] || { x: 0, y: 0 };
+          gx = gPos.x; gy = gPos.y;
+        }
+        parts.horns[layer.id] = { x: gx + off.x, y: gy + off.y };
+      }
+      for (const layer of (LAYERS.headspines || [])) {
+        const group = getLinkGroup(layer.id);
+        const off = layerOffsets[layer.id] || { x: 0, y: 0 };
+        let gx = 0, gy = 0;
+        if (group) {
+          const gPos = groupAnchors[group] || { x: 0, y: 0 };
+          gx = gPos.x; gy = gPos.y;
+        }
+        parts.headspines[layer.id] = { x: gx + off.x, y: gy + off.y };
+      }
+      for (const bt of BODY_TYPES) {
+        for (const layer of (LAYERS.tail || [])) {
+          const group = getLinkGroup(layer.id);
+          const off = layerOffsets[layer.id] || { x: 0, y: 0 };
+          let gx = 0, gy = 0, rot = 0;
+          if (group) {
+            const gKey = groupAnchorKeyFor(group, 'tail', bt, currentWingCount, currentLimbCount);
+            const gPos = groupAnchors[gKey] || { x: 0, y: 0, rot: 0 };
+            gx = gPos.x; gy = gPos.y; rot = gPos.rot || 0;
+          }
+          const key = layer.id + ':' + bt;
+          parts.tail[key] = { x: gx + off.x, y: gy + off.y };
+          if (rot) parts.tail[key].rot = rot;
+        }
+      }
+      for (const bt of BODY_TYPES) {
+        for (const layer of (LAYERS.vestigial || [])) {
+          const group = getLinkGroup(layer.id);
+          const off = layerOffsets[layer.id] || { x: 0, y: 0 };
+          let gx = 0, gy = 0, rot = 0;
+          if (group) {
+            const gKey = groupAnchorKeyFor(group, 'vestigial', bt, currentWingCount, currentLimbCount);
+            const gPos = groupAnchors[gKey] || { x: 0, y: 0, rot: 0 };
+            gx = gPos.x; gy = gPos.y; rot = gPos.rot || 0;
+          }
+          const key = layer.id + ':' + bt;
+          parts.wings[key] = { x: gx + off.x, y: gy + off.y };
+          if (rot) parts.wings[key].rot = rot;
+        }
+      }
+      for (const wc of [2, 4, 6]) {
+        const maxPair = wingCountToMaxPair(wc);
+        for (const bt of BODY_TYPES) {
+          for (const [modelName, model] of Object.entries(WING_MODELS)) {
+            for (let p = 1; p <= maxPair; p++) {
+              const gKey = groupAnchorKeyFor(modelName + ':p' + p, 'wings', bt, wc, currentLimbCount);
+              const gPos = groupAnchors[gKey] || { x: 0, y: 0, rot: 0 };
+              for (const ml of model.layers) {
+                const mOff = modelOffsets[ml.modelId] || { x: 0, y: 0 };
+                const exportKey = `${ml.file}:p${p}:${bt}:${wc}w`;
+                parts.wings[exportKey] = { x: gPos.x + mOff.x, y: gPos.y + mOff.y };
+                if (gPos.rot) parts.wings[exportKey].rot = gPos.rot;
+              }
+            }
+          }
+        }
+      }
+      for (const lc of [2, 4, 6]) {
+        const maxPair = limbCountToMaxPair(lc);
+        for (const bt of BODY_TYPES) {
+          for (const [modelName, model] of Object.entries(LEG_MODELS)) {
+            for (let p = 1; p <= maxPair; p++) {
+              const gKey = groupAnchorKeyFor(modelName + ':p' + p, 'legs', bt, currentWingCount, lc);
+              const gPos = groupAnchors[gKey] || { x: 0, y: 0 };
+              for (const ml of model.layers) {
+                const mOff = modelOffsets[ml.modelId] || { x: 0, y: 0 };
+                const exportKey = `${ml.file}:p${p}:${bt}:${lc}l`;
+                parts.legs[exportKey] = { x: gPos.x + mOff.x, y: gPos.y + mOff.y };
+              }
+            }
+          }
+        }
+      }
+      return { parts, fmt };
+    }
+
+    function downloadPart(partName, anchors, fmt) {
+      const keys = Object.keys(anchors).sort();
+      if (keys.length === 0) return;
+      const lines = keys.map(k => {
+        const pad = ' '.repeat(Math.max(1, 38 - k.length));
+        return `  '${k}':${pad}${fmt(anchors[k])},`;
+      });
+      const content = `// anchors-${partName}.txt\n// ${keys.length} entries\n\n${lines.join('\n')}\n`;
+      const blob = new Blob([content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `anchors-${partName}.txt`;
+      document.body.appendChild(a);
+      a.click(); a.remove(); URL.revokeObjectURL(url);
+    }
+
+    document.getElementById('exportCurrentPartBtn').addEventListener('click', () => {
+      // Map batch name to export part name
+      const batchToPartMap = {
+        body: 'body', head: 'head', horns: 'horns', headspines: 'headspines',
+        tail: 'tail', wings: 'wings', vestigial: 'wings', legs: 'legs',
+      };
+      if (currentBatch === 'all') {
+        // If on "all" tab, export everything (same as Export by Part)
+        document.getElementById('exportPartsBtn').click();
+        return;
+      }
+      const partName = batchToPartMap[currentBatch];
+      if (!partName) return;
+
+      const { parts, fmt } = collectParts();
+      const anchors = parts[partName];
+      if (!anchors || Object.keys(anchors).length === 0) {
+        statusBar.innerHTML = '<strong style="color:#884444;">No anchors to export for this part</strong>';
+        setTimeout(buildLayerList, 2000);
+        return;
+      }
+      downloadPart(partName, anchors, fmt);
+      statusBar.innerHTML = `<strong style="color:#6a8a72;">✓ Downloaded anchors-${partName}.txt</strong>`;
+      setTimeout(buildLayerList, 3000);
+    });
+
+    // ── Toggle All Visibility ──
+    document.getElementById('toggleVisAllBtn').addEventListener('click', () => {
+      const layers = getBatchLayers();
+      for (const l of layers) visibility[l.id] = true;
+      if (MODEL_BATCHES.has(currentBatch)) {
+        const models = getModels(currentBatch);
+        for (const [, model] of Object.entries(models)) {
+          for (const ml of model.layers) visibility[ml.modelId] = true;
+        }
+      }
+      buildLayerList(); render();
+    });
+
+    document.getElementById('toggleVisNoneBtn').addEventListener('click', () => {
+      const layers = getBatchLayers();
+      for (const l of layers) visibility[l.id] = false;
+      if (MODEL_BATCHES.has(currentBatch)) {
+        const models = getModels(currentBatch);
+        for (const [, model] of Object.entries(models)) {
+          for (const ml of model.layers) visibility[ml.modelId] = false;
+        }
+      }
+      buildLayerList(); render();
     });
 
     // ── Reset ──
