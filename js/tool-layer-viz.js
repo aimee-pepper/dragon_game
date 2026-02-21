@@ -123,41 +123,7 @@ function applyColorBlendHSL(imageData, dragonHsl, luminanceShift, hslOverrides =
   }
 }
 
-// Simpler version
-function applyColorBlend(imageData, dragonRgb, luminanceShift = 0) {
-  const dragonHsl = rgbToHsl(dragonRgb.r, dragonRgb.g, dragonRgb.b);
-  applyColorBlendHSL(imageData, dragonHsl, luminanceShift);
-}
-
 // ── Red-extraction utilities (same as sprite-renderer.js) ──
-
-function splitRedOutlines(srcData) {
-  const w = srcData.width, h = srcData.height;
-  const fillData = new ImageData(new Uint8ClampedArray(srcData.data), w, h);
-  const outlineData = new ImageData(new Uint8ClampedArray(srcData.data.length), w, h);
-  const fd = fillData.data, od = outlineData.data, sd = srcData.data;
-  for (let i = 0; i < sd.length; i += 4) {
-    if (sd[i + 3] === 0) continue;
-    const rAmt = redAmount(sd[i], sd[i + 1], sd[i + 2]);
-    if (rAmt <= 0) continue;
-
-    // Outline: copy pixel, scale alpha by redness
-    od[i] = sd[i]; od[i+1] = sd[i+1]; od[i+2] = sd[i+2];
-    od[i+3] = Math.round(sd[i+3] * rAmt);
-
-    // Fill: desaturate red tint, gentle fade
-    if (rAmt >= 1.0) {
-      fd[i+3] = 0;
-    } else {
-      const lum = 0.299 * sd[i] + 0.587 * sd[i+1] + 0.114 * sd[i+2];
-      fd[i]   = Math.round(sd[i] + (lum - sd[i]) * rAmt);
-      fd[i+1] = Math.round(sd[i+1] + (lum - sd[i+1]) * rAmt);
-      fd[i+2] = Math.round(sd[i+2] + (lum - sd[i+2]) * rAmt);
-      fd[i+3] = Math.round(sd[i+3] * (1 - rAmt * 0.5));
-    }
-  }
-  return { fillData, outlineData };
-}
 
 function redToGrey(imgData) {
   const d = imgData.data;
@@ -303,32 +269,18 @@ async function decomposeIntoLayers(phenotype) {
     }
   }
 
-  // Process all layers — store RAW (uncolored) canvases + colored versions
-  // Color-blend skips red outline markers, same as sprite-renderer.js
+  // Process all layers — store RAW (uncolored) canvases only
+  // No per-asset color processing; color blend happens at group level
   const processedLayers = [];
   for (const asset of matchedAssets) {
     const fullname = asset.filename + '.png';
     const img = assetMap.get(fullname);
     if (!img) continue;
 
-    // Raw canvas (uncolored) — kept for re-processing with HSL sliders
+    // Raw canvas (uncolored) — used for compositing and HSL slider re-processing
     const rawCanvas = document.createElement('canvas');
     rawCanvas.width = img.width; rawCanvas.height = img.height;
     rawCanvas.getContext('2d').drawImage(img, 0, 0);
-
-    // Colored canvas — default color processing (skip red)
-    const offscreen = document.createElement('canvas');
-    offscreen.width = img.width; offscreen.height = img.height;
-    const offCtx = offscreen.getContext('2d');
-    offCtx.drawImage(img, 0, 0);
-
-    if (asset.colorMode !== 'fixed') {
-      const imageData = offCtx.getImageData(0, 0, offscreen.width, offscreen.height);
-      const adjustment = COLOR_ADJUSTMENTS[asset.colorMode];
-      const shift = adjustment ? adjustment.luminanceShift : 0;
-      applyColorBlendHSL(imageData, dragonHsl, shift, {}, true); // skipRed=true
-      offCtx.putImageData(imageData, 0, 0);
-    }
 
     const anchorCtx = {};
     if (asset.gene === 'wing') {
@@ -353,12 +305,12 @@ async function decomposeIntoLayers(phenotype) {
     const groupPivot = groupKey ? groupPivots[groupKey] : null;
 
     processedLayers.push({
-      asset, rawCanvas, offscreen, anchorX, anchorY, rotation,
+      asset, rawCanvas, anchorX, anchorY, rotation,
       isFixedDetail, groupPivot,
     });
   }
 
-  // Fade layers — also store raw canvases
+  // Fade layers — raw canvases only (no per-asset color processing)
   const fadeLayers = [];
   for (const asset of matchedAssets) {
     const fadeName = getFadeFilename(asset.filename);
@@ -371,21 +323,9 @@ async function decomposeIntoLayers(phenotype) {
     rawCanvas.width = img.width; rawCanvas.height = img.height;
     rawCanvas.getContext('2d').drawImage(img, 0, 0);
 
-    const offscreen = document.createElement('canvas');
-    offscreen.width = img.width; offscreen.height = img.height;
-    const offCtx = offscreen.getContext('2d');
-    offCtx.drawImage(img, 0, 0);
-    if (asset.colorMode !== 'fixed') {
-      const imageData = offCtx.getImageData(0, 0, offscreen.width, offscreen.height);
-      const adjustment = COLOR_ADJUSTMENTS[asset.colorMode];
-      const shift = adjustment ? adjustment.luminanceShift : 0;
-      applyColorBlendHSL(imageData, dragonHsl, shift, {}, true); // skipRed=true
-      offCtx.putImageData(imageData, 0, 0);
-    }
-
     const baseLayer = processedLayers.find(pl => pl.asset === asset);
     fadeLayers.push({
-      asset, rawCanvas, offscreen,
+      asset, rawCanvas,
       anchorX: baseLayer.anchorX, anchorY: baseLayer.anchorY,
       rotation: baseLayer.rotation,
       isFixedDetail: baseLayer.isFixedDetail, groupPivot: baseLayer.groupPivot,
@@ -426,50 +366,34 @@ function drawToCanvas(targetCtx, sourceCanvas, layer) {
   targetCtx.restore();
 }
 
-// ── Re-color a layer's raw canvas with custom HSL (skipping red) ──
-function recolorLayer(layer, dragonHsl, hslOverrides) {
-  const { rawCanvas, asset } = layer;
-  const c = document.createElement('canvas');
-  c.width = rawCanvas.width; c.height = rawCanvas.height;
-  const ctx = c.getContext('2d');
-  ctx.drawImage(rawCanvas, 0, 0);
-
-  if (asset.colorMode !== 'fixed') {
-    const imageData = ctx.getImageData(0, 0, c.width, c.height);
-    const adjustment = COLOR_ADJUSTMENTS[asset.colorMode];
-    const shift = adjustment ? adjustment.luminanceShift : 0;
-    applyColorBlendHSL(imageData, dragonHsl, shift, hslOverrides, true); // skipRed=true
-    ctx.putImageData(imageData, 0, 0);
-  }
-  return c;
-}
-
-// ── Composite a layer list onto a full-size canvas, return ImageData ──
-function compositeLayersRaw(layers, dragonHsl, hslOverrides) {
+// ── Composite a layer list onto a full-size canvas as raw greyscale+red ──
+// No per-asset color processing — just draws raw canvases in z-order.
+function compositeLayersRaw(layers) {
   const c = document.createElement('canvas');
   c.width = SPRITE_WIDTH; c.height = SPRITE_HEIGHT;
   const ctx = c.getContext('2d');
   for (const layer of layers) {
     if (layer.isFixedDetail) continue;
-    const colored = recolorLayer(layer, dragonHsl, hslOverrides);
-    drawToCanvas(ctx, colored, layer);
+    drawToCanvas(ctx, layer.rawCanvas, layer);
   }
   const imgData = ctx.getImageData(0, 0, SPRITE_WIDTH, SPRITE_HEIGHT);
   c.width = 0; c.height = 0;
   return imgData;
 }
 
-// ── Render Base Layer: composite all → remove red → fills only ──
+// ── Render Base Layer: raw composite → removeRed → desaturate → colorBlend(0) ──
 function renderBaseLayer(processedLayers, dragonHsl, hslOverrides) {
-  const raw = compositeLayersRaw(processedLayers, dragonHsl, hslOverrides);
+  const raw = compositeLayersRaw(processedLayers);
   removeRed(raw);
+  desaturateToGrey(raw);
+  applyColorBlendHSL(raw, dragonHsl, 0, hslOverrides);
   const c = document.createElement('canvas');
   c.width = SPRITE_WIDTH; c.height = SPRITE_HEIGHT;
   c.getContext('2d').putImageData(raw, 0, 0);
   return c;
 }
 
-// ── Render Injected Outlines: assemble _o assets → red→grey → L2 blend ──
+// ── Render Injected Outlines: assemble _o raw → red→grey → L2 blend ──
 // Outline PNGs are already pure red lines. Just composite them, convert, color.
 function renderInjectedOutlines(processedLayers, dragonHsl, dragonRgb, hslOverrides) {
   const w = SPRITE_WIDTH, h = SPRITE_HEIGHT;
@@ -481,8 +405,7 @@ function renderInjectedOutlines(processedLayers, dragonHsl, dragonRgb, hslOverri
   for (const layer of processedLayers) {
     if (layer.isFixedDetail) continue;
     if (!layer.asset.filename.endsWith('_o')) continue;
-    const colored = recolorLayer(layer, dragonHsl, hslOverrides);
-    drawToCanvas(compCtx, colored, layer);
+    drawToCanvas(compCtx, layer.rawCanvas, layer);
   }
 
   // Convert red → grey → L2 blend
@@ -513,9 +436,9 @@ function renderInjectedOutlines(processedLayers, dragonHsl, dragonRgb, hslOverri
   return c;
 }
 
-// ── Render Fade Layer: composite fade-sub → remove red → desaturate → re-color ──
+// ── Render Fade Layer: raw fade composite → removeRed → desaturate → colorBlend(0) ──
 function renderFadeLayer(fadeSubLayers, dragonHsl, hslOverrides) {
-  const raw = compositeLayersRaw(fadeSubLayers, dragonHsl, hslOverrides);
+  const raw = compositeLayersRaw(fadeSubLayers);
   removeRed(raw);
   desaturateToGrey(raw);
   applyColorBlendHSL(raw, dragonHsl, 0, hslOverrides);
@@ -525,10 +448,10 @@ function renderFadeLayer(fadeSubLayers, dragonHsl, hslOverrides) {
   return c;
 }
 
-// ── Render Final Outline: composite all in z-order → surviving red → grey → darken ──
+// ── Render Final Outline: raw composite → keepOnlyRed → grey → colorBlend(darken) ──
 // Fills occlude outlines beneath, so only surface-visible outlines remain.
 function renderFinalOutline(processedLayers, dragonHsl, hslOverrides) {
-  const raw = compositeLayersRaw(processedLayers, dragonHsl, hslOverrides);
+  const raw = compositeLayersRaw(processedLayers);
   keepOnlyRed(raw);
   redToGrey(raw);
   const darkenShift = COLOR_ADJUSTMENTS.darken.luminanceShift;
@@ -539,15 +462,14 @@ function renderFinalOutline(processedLayers, dragonHsl, hslOverrides) {
   return c;
 }
 
-// ── Render Face details ──
-function renderFaceLayer(processedLayers, dragonHsl, hslOverrides) {
+// ── Render Face details (fixed assets — no color processing) ──
+function renderFaceLayer(processedLayers) {
   const c = document.createElement('canvas');
   c.width = SPRITE_WIDTH; c.height = SPRITE_HEIGHT;
   const ctx = c.getContext('2d');
   for (const layer of processedLayers) {
     if (!layer.isFixedDetail) continue;
-    const colored = recolorLayer(layer, dragonHsl, hslOverrides);
-    drawToCanvas(ctx, colored, layer);
+    drawToCanvas(ctx, layer.rawCanvas, layer);
   }
   return c;
 }
@@ -691,8 +613,7 @@ export function initLayerVisualizer(container) {
       { hShift: sInj.hShift, sShift: sInj.sShift, lShift: sInj.lShift });
     const fadeCanvas = renderFadeLayer(fadeSubLayers, dragonHsl,
       { hShift: sFade.hShift, sShift: sFade.sShift, lShift: sFade.lShift });
-    const faceCanvas = renderFaceLayer(processedLayers, dragonHsl,
-      { hShift: sFace.hShift, sShift: sFace.sShift, lShift: sFace.lShift });
+    const faceCanvas = renderFaceLayer(processedLayers);
     const finalCanvas = renderFinalOutline(processedLayers, dragonHsl,
       { hShift: sFinal.hShift, sShift: sFinal.sShift, lShift: sFinal.lShift });
 

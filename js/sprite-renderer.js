@@ -1,32 +1,32 @@
 // Canvas-based dragon sprite renderer
 // Composites PNG layers with color blending and transparency
 //
-// Color pipeline per layer:
+// Color pipeline (group-level, no per-asset color processing):
 //   1. Load PNG art (greyscale fills + pure-red outline markers)
-//   2. Color-blend greyscale pixels via HSL (dragon hue+sat, art luminance)
-//      Red outline pixels (R=255, G=0, B=0) are left untouched as markers
-//   3. Adjust luminance per colorMode: lighten, darken, horn, etc.
-//   4. Composite all layers in z-order, then extract outlines by red color
+//   2. Composite all layers in z-order as raw greyscale+red
+//   3. Extract/remove red markers per compositing group
+//   4. Desaturate to pure grey, then color-blend each group via HSL
+//      Base/Fade: shift=0, Outlines: darken shift, Injected: darken+L2
 //
 // Red-extraction compositing model (3 opacity paths):
 //
 //   FULL OPACITY:
-//     Base Layer    — All assets composited, red extracted, fills color-blended
+//     Base Layer    — Raw composite → removeRed → desaturate → colorBlend(0)
 //     Detail Layer  — Eyes/mouth at full opacity, no correction
-//     Final Outline — Extracted red → mid grey → darken color blend
+//     Final Outline — Raw composite → keepOnlyRed → grey → colorBlend(darken)
 //
 //   LOW & MID OPACITY:
-//     Base Layer       — Fills (red removed) at bodyAlpha transparency
-//     Injected Outlines— Red pixels extracted → grey → Layer 2 sat/lum correction
-//     Fade Layer       — Fade-swapped assets, red removed, fills only
+//     Base Layer       — Raw composite → removeRed → desaturate → colorBlend(0) @ bodyAlpha
+//     Injected Outlines— Assemble _o raw → grey → L2 blend (darken+corrections)
+//     Fade Layer       — Raw fade composite → removeRed → desaturate → colorBlend(0)
 //     Detail Layer     — Eyes/mouth at full opacity
-//     Final Outline    — Extracted red → grey → darken blend
+//     Final Outline    — Raw composite → keepOnlyRed → grey → colorBlend(darken)
 //
 //   NONE OPACITY (opacityLevel 0 — no base layer):
-//     Injected Outlines— Red extracted → grey → Layer 2 sat/lum correction
-//     Fade Layer       — Fade-swapped assets, red removed, fills only
+//     Injected Outlines— Assemble _o raw → grey → L2 blend (darken+corrections)
+//     Fade Layer       — Raw fade composite → removeRed → desaturate → colorBlend(0)
 //     Detail Layer     — Eyes/mouth at full opacity
-//     Final Outline    — Red extracted → grey → darken blend
+//     Final Outline    — Raw composite → keepOnlyRed → grey → colorBlend(darken)
 
 import {
   ASSET_TABLE,
@@ -282,48 +282,6 @@ function isRedOutline(r, g, b) {
   return redAmount(r, g, b) >= 0.5;
 }
 
-/**
- * Apply color blend to greyscale pixel data, skipping red outline markers.
- * Pure red pixels pass through untouched. Partially-red pixels (anti-aliased
- * edges) are desaturated proportionally — the red tint is neutralized to
- * grey before color blending, so they blend smoothly into fills.
- */
-function applyColorBlendSkipRed(imageData, dragonRgb, luminanceShift = 0) {
-  const dragonHsl = rgbToHsl(dragonRgb.r, dragonRgb.g, dragonRgb.b);
-  const data = imageData.data;
-
-  for (let i = 0; i < data.length; i += 4) {
-    const a = data[i + 3];
-    if (a === 0) continue;
-
-    const r = data[i], g = data[i + 1], b = data[i + 2];
-    const rAmt = redAmount(r, g, b);
-
-    // Fully red → skip entirely (outline marker)
-    if (rAmt >= 1.0) continue;
-
-    // For partially-red pixels, desaturate the red tint before blending.
-    // Convert to luminance-equivalent grey, then color-blend that.
-    let artR = r, artG = g, artB = b;
-    if (rAmt > 0) {
-      // Neutralize the red tint: blend toward the pixel's luminance grey
-      const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-      artR = Math.round(r + (lum - r) * rAmt);
-      artG = Math.round(g + (lum - g) * rAmt);
-      artB = Math.round(b + (lum - b) * rAmt);
-    }
-
-    const artHsl = rgbToHsl(artR, artG, artB);
-    let targetL = artHsl.l + luminanceShift;
-    targetL = Math.max(0, Math.min(1, targetL));
-
-    const result = hslToRgb(dragonHsl.h, dragonHsl.s, targetL);
-    data[i]     = result.r;
-    data[i + 1] = result.g;
-    data[i + 2] = result.b;
-  }
-}
-
 // ============================================================
 // MAIN RENDER FUNCTION
 // ============================================================
@@ -507,31 +465,22 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     }
   }
 
-  // ── Pre-process all layers: color-blend non-red pixels, compute anchors ──
-  // Red pixels (R=255, G=0, B=0) are outline markers — left as-is for
-  // extraction during compositing. Greyscale fill pixels get color-blended
-  // with the asset's colorMode shift. Fixed layers (eyes/mouth) skip blending.
+  // ── Pre-process all layers: draw raw PNGs, compute anchors ──
+  // No per-asset color blending — assets are composited raw (greyscale + red
+  // markers). Color blending happens once per compositing group (base, fade,
+  // injected outlines, final outline) after extraction/separation.
   const processedLayers = [];
   for (const asset of matchedAssets) {
     const fullname = asset.filename + '.png';
     const img = assetMap.get(fullname);
     if (!img) continue; // no asset loaded (file doesn't exist yet)
 
-    // Create offscreen canvas for this layer's color processing
+    // Store raw PNG on offscreen canvas (no color processing)
     const offscreen = document.createElement('canvas');
     offscreen.width = img.width;
     offscreen.height = img.height;
     const offCtx = offscreen.getContext('2d');
     offCtx.drawImage(img, 0, 0);
-
-    // Apply color blend to non-red pixels only (unless 'fixed' layer)
-    if (asset.colorMode !== 'fixed') {
-      const imageData = offCtx.getImageData(0, 0, offscreen.width, offscreen.height);
-      const adjustment = COLOR_ADJUSTMENTS[asset.colorMode];
-      const shift = adjustment ? adjustment.luminanceShift : 0;
-      applyColorBlendSkipRed(imageData, dragonRgb, shift);
-      offCtx.putImageData(imageData, 0, 0);
-    }
 
     // Build anchor context based on asset type
     const anchorCtx = {};
@@ -565,9 +514,8 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
   }
 
   // ── Pre-process fade layers: wing/leg fade variants ──
-  // These use the same color + anchor logic as their base counterparts,
-  // but load the fade PNG (which has painted-in transparency gradients).
-  // Red outline markers are skipped during color blending, same as base layers.
+  // These load the fade PNG (which has painted-in transparency gradients).
+  // No per-asset color processing — same raw approach as base layers.
   const fadeLayers = [];
   for (const asset of matchedAssets) {
     const fadeName = getFadeFilename(asset.filename);
@@ -577,20 +525,12 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     const img = assetMap.get(fullname);
     if (!img) continue; // fade PNG not available
 
-    // Color-blend non-red pixels the same way as the base
+    // Store raw fade PNG on offscreen canvas (no color processing)
     const offscreen = document.createElement('canvas');
     offscreen.width = img.width;
     offscreen.height = img.height;
     const offCtx = offscreen.getContext('2d');
     offCtx.drawImage(img, 0, 0);
-
-    if (asset.colorMode !== 'fixed') {
-      const imageData = offCtx.getImageData(0, 0, offscreen.width, offscreen.height);
-      const adjustment = COLOR_ADJUSTMENTS[asset.colorMode];
-      const shift = adjustment ? adjustment.luminanceShift : 0;
-      applyColorBlendSkipRed(imageData, dragonRgb, shift);
-      offCtx.putImageData(imageData, 0, 0);
-    }
 
     // Reuse anchor + rotation from the matching base processedLayer
     const baseLayer = processedLayers.find(pl => pl.asset === asset);
@@ -729,47 +669,6 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     const imgData = compCtx.getImageData(0, 0, targetWidth, targetHeight);
     comp.width = 0; comp.height = 0; // release
     return imgData;
-  }
-
-  // ── Utility: soft-split ImageData into fills and outlines ──
-  // Uses redAmount() ratio for soft extraction. Both layers claim the
-  // anti-aliased overlap zone to prevent haloing:
-  //   - Outlines: red pixels at full strength, edge pixels proportionally
-  //   - Fills: non-red at full strength, edge pixels desaturated + kept
-  function splitRedOutlines(srcData) {
-    const w = srcData.width;
-    const h = srcData.height;
-    const fillData = new ImageData(new Uint8ClampedArray(srcData.data), w, h);
-    const outlineData = new ImageData(new Uint8ClampedArray(srcData.data.length), w, h);
-    const fd = fillData.data;
-    const od = outlineData.data;
-    const sd = srcData.data;
-
-    for (let i = 0; i < sd.length; i += 4) {
-      if (sd[i + 3] === 0) continue;
-      const rAmt = redAmount(sd[i], sd[i + 1], sd[i + 2]);
-
-      if (rAmt <= 0) continue; // pure fill — already in fillData, nothing for outline
-
-      // Outline layer: copy pixel, scale alpha by redness
-      od[i]     = sd[i];
-      od[i + 1] = sd[i + 1];
-      od[i + 2] = sd[i + 2];
-      od[i + 3] = Math.round(sd[i + 3] * rAmt);
-
-      // Fill layer: desaturate the red tint, scale alpha by (1 - redness)
-      if (rAmt >= 1.0) {
-        fd[i + 3] = 0; // pure red → fully removed from fill
-      } else {
-        // Neutralize red tint toward luminance grey
-        const lum = 0.299 * sd[i] + 0.587 * sd[i + 1] + 0.114 * sd[i + 2];
-        fd[i]     = Math.round(sd[i] + (lum - sd[i]) * rAmt);
-        fd[i + 1] = Math.round(sd[i + 1] + (lum - sd[i + 1]) * rAmt);
-        fd[i + 2] = Math.round(sd[i + 2] + (lum - sd[i + 2]) * rAmt);
-        fd[i + 3] = Math.round(sd[i + 3] * (1 - rAmt * 0.5)); // gentle fade
-      }
-    }
-    return { fillData, outlineData };
   }
 
   // ── Utility: convert red outline pixels to mid-grey for color blending ──
@@ -923,9 +822,11 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
   } else if (needsFadePass) {
     // ── LOW & MID OPACITY ──
 
-    // Base Layer: composite all assets → remove red → fills at bodyAlpha
+    // Base Layer: composite raw → remove red → desaturate → color blend → at bodyAlpha
     const baseRaw = compositeLayersRaw(processedLayers, width, height);
     removeRed(baseRaw);
+    desaturateToGrey(baseRaw);
+    applyColorBlend(baseRaw, dragonRgb, 0);
     offscreenCompCtx.putImageData(baseRaw, 0, 0);
     ctx.save();
     ctx.globalAlpha = bodyAlpha;
@@ -966,9 +867,11 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
   } else {
     // ── FULL OPACITY ──
 
-    // Base Layer: composite all assets → remove red → fills only
+    // Base Layer: composite raw → remove red → desaturate → color blend
     const baseRaw = compositeLayersRaw(processedLayers, width, height);
     removeRed(baseRaw);
+    desaturateToGrey(baseRaw);
+    applyColorBlend(baseRaw, dragonRgb, 0);
     offscreenCompCtx.putImageData(baseRaw, 0, 0);
     ctx.drawImage(offscreenComp, 0, 0);
 
