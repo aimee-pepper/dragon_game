@@ -1,0 +1,18 @@
+// anchors-headspines.txt
+// 15 entries
+
+  'spinehead_ridge_L_f':                   { x: 101, y: -16 },
+  'spinehead_ridge_L_o':                   { x: 90, y: -22 },
+  'spinehead_ridge_M_f':                   { x: 101, y: -25 },
+  'spinehead_ridge_M_o':                   { x: 90, y: -22 },
+  'spinehead_ridge_S_f':                   { x: 90, y: -22 },
+  'spinehead_ridge_S_o':                   { x: 90, y: -22 },
+  'spinehead_sail_L_f':                    { x: 110, y: -5 },
+  'spinehead_sail_L_o':                    { x: 90, y: -22 },
+  'spinehead_sail_M_f':                    { x: 101, y: -22 },
+  'spinehead_sail_M_o':                    { x: 79, y: -56 },
+  'spinehead_sail_S_f':                    { x: 90, y: -22 },
+  'spinehead_sail_S_o':                    { x: 73, y: -31 },
+  'spinehead_spike_L':                     { x: -30, y: -99 },
+  'spinehead_spike_M':                     { x: 98, y: -53 },
+  'spinehead_spike_S':                     { x: 142, y: -5 },
