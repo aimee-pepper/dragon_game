@@ -1,13 +1,14 @@
 // Layer Visualizer Tool
 // Renders each compositing layer individually for a dragon so you can
-// toggle fills/outlines per layer, adjust HSL per layer, and see the
-// final composite update live.
+// toggle layers on/off, adjust HSL per layer, and see the final composite
+// update live. Updated for the red-extraction compositing pipeline.
 
 import { Dragon } from './dragon.js';
 import {
   ASSET_TABLE,
   resolveAssetsForPhenotype,
   COLOR_ADJUSTMENTS,
+  LAYER2_OUTLINE_CORRECTION,
   WING_TRANSPARENCY,
   BODY_TRANSPARENCY,
   ANCHORS,
@@ -66,20 +67,22 @@ function hslToRgb(h, s, l) {
   return { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255) };
 }
 
+/** Detect red outline marker pixels (threshold-based). */
+function isRedOutline(r, g, b) {
+  return r >= 200 && g <= 50 && b <= 50;
+}
+
 /**
- * Apply color blend with adjustable HSL overrides.
- * @param {ImageData} imageData - pixel data to modify in place
- * @param {object} dragonHsl - { h, s, l } of the dragon's base color
- * @param {number} luminanceShift - added to art pixel luminance
- * @param {object} hslOverrides - { hShift, sShift, lShift } additional tweaks
+ * Apply color blend with adjustable HSL overrides, skipping red outline markers.
  */
-function applyColorBlendHSL(imageData, dragonHsl, luminanceShift, hslOverrides = {}) {
+function applyColorBlendHSL(imageData, dragonHsl, luminanceShift, hslOverrides = {}, skipRed = false) {
   const hShift = hslOverrides.hShift || 0;
   const sShift = hslOverrides.sShift || 0;
   const lShift = hslOverrides.lShift || 0;
   const data = imageData.data;
   for (let i = 0; i < data.length; i += 4) {
     if (data[i + 3] === 0) continue;
+    if (skipRed && isRedOutline(data[i], data[i + 1], data[i + 2])) continue;
     const artHsl = rgbToHsl(data[i], data[i + 1], data[i + 2]);
     const targetH = ((dragonHsl.h + hShift) % 1 + 1) % 1;
     const targetS = Math.max(0, Math.min(1, dragonHsl.s + sShift));
@@ -91,10 +94,53 @@ function applyColorBlendHSL(imageData, dragonHsl, luminanceShift, hslOverrides =
   }
 }
 
-// Simpler version for backward compat
+// Simpler version
 function applyColorBlend(imageData, dragonRgb, luminanceShift = 0) {
   const dragonHsl = rgbToHsl(dragonRgb.r, dragonRgb.g, dragonRgb.b);
   applyColorBlendHSL(imageData, dragonHsl, luminanceShift);
+}
+
+// ── Red-extraction utilities (same as sprite-renderer.js) ──
+
+function splitRedOutlines(srcData) {
+  const w = srcData.width, h = srcData.height;
+  const fillData = new ImageData(new Uint8ClampedArray(srcData.data), w, h);
+  const outlineData = new ImageData(new Uint8ClampedArray(srcData.data.length), w, h);
+  const fd = fillData.data, od = outlineData.data, sd = srcData.data;
+  for (let i = 0; i < sd.length; i += 4) {
+    if (sd[i + 3] === 0) continue;
+    if (isRedOutline(sd[i], sd[i + 1], sd[i + 2])) {
+      od[i] = sd[i]; od[i+1] = sd[i+1]; od[i+2] = sd[i+2]; od[i+3] = sd[i+3];
+      fd[i + 3] = 0;
+    }
+  }
+  return { fillData, outlineData };
+}
+
+function redToGrey(imgData) {
+  const d = imgData.data;
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] === 0) continue;
+    if (isRedOutline(d[i], d[i + 1], d[i + 2])) {
+      d[i] = 102; d[i + 1] = 102; d[i + 2] = 102;
+    }
+  }
+}
+
+function removeRed(imgData) {
+  const d = imgData.data;
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] === 0) continue;
+    if (isRedOutline(d[i], d[i + 1], d[i + 2])) d[i + 3] = 0;
+  }
+}
+
+function keepOnlyRed(imgData) {
+  const d = imgData.data;
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] === 0) continue;
+    if (!isRedOutline(d[i], d[i + 1], d[i + 2])) d[i + 3] = 0;
+  }
 }
 
 // ── Anchor lookup (simplified from sprite-renderer) ──
@@ -137,11 +183,7 @@ async function preloadAssets(assets) {
   return map;
 }
 
-// SPRITE_WIDTH / SPRITE_HEIGHT now imported from sprite-config.js
-
 // ── Core: decompose a dragon into raw layer data ──
-// Returns raw (uncolored) canvases + metadata so the UI can re-process
-// with custom HSL settings and recomposite live.
 async function decomposeIntoLayers(phenotype) {
   const matchedAssets = resolveAssetsForPhenotype(phenotype);
   const bodyTypeName = phenotype.traits.body_type?.name?.toLowerCase() || 'normal';
@@ -167,6 +209,7 @@ async function decomposeIntoLayers(phenotype) {
   }
   const hasFadeLayers = fadeFilenames.size > 0;
   const needsFadePass = hasFadeLayers && bodyAlpha < 1.0;
+  const isNoneOpacity = opacityLevel === 0;
 
   // Preload
   const fadeEntries = [...fadeFilenames].map(f => ({ filename: f }));
@@ -183,13 +226,14 @@ async function decomposeIntoLayers(phenotype) {
       pivotCtx.pair = asset.pair; pivotCtx.bodyType = bodyVariant; pivotCtx.limbCount = actualLimbCount;
     }
     const groupKey = `${asset.layerGroup}:p${asset.pair}`;
-    if (asset.filename.includes('outer') && asset.filename.endsWith('_o') && !groupPivots[groupKey]) {
+    if (asset.filename.endsWith('_o') && !groupPivots[groupKey]) {
       const anchor = getAnchor(asset.filename, pivotCtx);
       if (anchor.rot) groupPivots[groupKey] = { x: anchor.x, y: anchor.y, rot: anchor.rot };
     }
   }
 
   // Process all layers — store RAW (uncolored) canvases + colored versions
+  // Color-blend skips red outline markers, same as sprite-renderer.js
   const processedLayers = [];
   for (const asset of matchedAssets) {
     const fullname = asset.filename + '.png';
@@ -201,7 +245,7 @@ async function decomposeIntoLayers(phenotype) {
     rawCanvas.width = img.width; rawCanvas.height = img.height;
     rawCanvas.getContext('2d').drawImage(img, 0, 0);
 
-    // Colored canvas — default color processing
+    // Colored canvas — default color processing (skip red)
     const offscreen = document.createElement('canvas');
     offscreen.width = img.width; offscreen.height = img.height;
     const offCtx = offscreen.getContext('2d');
@@ -211,7 +255,7 @@ async function decomposeIntoLayers(phenotype) {
       const imageData = offCtx.getImageData(0, 0, offscreen.width, offscreen.height);
       const adjustment = COLOR_ADJUSTMENTS[asset.colorMode];
       const shift = adjustment ? adjustment.luminanceShift : 0;
-      applyColorBlend(imageData, dragonRgb, shift);
+      applyColorBlendHSL(imageData, dragonHsl, shift, {}, true); // skipRed=true
       offCtx.putImageData(imageData, 0, 0);
     }
 
@@ -233,34 +277,13 @@ async function decomposeIntoLayers(phenotype) {
       anchorX += headAnchor.x; anchorY += headAnchor.y;
     }
 
-    const isOutline = asset.opacityMode === 'opaque' && asset.colorMode !== 'fixed';
     const isFixedDetail = asset.colorMode === 'fixed';
-
-    // Mask canvas for Layer 4
-    const maskCanvas = document.createElement('canvas');
-    maskCanvas.width = img.width; maskCanvas.height = img.height;
-    const maskCtx = maskCanvas.getContext('2d');
-    maskCtx.drawImage(img, 0, 0);
-    const maskData = maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
-    if (isOutline) {
-      for (let i = 0; i < maskData.data.length; i += 4) {
-        if (maskData.data[i + 3] === 0) continue;
-        maskData.data[i] = 0; maskData.data[i + 1] = 0; maskData.data[i + 2] = 0;
-      }
-    } else {
-      for (let i = 0; i < maskData.data.length; i += 4) {
-        if (maskData.data[i + 3] === 0) continue;
-        maskData.data[i] = 255; maskData.data[i + 1] = 255; maskData.data[i + 2] = 255;
-      }
-    }
-    maskCtx.putImageData(maskData, 0, 0);
-
     const groupKey = asset.pair ? `${asset.layerGroup}:p${asset.pair}` : null;
     const groupPivot = groupKey ? groupPivots[groupKey] : null;
 
     processedLayers.push({
-      asset, rawCanvas, offscreen, maskCanvas, anchorX, anchorY, rotation,
-      isOutline, isFixedDetail, groupPivot,
+      asset, rawCanvas, offscreen, anchorX, anchorY, rotation,
+      isFixedDetail, groupPivot,
     });
   }
 
@@ -285,7 +308,7 @@ async function decomposeIntoLayers(phenotype) {
       const imageData = offCtx.getImageData(0, 0, offscreen.width, offscreen.height);
       const adjustment = COLOR_ADJUSTMENTS[asset.colorMode];
       const shift = adjustment ? adjustment.luminanceShift : 0;
-      applyColorBlend(imageData, dragonRgb, shift);
+      applyColorBlendHSL(imageData, dragonHsl, shift, {}, true); // skipRed=true
       offCtx.putImageData(imageData, 0, 0);
     }
 
@@ -293,19 +316,19 @@ async function decomposeIntoLayers(phenotype) {
     fadeLayers.push({
       asset, rawCanvas, offscreen,
       anchorX: baseLayer.anchorX, anchorY: baseLayer.anchorY,
-      rotation: baseLayer.rotation, isOutline: baseLayer.isOutline,
+      rotation: baseLayer.rotation,
       isFixedDetail: baseLayer.isFixedDetail, groupPivot: baseLayer.groupPivot,
     });
   }
 
-  // Build layerA2 (fade-substituted)
+  // Build fade-substituted list
   const fadeLayerMap = new Map();
   for (const fl of fadeLayers) fadeLayerMap.set(fl.asset, fl);
-  const layerA2Layers = processedLayers.map(layer => fadeLayerMap.get(layer.asset) || layer);
+  const fadeSubLayers = processedLayers.map(layer => fadeLayerMap.get(layer.asset) || layer);
 
   return {
-    processedLayers, fadeLayers, layerA2Layers, fadeLayerMap,
-    bodyAlpha, needsFadePass, dragonRgb, dragonHsl, opacityLevel,
+    processedLayers, fadeLayers, fadeSubLayers, fadeLayerMap,
+    bodyAlpha, needsFadePass, isNoneOpacity, dragonRgb, dragonHsl, opacityLevel,
     phenotype, groupPivots,
   };
 }
@@ -332,7 +355,7 @@ function drawToCanvas(targetCtx, sourceCanvas, layer) {
   targetCtx.restore();
 }
 
-// ── Re-color a layer's raw canvas with custom HSL ──
+// ── Re-color a layer's raw canvas with custom HSL (skipping red) ──
 function recolorLayer(layer, dragonHsl, hslOverrides) {
   const { rawCanvas, asset } = layer;
   const c = document.createElement('canvas');
@@ -344,52 +367,98 @@ function recolorLayer(layer, dragonHsl, hslOverrides) {
     const imageData = ctx.getImageData(0, 0, c.width, c.height);
     const adjustment = COLOR_ADJUSTMENTS[asset.colorMode];
     const shift = adjustment ? adjustment.luminanceShift : 0;
-    applyColorBlendHSL(imageData, dragonHsl, shift, hslOverrides);
+    applyColorBlendHSL(imageData, dragonHsl, shift, hslOverrides, true); // skipRed=true
     ctx.putImageData(imageData, 0, 0);
   }
   return c;
 }
 
-// ── Render a composite layer canvas from layer list ──
-function renderLayerGroup(layers, dragonHsl, filter, hslOverrides) {
+// ── Composite a layer list onto a full-size canvas, return ImageData ──
+function compositeLayersRaw(layers, dragonHsl, hslOverrides) {
   const c = document.createElement('canvas');
   c.width = SPRITE_WIDTH; c.height = SPRITE_HEIGHT;
   const ctx = c.getContext('2d');
   for (const layer of layers) {
-    if (!filter(layer)) continue;
+    if (layer.isFixedDetail) continue;
     const colored = recolorLayer(layer, dragonHsl, hslOverrides);
     drawToCanvas(ctx, colored, layer);
   }
+  const imgData = ctx.getImageData(0, 0, SPRITE_WIDTH, SPRITE_HEIGHT);
+  c.width = 0; c.height = 0;
+  return imgData;
+}
+
+// ── Render Base Layer: composite all → split → fills only ──
+function renderBaseLayer(processedLayers, dragonHsl, hslOverrides) {
+  const raw = compositeLayersRaw(processedLayers, dragonHsl, hslOverrides);
+  const { fillData } = splitRedOutlines(raw);
+  const c = document.createElement('canvas');
+  c.width = SPRITE_WIDTH; c.height = SPRITE_HEIGHT;
+  c.getContext('2d').putImageData(fillData, 0, 0);
   return c;
 }
 
-// ── Render Layer 4 (mask trick + uniform grey + darken) ──
-function renderLayer4(processedLayers, dragonHsl, hslOverrides) {
-  const w = SPRITE_WIDTH, h = SPRITE_HEIGHT;
+// ── Render Injected Outlines: composite all → keep red → grey → L2 blend ──
+function renderInjectedOutlines(processedLayers, dragonHsl, dragonRgb, hslOverrides) {
+  const raw = compositeLayersRaw(processedLayers, dragonHsl, hslOverrides);
+  keepOnlyRed(raw);
+  redToGrey(raw);
+  // Apply Layer 2 blend with sat/lum corrections + any HSL overrides
+  const satCorr = LAYER2_OUTLINE_CORRECTION.saturationShift;
+  const lumCorr = LAYER2_OUTLINE_CORRECTION.luminanceShift;
+  const baseLum = COLOR_ADJUSTMENTS.darken.luminanceShift;
+  const hShift = hslOverrides.hShift || 0;
+  const sShift = hslOverrides.sShift || 0;
+  const lShift = hslOverrides.lShift || 0;
+  const d = raw.data;
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] === 0) continue;
+    const artHsl = rgbToHsl(d[i], d[i + 1], d[i + 2]);
+    const targetH = ((dragonHsl.h + hShift) % 1 + 1) % 1;
+    const targetS = Math.max(0, Math.min(1, dragonHsl.s + satCorr + sShift));
+    const targetL = Math.max(0, Math.min(1, artHsl.l + baseLum + lumCorr + lShift));
+    const result = hslToRgb(targetH, targetS, targetL);
+    d[i] = result.r; d[i+1] = result.g; d[i+2] = result.b;
+  }
   const c = document.createElement('canvas');
-  c.width = w; c.height = h;
-  const ctx = c.getContext('2d');
+  c.width = SPRITE_WIDTH; c.height = SPRITE_HEIGHT;
+  c.getContext('2d').putImageData(raw, 0, 0);
+  return c;
+}
 
-  // Render masks in z-order
-  for (const layer of processedLayers) {
-    drawToCanvas(ctx, layer.maskCanvas, layer);
-  }
+// ── Render Fade Layer: composite fade-sub → remove red → fills only ──
+function renderFadeLayer(fadeSubLayers, dragonHsl, hslOverrides) {
+  const raw = compositeLayersRaw(fadeSubLayers, dragonHsl, hslOverrides);
+  removeRed(raw);
+  const c = document.createElement('canvas');
+  c.width = SPRITE_WIDTH; c.height = SPRITE_HEIGHT;
+  c.getContext('2d').putImageData(raw, 0, 0);
+  return c;
+}
 
-  // Pixel process
-  const data = ctx.getImageData(0, 0, w, h);
-  const px = data.data;
-  for (let i = 0; i < px.length; i += 4) {
-    if (px[i + 3] === 0) continue;
-    const brightness = px[i] + px[i + 1] + px[i + 2];
-    if (brightness > 384) {
-      px[i + 3] = 0;
-    } else {
-      px[i] = 102; px[i + 1] = 102; px[i + 2] = 102;
-    }
-  }
+// ── Render Final Outline: composite all → extract red → grey → darken ──
+function renderFinalOutline(processedLayers, dragonHsl, hslOverrides) {
+  const raw = compositeLayersRaw(processedLayers, dragonHsl, hslOverrides);
+  const { outlineData } = splitRedOutlines(raw);
+  redToGrey(outlineData);
   const darkenShift = COLOR_ADJUSTMENTS.darken.luminanceShift;
-  applyColorBlendHSL(data, dragonHsl, darkenShift, hslOverrides);
-  ctx.putImageData(data, 0, 0);
+  applyColorBlendHSL(outlineData, dragonHsl, darkenShift, hslOverrides);
+  const c = document.createElement('canvas');
+  c.width = SPRITE_WIDTH; c.height = SPRITE_HEIGHT;
+  c.getContext('2d').putImageData(outlineData, 0, 0);
+  return c;
+}
+
+// ── Render Face details ──
+function renderFaceLayer(processedLayers, dragonHsl, hslOverrides) {
+  const c = document.createElement('canvas');
+  c.width = SPRITE_WIDTH; c.height = SPRITE_HEIGHT;
+  const ctx = c.getContext('2d');
+  for (const layer of processedLayers) {
+    if (!layer.isFixedDetail) continue;
+    const colored = recolorLayer(layer, dragonHsl, hslOverrides);
+    drawToCanvas(ctx, colored, layer);
+  }
   return c;
 }
 
@@ -446,7 +515,7 @@ export function initLayerVisualizer(container) {
   const opacitySelect = el('select');
   ['Auto', 'None (10%)', 'Low (30%)', 'Med (60%)', 'High (100%)'].forEach((name, i) => {
     const opt = document.createElement('option');
-    opt.value = i === 0 ? 'auto' : [0.10, 0.30, 0.60, 1.0][i - 1];
+    opt.value = i === 0 ? 'auto' : String(i - 1); // store opacityLevel for override
     opt.textContent = name;
     opacitySelect.appendChild(opt);
   });
@@ -495,97 +564,90 @@ export function initLayerVisualizer(container) {
 
   // ── State ──
   let currentData = null;
-  let currentAlphaOverride = null;
+  let opacityOverride = null; // null = auto, or opacityLevel number
 
-  // Per-layer settings: fills on/off, outlines on/off, HSL shifts
+  // Per-layer settings: on/off toggle, HSL shifts
   const layerSettings = {
-    layer1:  { fills: true, outlines: true, hShift: 0, sShift: 0, lShift: 0 },
-    layer2:  { fills: true, outlines: true, hShift: 0, sShift: 0, lShift: 0 },
-    layer3:  { fills: true, outlines: true, hShift: 0, sShift: 0, lShift: 0 },
-    face:    { fills: true, outlines: true, hShift: 0, sShift: 0, lShift: 0 },
-    layer4:  { fills: true, outlines: true, hShift: 0, sShift: 0, lShift: 0 },
+    base:           { on: true, hShift: 0, sShift: 0, lShift: 0 },
+    injectedOutline:{ on: true, hShift: 0, sShift: 0, lShift: 0 },
+    fade:           { on: true, hShift: 0, sShift: 0, lShift: 0 },
+    face:           { on: true, hShift: 0, sShift: 0, lShift: 0 },
+    finalOutline:   { on: true, hShift: 0, sShift: 0, lShift: 0 },
   };
 
   // ── Recomposite: rebuilds from raw data with current settings ──
   function recomposite() {
     if (!currentData) return;
-    console.log('[LayerViz] recomposite called —', {
-      l1fills: layerSettings.layer1.fills, l1out: layerSettings.layer1.outlines,
-      l2out: layerSettings.layer2.outlines, l3fills: layerSettings.layer3.fills,
-      face: layerSettings.face.fills, l4out: layerSettings.layer4.outlines,
-    });
-    const { processedLayers, layerA2Layers, dragonHsl, needsFadePass } = currentData;
-    const alpha = currentAlphaOverride !== null ? currentAlphaOverride : currentData.bodyAlpha;
+    const { processedLayers, fadeSubLayers, dragonHsl, dragonRgb } = currentData;
+
+    // Determine effective opacity level
+    const effectiveOpLevel = opacityOverride !== null ? opacityOverride : currentData.opacityLevel;
+    const effectiveAlpha = BODY_TRANSPARENCY[effectiveOpLevel];
+    const effectiveIsNone = effectiveOpLevel === 0;
+    const effectiveNeedsFade = currentData.fadeLayers.length > 0 && effectiveAlpha < 1.0;
+
     const w = SPRITE_WIDTH, h = SPRITE_HEIGHT;
 
-    // Render each layer group with its own HSL overrides
-    const s1 = layerSettings.layer1;
-    const s2 = layerSettings.layer2;
-    const s3 = layerSettings.layer3;
+    const sBase = layerSettings.base;
+    const sInj = layerSettings.injectedOutline;
+    const sFade = layerSettings.fade;
     const sFace = layerSettings.face;
-    const s4 = layerSettings.layer4;
+    const sFinal = layerSettings.finalOutline;
 
-    // Layer 1: Fills from base
-    const l1 = renderLayerGroup(processedLayers, dragonHsl,
-      layer => !layer.isOutline && !layer.isFixedDetail && s1.fills,
-      { hShift: s1.hShift, sShift: s1.sShift, lShift: s1.lShift });
-
-    // Layer 1: Outlines from base (only used for opaque path)
-    const l1o = renderLayerGroup(processedLayers, dragonHsl,
-      layer => layer.isOutline && s1.outlines,
-      { hShift: s1.hShift, sShift: s1.sShift, lShift: s1.lShift });
-
-    // Layer 2: Outlines from base (for transparent path)
-    const l2 = renderLayerGroup(processedLayers, dragonHsl,
-      layer => layer.isOutline && s2.outlines,
-      { hShift: s2.hShift, sShift: s2.sShift, lShift: s2.lShift });
-
-    // Layer 3: Fills from fade-substituted (no outlines)
-    const l3 = renderLayerGroup(layerA2Layers, dragonHsl,
-      layer => !layer.isOutline && !layer.isFixedDetail && s3.fills,
-      { hShift: s3.hShift, sShift: s3.sShift, lShift: s3.lShift });
-
-    // Face details
-    const lFace = renderLayerGroup(processedLayers, dragonHsl,
-      layer => layer.isFixedDetail && sFace.fills,
+    // Render each layer
+    const baseCanvas = renderBaseLayer(processedLayers, dragonHsl,
+      { hShift: sBase.hShift, sShift: sBase.sShift, lShift: sBase.lShift });
+    const injCanvas = renderInjectedOutlines(processedLayers, dragonHsl, dragonRgb,
+      { hShift: sInj.hShift, sShift: sInj.sShift, lShift: sInj.lShift });
+    const fadeCanvas = renderFadeLayer(fadeSubLayers, dragonHsl,
+      { hShift: sFade.hShift, sShift: sFade.sShift, lShift: sFade.lShift });
+    const faceCanvas = renderFaceLayer(processedLayers, dragonHsl,
       { hShift: sFace.hShift, sShift: sFace.sShift, lShift: sFace.lShift });
+    const finalCanvas = renderFinalOutline(processedLayers, dragonHsl,
+      { hShift: sFinal.hShift, sShift: sFinal.sShift, lShift: sFinal.lShift });
 
-    // Layer 4: Surface outlines
-    const l4 = renderLayer4(processedLayers, dragonHsl,
-      { hShift: s4.hShift, sShift: s4.sShift, lShift: s4.lShift });
-
-    // ── Composite pipeline ──
-    const offscreen = document.createElement('canvas');
-    offscreen.width = w; offscreen.height = h;
-    const offCtx = offscreen.getContext('2d');
-
-    if (needsFadePass) {
-      // Transparent path: fills → outlines → fade fills, merged then stamped
-      offCtx.drawImage(l1, 0, 0);
-      offCtx.drawImage(l2, 0, 0);
-      offCtx.drawImage(l3, 0, 0);
-    } else {
-      // Opaque path: fills + outlines in one pass
-      offCtx.drawImage(l1, 0, 0);
-      offCtx.drawImage(l1o, 0, 0);
-    }
-
-    // Stamp at body alpha
+    // ── Composite per opacity path ──
     const main = document.createElement('canvas');
     main.width = w; main.height = h;
     const mainCtx = main.getContext('2d');
-    mainCtx.save();
-    mainCtx.globalAlpha = alpha;
-    mainCtx.drawImage(offscreen, 0, 0);
-    mainCtx.restore();
 
-    // Face at full opacity
-    mainCtx.drawImage(lFace, 0, 0);
+    if (effectiveIsNone) {
+      // NONE: Injected Outlines → Fade → Detail → Final Outline
+      // Merge injected + fade onto offscreen, stamp at bodyAlpha
+      const offscreen = document.createElement('canvas');
+      offscreen.width = w; offscreen.height = h;
+      const offCtx = offscreen.getContext('2d');
+      if (sInj.on) offCtx.drawImage(injCanvas, 0, 0);
+      if (sFade.on) offCtx.drawImage(fadeCanvas, 0, 0);
+      mainCtx.save();
+      mainCtx.globalAlpha = effectiveAlpha;
+      mainCtx.drawImage(offscreen, 0, 0);
+      mainCtx.restore();
+      if (sFace.on) mainCtx.drawImage(faceCanvas, 0, 0);
+      if (sFinal.on) mainCtx.drawImage(finalCanvas, 0, 0);
+    } else if (effectiveNeedsFade) {
+      // LOW & MID: Base → Injected Outlines → Fade → Detail → Final Outline
+      // Merge base + injected + fade onto offscreen, stamp at bodyAlpha
+      const offscreen = document.createElement('canvas');
+      offscreen.width = w; offscreen.height = h;
+      const offCtx = offscreen.getContext('2d');
+      if (sBase.on) offCtx.drawImage(baseCanvas, 0, 0);
+      if (sInj.on) offCtx.drawImage(injCanvas, 0, 0);
+      if (sFade.on) offCtx.drawImage(fadeCanvas, 0, 0);
+      mainCtx.save();
+      mainCtx.globalAlpha = effectiveAlpha;
+      mainCtx.drawImage(offscreen, 0, 0);
+      mainCtx.restore();
+      if (sFace.on) mainCtx.drawImage(faceCanvas, 0, 0);
+      if (sFinal.on) mainCtx.drawImage(finalCanvas, 0, 0);
+    } else {
+      // FULL: Base → Detail → Final Outline
+      if (sBase.on) mainCtx.drawImage(baseCanvas, 0, 0);
+      if (sFace.on) mainCtx.drawImage(faceCanvas, 0, 0);
+      if (sFinal.on) mainCtx.drawImage(finalCanvas, 0, 0);
+    }
 
-    // Layer 4 at full opacity (if enabled)
-    if (s4.outlines) mainCtx.drawImage(l4, 0, 0);
-
-    // Crop and display — clear old content first
+    // Crop and display
     const cropped = autoCrop(main, 8);
     const cCtx = compositeCanvas.getContext('2d');
     compositeCanvas.width = cropped.width;
@@ -593,91 +655,53 @@ export function initLayerVisualizer(container) {
     cCtx.clearRect(0, 0, cropped.width, cropped.height);
     cCtx.drawImage(cropped, 0, 0);
 
-    // Update status to show which layers are active
-    updateToggleStatus();
-
-    // Update per-layer preview canvases
-    updateLayerPreviews();
+    updateToggleStatus(effectiveIsNone, effectiveNeedsFade);
+    updateLayerPreviews(effectiveIsNone, effectiveNeedsFade,
+      baseCanvas, injCanvas, fadeCanvas, faceCanvas, finalCanvas);
   }
 
   // ── Show active layer status in UI ──
-  function updateToggleStatus() {
+  function updateToggleStatus(isNone, needsFade) {
     const parts = [];
-    if (layerSettings.layer1.fills) parts.push('L1:fills');
-    if (layerSettings.layer1.outlines) parts.push('L1:outlines');
-    if (layerSettings.layer2.outlines) parts.push('L2:outlines');
-    if (layerSettings.layer3.fills) parts.push('L3:fills');
-    if (layerSettings.face.fills) parts.push('Face');
-    if (layerSettings.layer4.outlines) parts.push('L4:outlines');
+    if (!isNone && layerSettings.base.on) parts.push('Base');
+    if ((isNone || needsFade) && layerSettings.injectedOutline.on) parts.push('Injected Outlines');
+    if ((isNone || needsFade) && layerSettings.fade.on) parts.push('Fade');
+    if (layerSettings.face.on) parts.push('Face');
+    if (layerSettings.finalOutline.on) parts.push('Final Outline');
     const statusEl = document.getElementById('layer-toggle-status');
     if (statusEl) statusEl.textContent = `Active: ${parts.join(' + ') || 'none'}`;
   }
 
-  // ── Per-layer preview canvases (updated after recomposite) ──
+  // ── Per-layer preview canvases ──
   const previewCanvases = {};
 
-  function updateLayerPreviews() {
-    if (!currentData) return;
-    const { processedLayers, layerA2Layers, dragonHsl } = currentData;
-
-    const layerDefs = {
-      layer1: {
-        layers: processedLayers,
-        filter: l => !l.isOutline && !l.isFixedDetail,
-        settings: layerSettings.layer1, showFills: true, showOutlines: false,
-      },
-      layer2: {
-        layers: processedLayers,
-        filter: l => l.isOutline,
-        settings: layerSettings.layer2, showFills: false, showOutlines: true,
-      },
-      layer3: {
-        layers: layerA2Layers,
-        filter: l => !l.isOutline && !l.isFixedDetail,
-        settings: layerSettings.layer3, showFills: true, showOutlines: false,
-      },
-      face: {
-        layers: processedLayers,
-        filter: l => l.isFixedDetail,
-        settings: layerSettings.face, showFills: true, showOutlines: false,
-      },
+  function updateLayerPreviews(isNone, needsFade, baseCanvas, injCanvas, fadeCanvas, faceCanvas, finalCanvas) {
+    const layerMap = {
+      base: { canvas: baseCanvas, on: layerSettings.base.on, active: !isNone },
+      injectedOutline: { canvas: injCanvas, on: layerSettings.injectedOutline.on, active: isNone || needsFade },
+      fade: { canvas: fadeCanvas, on: layerSettings.fade.on, active: isNone || needsFade },
+      face: { canvas: faceCanvas, on: layerSettings.face.on, active: true },
+      finalOutline: { canvas: finalCanvas, on: layerSettings.finalOutline.on, active: true },
     };
 
-    for (const [key, def] of Object.entries(layerDefs)) {
+    for (const [key, info] of Object.entries(layerMap)) {
       const target = previewCanvases[key];
       if (!target) continue;
-      const s = def.settings;
-      // Dim the preview when this layer's toggle is off
-      const isActive = def.showFills ? s.fills : s.outlines;
-      target.style.opacity = isActive ? '1' : '0.25';
+      target.style.opacity = info.on ? '1' : '0.25';
+      // Grey out layers not used in current opacity path
+      const card = target.closest('.layer-card');
+      if (card) card.style.opacity = info.active ? '1' : '0.4';
 
-      const rendered = renderLayerGroup(def.layers, dragonHsl, def.filter,
-        { hShift: s.hShift, sShift: s.sShift, lShift: s.lShift });
-      const cropped = autoCrop(rendered, 8);
+      const cropped = autoCrop(info.canvas, 8);
       target.width = cropped.width;
       target.height = cropped.height;
       const tCtx = target.getContext('2d');
       tCtx.clearRect(0, 0, target.width, target.height);
       tCtx.drawImage(cropped, 0, 0);
     }
-
-    // Layer 4 preview
-    const l4Target = previewCanvases.layer4;
-    if (l4Target) {
-      const s4 = layerSettings.layer4;
-      l4Target.style.opacity = s4.outlines ? '1' : '0.25';
-      const rendered = renderLayer4(processedLayers, dragonHsl,
-        { hShift: s4.hShift, sShift: s4.sShift, lShift: s4.lShift });
-      const cropped = autoCrop(rendered, 8);
-      l4Target.width = cropped.width;
-      l4Target.height = cropped.height;
-      const l4Ctx = l4Target.getContext('2d');
-      l4Ctx.clearRect(0, 0, l4Target.width, l4Target.height);
-      l4Ctx.drawImage(cropped, 0, 0);
-    }
   }
 
-  // ── Build a layer card with granular controls ──
+  // ── Build a layer card with controls ──
   function addLayerCard(name, key, info, options = {}) {
     const card = el('div', 'layer-card');
     card.appendChild(el('h3', '', name));
@@ -693,35 +717,18 @@ export function initLayerVisualizer(container) {
 
     const s = layerSettings[key];
 
-    // ── Toggle row: Fills + Outlines checkboxes ──
+    // ── Toggle row ──
     const toggleRow = el('div', 'toggle-row');
-
-    if (options.hasFills !== false) {
-      const fillCb = document.createElement('input');
-      fillCb.type = 'checkbox';
-      fillCb.checked = s.fills;
-      fillCb.id = `fills-${key}`;
-      fillCb.addEventListener('change', () => { s.fills = fillCb.checked; recomposite(); });
-      const fillLabel = document.createElement('label');
-      fillLabel.htmlFor = fillCb.id;
-      fillLabel.textContent = 'Fills';
-      toggleRow.appendChild(fillCb);
-      toggleRow.appendChild(fillLabel);
-    }
-
-    if (options.hasOutlines !== false) {
-      const outCb = document.createElement('input');
-      outCb.type = 'checkbox';
-      outCb.checked = s.outlines;
-      outCb.id = `outlines-${key}`;
-      outCb.addEventListener('change', () => { s.outlines = outCb.checked; recomposite(); });
-      const outLabel = document.createElement('label');
-      outLabel.htmlFor = outCb.id;
-      outLabel.textContent = 'Outlines';
-      toggleRow.appendChild(outCb);
-      toggleRow.appendChild(outLabel);
-    }
-
+    const toggleCb = document.createElement('input');
+    toggleCb.type = 'checkbox';
+    toggleCb.checked = s.on;
+    toggleCb.id = `toggle-${key}`;
+    toggleCb.addEventListener('change', () => { s.on = toggleCb.checked; recomposite(); });
+    const toggleLabel = document.createElement('label');
+    toggleLabel.htmlFor = toggleCb.id;
+    toggleLabel.textContent = 'Enabled';
+    toggleRow.appendChild(toggleCb);
+    toggleRow.appendChild(toggleLabel);
     card.appendChild(toggleRow);
 
     // ── HSL sliders ──
@@ -749,7 +756,6 @@ export function initLayerVisualizer(container) {
           recomposite();
         });
 
-        // Double-click to reset
         input.addEventListener('dblclick', () => {
           s[def.prop] = def.defaultVal;
           input.value = def.defaultVal;
@@ -775,14 +781,14 @@ export function initLayerVisualizer(container) {
 
     // Reset all layer settings
     for (const key of Object.keys(layerSettings)) {
-      layerSettings[key] = { fills: true, outlines: true, hShift: 0, sShift: 0, lShift: 0 };
+      layerSettings[key] = { on: true, hShift: 0, sShift: 0, lShift: 0 };
     }
 
     const dragon = Dragon.createRandom();
     const p = dragon.phenotype;
 
     currentData = await decomposeIntoLayers(p);
-    const { bodyAlpha, needsFadePass, opacityLevel } = currentData;
+    const { bodyAlpha, needsFadePass, isNoneOpacity, opacityLevel } = currentData;
 
     const opNames = { 0: 'None', 1: 'Low', 2: 'Med', 3: 'High' };
     const headerInfo = `${p.color.displayName} — O: ${opNames[opacityLevel]} (${Math.round(bodyAlpha * 100)}%) — Fade: ${needsFadePass ? 'Yes' : 'No'}`;
@@ -791,26 +797,26 @@ export function initLayerVisualizer(container) {
     header.style.cssText = 'font-size:14px;color:var(--text-bright);width:100%;margin-top:8px;';
     controls.appendChild(header);
 
-    // Build layer cards
-    addLayerCard('Layer 1: Fills (base)', 'layer1',
-      'All fills from base PNGs. Color-blended (base/lighten/horn shifts).',
-      { hasFills: true, hasOutlines: false });
+    // Build layer cards matching the new red-extraction architecture
+    addLayerCard('Base Layer (fills)', 'base',
+      'All assets composited → red extracted → fills remain. Color-blended per colorMode.',
+      { });
 
-    addLayerCard('Layer 2: Outlines (base)', 'layer2',
-      'All outlines from base PNGs. Darken color blend. Only used for transparent dragons.',
-      { hasFills: false, hasOutlines: true });
+    addLayerCard('Injected Outlines (Layer 2)', 'injectedOutline',
+      'All assets composited → red only → grey → Layer 2 sat/lum correction. Transparent dragons only.',
+      { });
 
-    addLayerCard('Layer 3: Fills (fade)', 'layer3',
-      'Fade-swapped fills (wingfade/legfade). Non-fade layers for z-order.',
-      { hasFills: true, hasOutlines: false });
+    addLayerCard('Fade Layer', 'fade',
+      'Fade-substituted assets composited → red removed → fills only. Transparent dragons only.',
+      { });
 
     addLayerCard('Face Details', 'face',
       'Eyes, mouth — no color processing. Full opacity.',
-      { hasFills: true, hasOutlines: false, noColor: true });
+      { noColor: true });
 
-    addLayerCard('Layer 4: Surface Outlines', 'layer4',
-      'Z-order mask trick. Surviving outlines → 102 grey → darken blend. Full opacity.',
-      { hasFills: false, hasOutlines: true });
+    addLayerCard('Final Outline', 'finalOutline',
+      'Extracted red → mid grey (102) → darken color blend. Full opacity on top.',
+      { });
 
     recomposite();
     genBtn.disabled = false;
@@ -825,7 +831,7 @@ export function initLayerVisualizer(container) {
 
   opacitySelect.addEventListener('change', () => {
     const val = opacitySelect.value;
-    currentAlphaOverride = val === 'auto' ? null : parseFloat(val);
+    opacityOverride = val === 'auto' ? null : parseInt(val);
     recomposite();
   });
 

@@ -2,25 +2,31 @@
 // Composites PNG layers with color blending and transparency
 //
 // Color pipeline per layer:
-//   1. Load greyscale PNG art (artist's luminance painting)
-//   2. Apply dragon color via HSL 'color' blend mode
-//      (takes hue+saturation from dragon, preserves luminance from art)
-//   3. Adjust luminance: lighten for bellies/membranes, darken for outlines
-//   4. Two-pass compositing based on finish opacity gene
+//   1. Load PNG art (greyscale fills + pure-red outline markers)
+//   2. Color-blend greyscale pixels via HSL (dragon hue+sat, art luminance)
+//      Red outline pixels (R=255, G=0, B=0) are left untouched as markers
+//   3. Adjust luminance per colorMode: lighten, darken, horn, etc.
+//   4. Composite all layers in z-order, then extract outlines by red color
 //
-// 4-layer compositing model:
-//   Layers 1+2+3 (merged at full internal opacity, stamped at bodyAlpha):
-//     Layer 1 — Full dragon with base PNGs (all layers in z-order)
-//     Layer 2 — Outlines only, base PNGs (transparent dragons only)
-//     Layer 3 — Full dragon with fade PNGs swapped in (transparent dragons only)
-//       Fade PNGs have painted-in transparency at limb/body junctions.
-//       Outlines from Layer 2 show through where fade fills are transparent.
-//       Opaque dragons skip Layers 2+3 entirely.
-//   Face details — Eyes, mouth at full opacity, no color correction
-//   Layer 4 — Surface outline overlay (pixel-processed):
-//     - Mask layers rendered: fills as white, outlines as black
-//     - White→transparent, dark→colored with darken shift
-//     - Overlaid at α=1.0 for crisp surface outlines
+// Red-extraction compositing model (3 opacity paths):
+//
+//   FULL OPACITY:
+//     Base Layer    — All assets composited, red extracted, fills color-blended
+//     Detail Layer  — Eyes/mouth at full opacity, no correction
+//     Final Outline — Extracted red → mid grey → darken color blend
+//
+//   LOW & MID OPACITY:
+//     Base Layer       — Fills (red removed) at bodyAlpha transparency
+//     Injected Outlines— Red pixels extracted → grey → Layer 2 sat/lum correction
+//     Fade Layer       — Fade-swapped assets, red removed, fills only
+//     Detail Layer     — Eyes/mouth at full opacity
+//     Final Outline    — Extracted red → grey → darken blend
+//
+//   NONE OPACITY (opacityLevel 0 — no base layer):
+//     Injected Outlines— Red extracted → grey → Layer 2 sat/lum correction
+//     Fade Layer       — Fade-swapped assets, red removed, fills only
+//     Detail Layer     — Eyes/mouth at full opacity
+//     Final Outline    — Red extracted → grey → darken blend
 
 import {
   ASSET_TABLE,
@@ -221,7 +227,7 @@ function hslToRgb(h, s, l) {
  * @param {object} dragonRgb - { r, g, b } dragon's base color (0-255)
  * @param {number} luminanceShift - how much to shift luminance (-1 to 1)
  */
-function applyColorBlend(imageData, dragonRgb, luminanceShift = 0, saturationShift = 0) {
+function applyColorBlend(imageData, dragonRgb, luminanceShift = 0) {
   const dragonHsl = rgbToHsl(dragonRgb.r, dragonRgb.g, dragonRgb.b);
   const data = imageData.data;
 
@@ -236,16 +242,56 @@ function applyColorBlend(imageData, dragonRgb, luminanceShift = 0, saturationShi
     const artB = data[i + 2];
     const artHsl = rgbToHsl(artR, artG, artB);
 
-    // Use dragon's hue + saturation (+ optional shift), art's luminance (+ shift)
-    let targetS = Math.max(0, Math.min(1, dragonHsl.s + saturationShift));
     let targetL = artHsl.l + luminanceShift;
     targetL = Math.max(0, Math.min(1, targetL)); // clamp
 
-    const result = hslToRgb(dragonHsl.h, targetS, targetL);
+    const result = hslToRgb(dragonHsl.h, dragonHsl.s, targetL);
     data[i]     = result.r;
     data[i + 1] = result.g;
     data[i + 2] = result.b;
     // alpha stays the same
+  }
+}
+
+/**
+ * Detect red outline marker pixels.
+ * Uses a threshold rather than exact R=255,G=0,B=0 because canvas alpha
+ * compositing can slightly blend red markers with underlying pixels,
+ * producing near-red values like R=254,G=1,B=1.
+ * Threshold: R >= 200, G <= 50, B <= 50.
+ */
+function isRedOutline(r, g, b) {
+  return r >= 200 && g <= 50 && b <= 50;
+}
+
+/**
+ * Apply color blend to greyscale pixel data, skipping red outline markers.
+ * Red pixels are outline markers that get extracted later during compositing
+ * — they pass through untouched here.
+ */
+function applyColorBlendSkipRed(imageData, dragonRgb, luminanceShift = 0) {
+  const dragonHsl = rgbToHsl(dragonRgb.r, dragonRgb.g, dragonRgb.b);
+  const data = imageData.data;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const a = data[i + 3];
+    if (a === 0) continue;
+
+    // Skip red outline markers
+    if (isRedOutline(data[i], data[i + 1], data[i + 2])) continue;
+
+    const artR = data[i];
+    const artG = data[i + 1];
+    const artB = data[i + 2];
+    const artHsl = rgbToHsl(artR, artG, artB);
+
+    let targetL = artHsl.l + luminanceShift;
+    targetL = Math.max(0, Math.min(1, targetL));
+
+    const result = hslToRgb(dragonHsl.h, dragonHsl.s, targetL);
+    data[i]     = result.r;
+    data[i + 1] = result.g;
+    data[i + 2] = result.b;
   }
 }
 
@@ -432,7 +478,10 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     }
   }
 
-  // ── Pre-process all layers: color-blend, compute anchors, build mask versions ──
+  // ── Pre-process all layers: color-blend non-red pixels, compute anchors ──
+  // Red pixels (R=255, G=0, B=0) are outline markers — left as-is for
+  // extraction during compositing. Greyscale fill pixels get color-blended
+  // with the asset's colorMode shift. Fixed layers (eyes/mouth) skip blending.
   const processedLayers = [];
   for (const asset of matchedAssets) {
     const fullname = asset.filename + '.png';
@@ -446,12 +495,12 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     const offCtx = offscreen.getContext('2d');
     offCtx.drawImage(img, 0, 0);
 
-    // Apply color blend (unless 'fixed' layer like eyes/mouth)
+    // Apply color blend to non-red pixels only (unless 'fixed' layer)
     if (asset.colorMode !== 'fixed') {
       const imageData = offCtx.getImageData(0, 0, offscreen.width, offscreen.height);
       const adjustment = COLOR_ADJUSTMENTS[asset.colorMode];
       const shift = adjustment ? adjustment.luminanceShift : 0;
-      applyColorBlend(imageData, dragonRgb, shift);
+      applyColorBlendSkipRed(imageData, dragonRgb, shift);
       offCtx.putImageData(imageData, 0, 0);
     }
 
@@ -481,54 +530,15 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
       anchorY += headAnchor.y;
     }
 
-    // Classify layer type for multi-pass rendering:
-    //   'outline' = colored outlines (opacityMode 'opaque', colorMode != 'fixed')
-    //   'fixed'   = face details like eyes/mouth (colorMode 'fixed') — no color correction
-    //   'fill'    = body/wing fills (everything else)
-    const isOutline = asset.opacityMode === 'opaque' && asset.colorMode !== 'fixed';
     const isFixedDetail = asset.colorMode === 'fixed';
 
-    // Build mask canvas for Layer 4 (white-fill / black-outline trick).
-    // EVERY layer gets a mask: fills + fixed details → solid white, outlines → solid black.
-    // When composited in z-order, white fills paint over black outlines beneath,
-    // so only truly-visible surface outlines survive.
-    // Then white→transparent, surviving dark→colored with darken shift.
-    //
-    // Fill masks use FULL alpha (no bodyAlpha scaling). Layers 2+3 handle
-    // the overlapping-outline visibility for transparent dragons — Layer 4's
-    // job is purely clean surface outline extraction, same for all dragons.
-    const maskCanvas = document.createElement('canvas');
-    maskCanvas.width = img.width;
-    maskCanvas.height = img.height;
-    const maskCtx = maskCanvas.getContext('2d');
-    maskCtx.drawImage(img, 0, 0);
-    const maskData = maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
-    if (isOutline) {
-      // Outlines → solid black (0,0,0), preserving original alpha
-      for (let i = 0; i < maskData.data.length; i += 4) {
-        if (maskData.data[i + 3] === 0) continue;
-        maskData.data[i]     = 0;
-        maskData.data[i + 1] = 0;
-        maskData.data[i + 2] = 0;
-      }
-    } else {
-      // Fills + fixed details → solid white (255,255,255), preserving original alpha
-      for (let i = 0; i < maskData.data.length; i += 4) {
-        if (maskData.data[i + 3] === 0) continue;
-        maskData.data[i]     = 255;
-        maskData.data[i + 1] = 255;
-        maskData.data[i + 2] = 255;
-      }
-    }
-    maskCtx.putImageData(maskData, 0, 0);
-
-    processedLayers.push({ asset, offscreen, maskCanvas, anchorX, anchorY, rotation, isOutline, isFixedDetail, originalImg: img });
+    processedLayers.push({ asset, offscreen, anchorX, anchorY, rotation, isFixedDetail });
   }
 
-  // ── Pre-process fade layers (Layer A2): wing/leg fade variants ──
+  // ── Pre-process fade layers: wing/leg fade variants ──
   // These use the same color + anchor logic as their base counterparts,
   // but load the fade PNG (which has painted-in transparency gradients).
-  // No mask canvases needed — Layer B uses base masks only (same outlines).
+  // Red outline markers are skipped during color blending, same as base layers.
   const fadeLayers = [];
   for (const asset of matchedAssets) {
     const fadeName = getFadeFilename(asset.filename);
@@ -538,7 +548,7 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     const img = assetMap.get(fullname);
     if (!img) continue; // fade PNG not available
 
-    // Color-blend the fade layer the same way as the base
+    // Color-blend non-red pixels the same way as the base
     const offscreen = document.createElement('canvas');
     offscreen.width = img.width;
     offscreen.height = img.height;
@@ -549,7 +559,7 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
       const imageData = offCtx.getImageData(0, 0, offscreen.width, offscreen.height);
       const adjustment = COLOR_ADJUSTMENTS[asset.colorMode];
       const shift = adjustment ? adjustment.luminanceShift : 0;
-      applyColorBlend(imageData, dragonRgb, shift);
+      applyColorBlendSkipRed(imageData, dragonRgb, shift);
       offCtx.putImageData(imageData, 0, 0);
     }
 
@@ -561,7 +571,6 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
       anchorX: baseLayer.anchorX,
       anchorY: baseLayer.anchorY,
       rotation: baseLayer.rotation,
-      isOutline: baseLayer.isOutline,
       isFixedDetail: baseLayer.isFixedDetail,
     });
   }
@@ -621,171 +630,282 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     targetCtx.restore();
   }
 
-  // ── Build fade-substituted layer list for Layer A2 ──
-  // Layer A2 is a full re-render of the entire dragon, but with wing/leg
-  // layers swapped to their fade equivalents. Non-wing/non-leg layers
-  // (body, head, tail, horns, spines) stay identical in both passes.
-  // This preserves correct z-ordering within Layer A2.
-  const fadeLayerMap = new Map(); // asset reference → fade layer data
+  // ── Build fade-substituted layer list ──
+  // For the Fade Layer: a full re-render of the dragon but with wing/leg
+  // layers swapped to their fade equivalents (which have painted-in
+  // transparency gradients). Non-wing/non-leg layers stay identical.
+  const fadeLayerMap = new Map();
   for (const fl of fadeLayers) {
     fadeLayerMap.set(fl.asset, fl);
   }
 
-  const layerA2Layers = [];
+  const fadeSubLayers = [];
   for (const layer of processedLayers) {
     const fadeLayer = fadeLayerMap.get(layer.asset);
-    if (fadeLayer) {
-      // Swap this wing/leg layer for its fade equivalent
-      layerA2Layers.push(fadeLayer);
-    } else {
-      // Keep non-wing/non-leg layers as-is (body, head, tail, etc.)
-      layerA2Layers.push(layer);
-    }
+    fadeSubLayers.push(fadeLayer || layer);
   }
 
   // ============================================================
-  // 4-LAYER COMPOSITING PIPELINE
+  // RED-EXTRACTION COMPOSITING PIPELINE
   // ============================================================
-  // Layer 1: Full dragon, base PNGs, color + transparency
-  // Layer 2: Outlines only, base PNGs, color only (full opacity)
-  // Layer 3: Full dragon, fade PNGs swapped in, color + transparency
-  //          (skipped for fully-opaque dragons)
-  // Face details: eyes/mouth at full opacity, no color correction
-  // Layer 4: Outline treatment — z-order-aware fill removal + darken color
   //
-  // Layer 2 is the key addition: by rendering all outlines at full opacity
-  // between the transparent fills (Layer 1) and the fade pass (Layer 3),
-  // transparent dragons naturally show overlapping outlines through their
-  // fills. Opaque dragons' Layer 1 fills sit on top of Layer 2's outlines,
-  // hiding them as expected.
+  // Outline pixels in art PNGs are pure red (R=255, G=0, B=0).
+  // During pre-processing, red pixels are left untouched while
+  // greyscale fill pixels are color-blended per their colorMode.
+  //
+  // At composite time, all layers are drawn in z-order onto a
+  // shared canvas, then red pixels are extracted to produce a
+  // clean outline layer. Because fills paint over outlines beneath
+  // in z-order, only surface-visible outlines survive as red —
+  // same principle as the old black/white mask trick but simpler.
+  //
+  // Three opacity paths:
+  //
+  // FULL OPACITY (opacityLevel 3 = High):
+  //   Base Layer:    All assets composited → extract red → fills remain
+  //   Detail Layer:  Eyes/mouth at full opacity, no correction
+  //   Final Outline: Extracted red → mid grey → darken color blend
+  //   Stack: Base → Detail → Final Outline
+  //
+  // LOW & MID OPACITY (opacityLevel 1-2):
+  //   Base Layer:    All assets composited → extract red → fills remain
+  //                  → stamped at bodyAlpha
+  //   Injected Outlines: All assets composited → keep only red →
+  //                  red→grey → Layer 2 sat/lum corrections
+  //   Fade Layer:    Fade-substituted assets composited → remove red →
+  //                  fills only remain
+  //   Detail Layer:  Eyes/mouth at full opacity, no correction
+  //   Final Outline: Extracted red → mid grey → darken blend
+  //   Stack: Base → Injected Outlines → Fade → Detail → Final Outline
+  //
+  // NONE OPACITY (opacityLevel 0):
+  //   Injected Outlines: All assets composited → keep only red →
+  //                  red→grey → Layer 2 sat/lum corrections
+  //   Fade Layer:    Fade-substituted assets composited → remove red →
+  //                  fills only remain
+  //   Detail Layer:  Eyes/mouth at full opacity
+  //   Final Outline: All assets composited → extract red → grey → darken
+  //   Stack: Injected Outlines → Fade → Detail → Final Outline
 
+  // ── Utility: composite a layer list onto a canvas, return ImageData ──
+  function compositeLayersRaw(layerList, targetWidth, targetHeight) {
+    const comp = document.createElement('canvas');
+    comp.width = targetWidth;
+    comp.height = targetHeight;
+    const compCtx = comp.getContext('2d');
+    for (const layer of layerList) {
+      if (layer.isFixedDetail) continue; // face details handled separately
+      drawToCtx(compCtx, layer.offscreen, layer, 1.0);
+    }
+    const imgData = compCtx.getImageData(0, 0, targetWidth, targetHeight);
+    comp.width = 0; comp.height = 0; // release
+    return imgData;
+  }
+
+  // ── Utility: split ImageData into fills-only and outlines-only ──
+  // Red-ish pixels (detected by isRedOutline threshold) → outline.
+  // Everything else → fill. Because layers are composited in z-order,
+  // fills naturally paint over outlines beneath, so only surface-visible
+  // outlines remain red.
+  function splitRedOutlines(srcData) {
+    const w = srcData.width;
+    const h = srcData.height;
+    const fillData = new ImageData(new Uint8ClampedArray(srcData.data), w, h);
+    const outlineData = new ImageData(new Uint8ClampedArray(srcData.data.length), w, h);
+    const fd = fillData.data;
+    const od = outlineData.data;
+    const sd = srcData.data;
+
+    for (let i = 0; i < sd.length; i += 4) {
+      if (sd[i + 3] === 0) continue;
+      if (isRedOutline(sd[i], sd[i + 1], sd[i + 2])) {
+        // Red pixel → outline layer, remove from fill layer
+        od[i]     = sd[i];
+        od[i + 1] = sd[i + 1];
+        od[i + 2] = sd[i + 2];
+        od[i + 3] = sd[i + 3];
+        fd[i + 3] = 0; // transparent in fill layer
+      }
+    }
+    return { fillData, outlineData };
+  }
+
+  // ── Utility: convert red outline pixels to mid-grey for color blending ──
+  function redToGrey(imgData) {
+    const d = imgData.data;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] === 0) continue;
+      if (isRedOutline(d[i], d[i + 1], d[i + 2])) {
+        d[i]     = 102; // mid grey (102/255 ≈ 40% luminance)
+        d[i + 1] = 102;
+        d[i + 2] = 102;
+      }
+    }
+  }
+
+  // ── Utility: remove red outline pixels (make transparent) ──
+  function removeRed(imgData) {
+    const d = imgData.data;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] === 0) continue;
+      if (isRedOutline(d[i], d[i + 1], d[i + 2])) {
+        d[i + 3] = 0;
+      }
+    }
+  }
+
+  // ── Utility: keep only red pixels, make everything else transparent ──
+  function keepOnlyRed(imgData) {
+    const d = imgData.data;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] === 0) continue;
+      if (!isRedOutline(d[i], d[i + 1], d[i + 2])) {
+        d[i + 3] = 0; // not red → transparent
+      }
+    }
+  }
+
+  // ── Utility: apply Layer 2 color blend with sat/lum corrections ──
+  // Self-contained: does its own HSL conversion with saturation shift.
+  // Does NOT modify the shared applyColorBlend function.
+  function applyLayer2Blend(imgData, rgb) {
+    const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
+    const satCorr = LAYER2_OUTLINE_CORRECTION.saturationShift;
+    const lumCorr = LAYER2_OUTLINE_CORRECTION.luminanceShift;
+    const baseLum = COLOR_ADJUSTMENTS.darken.luminanceShift;
+    const d = imgData.data;
+
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] === 0) continue;
+      const artHsl = rgbToHsl(d[i], d[i + 1], d[i + 2]);
+      const targetS = Math.max(0, Math.min(1, hsl.s + satCorr));
+      const targetL = Math.max(0, Math.min(1, artHsl.l + baseLum + lumCorr));
+      const result = hslToRgb(hsl.h, targetS, targetL);
+      d[i]     = result.r;
+      d[i + 1] = result.g;
+      d[i + 2] = result.b;
+    }
+  }
+
+  // ── Shared offscreen compositor (reused for putImageData → drawImage) ──
   const offscreenComp = document.createElement('canvas');
   offscreenComp.width = width;
   offscreenComp.height = height;
   const offscreenCompCtx = offscreenComp.getContext('2d');
 
-  // ── Layers 1+2+3 (merged): All rendered at full internal opacity ──
-  // For transparent dragons:
-  //   Layer 1: Fills only, base PNGs (no outlines — avoids double-drawing)
-  //   Layer 2: Outlines only, base PNGs
-  //   Layer 3: Fade fills only (no outlines)
-  // For opaque dragons:
-  //   Layer 1: Full dragon (fills + outlines), base PNGs
-  //
-  // Everything composites onto offscreen at α=1.0, then the merged
-  // result is stamped onto the main canvas at bodyAlpha.
-
-  if (needsFadePass) {
-    // Layer 1: Fills only (skip outlines to avoid double-draw with Layer 2)
-    for (const layer of processedLayers) {
-      if (!layer.isOutline) {
-        drawToCtx(offscreenCompCtx, layer.offscreen, layer, 1.0);
-      }
-    }
-
-    // Layer 2: Outlines only at full opacity — these show through
-    // wherever Layer 3's fade fills have transparency gradients.
-    // Apply Layer 2 sat/lum corrections so these outlines visually
-    // match Layer 4 surface outlines (which use normalized grey + darken).
-    const l2SatCorr = LAYER2_OUTLINE_CORRECTION.saturationShift;
-    const l2LumCorr = LAYER2_OUTLINE_CORRECTION.luminanceShift;
-    const l2Temps = [];
-    for (const layer of processedLayers) {
-      if (layer.isOutline) {
-        // Re-blend from the original art with corrected sat/lum
-        const src = layer.offscreen;
-        const tmp = document.createElement('canvas');
-        tmp.width = src.width;
-        tmp.height = src.height;
-        const tmpCtx = tmp.getContext('2d');
-        tmpCtx.drawImage(layer.originalImg, 0, 0);
-        const imgData = tmpCtx.getImageData(0, 0, tmp.width, tmp.height);
-        const baseLum = COLOR_ADJUSTMENTS.darken.luminanceShift;
-        applyColorBlend(imgData, dragonRgb, baseLum + l2LumCorr, l2SatCorr);
-        tmpCtx.putImageData(imgData, 0, 0);
-        drawToCtx(offscreenCompCtx, tmp, layer, 1.0);
-        l2Temps.push(tmp);
-      }
-    }
-    // Clean up Layer 2 temp canvases
-    for (const tmp of l2Temps) { tmp.width = 0; tmp.height = 0; }
-
-    // Layer 3: Fade fills only (no outlines)
-    for (const layer of layerA2Layers) {
-      if (!layer.isOutline) {
-        drawToCtx(offscreenCompCtx, layer.offscreen, layer, 1.0);
-      }
-    }
-  } else {
-    // Opaque: Full dragon (fills + outlines) in one pass
-    for (const layer of processedLayers) {
-      drawToCtx(offscreenCompCtx, layer.offscreen, layer, 1.0);
-    }
-  }
-
-  // Stamp merged Layers 1(+2+3) at body transparency
-  ctx.save();
-  ctx.globalAlpha = bodyAlpha;
-  ctx.drawImage(offscreenComp, 0, 0);
-  ctx.restore();
-
-  // ── Face details: eyes, mouth at full opacity, no color correction ──
-  for (const layer of processedLayers) {
-    if (layer.isFixedDetail) {
-      drawToCtx(ctx, layer.offscreen, layer, 1.0);
-    }
-  }
-
-  // ── Layer 4: Outline treatment — z-order-aware fill removal + darken ──
-  // Render ALL mask layers in z-order: fills as white, outlines as black.
-  // White fills paint over black outlines beneath, so only surface outlines
-  // survive. Then white→transparent, surviving dark→uniform 50% grey,
-  // color-blended with darken shift. All surface outlines get the same
-  // consistent treatment regardless of layer depth.
-  offscreenCompCtx.clearRect(0, 0, width, height);
-  for (const layer of processedLayers) {
-    drawToCtx(offscreenCompCtx, layer.maskCanvas, layer, 1.0);
-  }
-
-  const layerBData = offscreenCompCtx.getImageData(0, 0, width, height);
-  const bData = layerBData.data;
-  for (let i = 0; i < bData.length; i += 4) {
-    if (bData[i + 3] === 0) continue;
-    const brightness = bData[i] + bData[i + 1] + bData[i + 2];
-    if (brightness > 384) {
-      // White-ish pixel (fill area) → fully transparent
-      bData[i + 3] = 0;
-    } else {
-      // Dark pixel (outline) → match source art luminance (102/255 = 40%)
-      // so Layer 4 outlines color-blend identically to Layers 1-3 outlines
-      bData[i]     = 102;
-      bData[i + 1] = 102;
-      bData[i + 2] = 102;
-    }
-  }
   const darkenShift = COLOR_ADJUSTMENTS.darken.luminanceShift;
-  applyColorBlend(layerBData, dragonRgb, darkenShift);
-  offscreenCompCtx.putImageData(layerBData, 0, 0);
-  ctx.drawImage(offscreenComp, 0, 0);
+  const isNoneOpacity = opacityLevel === 0;  // "None" tier: no base layer at all
+
+  if (isNoneOpacity) {
+    // ── NONE OPACITY: no base layer ──
+
+    // Injected Outlines: composite all assets → keep only red → grey → L2 blend
+    const rawAll = compositeLayersRaw(processedLayers, width, height);
+    keepOnlyRed(rawAll);
+    redToGrey(rawAll);
+    applyLayer2Blend(rawAll, dragonRgb);
+    offscreenCompCtx.putImageData(rawAll, 0, 0);
+    ctx.drawImage(offscreenComp, 0, 0);
+
+    // Fade Layer: composite fade-substituted layers → remove red → fills only
+    const fadeRaw = compositeLayersRaw(fadeSubLayers, width, height);
+    removeRed(fadeRaw);
+    offscreenCompCtx.clearRect(0, 0, width, height);
+    offscreenCompCtx.putImageData(fadeRaw, 0, 0);
+    ctx.drawImage(offscreenComp, 0, 0);
+
+    // Detail Layer: face details at full opacity
+    for (const layer of processedLayers) {
+      if (layer.isFixedDetail) drawToCtx(ctx, layer.offscreen, layer, 1.0);
+    }
+
+    // Final Outline: composite all base assets → extract red → grey → darken
+    const baseRaw = compositeLayersRaw(processedLayers, width, height);
+    const { outlineData: finalOutData } = splitRedOutlines(baseRaw);
+    redToGrey(finalOutData);
+    applyColorBlend(finalOutData, dragonRgb, darkenShift);
+    offscreenCompCtx.clearRect(0, 0, width, height);
+    offscreenCompCtx.putImageData(finalOutData, 0, 0);
+    ctx.drawImage(offscreenComp, 0, 0);
+
+  } else if (needsFadePass) {
+    // ── LOW & MID OPACITY ──
+
+    // Composite all base assets → split fills and outlines
+    const baseRaw = compositeLayersRaw(processedLayers, width, height);
+    const { fillData: baseFills, outlineData: baseOutlines } = splitRedOutlines(baseRaw);
+
+    // Base Layer: fills at bodyAlpha
+    offscreenCompCtx.putImageData(baseFills, 0, 0);
+    ctx.save();
+    ctx.globalAlpha = bodyAlpha;
+    ctx.drawImage(offscreenComp, 0, 0);
+    ctx.restore();
+
+    // Injected Outlines: composite all assets → keep only red → grey → L2 blend
+    const rawAll = compositeLayersRaw(processedLayers, width, height);
+    keepOnlyRed(rawAll);
+    redToGrey(rawAll);
+    applyLayer2Blend(rawAll, dragonRgb);
+    offscreenCompCtx.clearRect(0, 0, width, height);
+    offscreenCompCtx.putImageData(rawAll, 0, 0);
+    ctx.drawImage(offscreenComp, 0, 0);
+
+    // Fade Layer: composite fade-substituted layers → remove red → fills only
+    const fadeRaw = compositeLayersRaw(fadeSubLayers, width, height);
+    removeRed(fadeRaw);
+    offscreenCompCtx.clearRect(0, 0, width, height);
+    offscreenCompCtx.putImageData(fadeRaw, 0, 0);
+    ctx.drawImage(offscreenComp, 0, 0);
+
+    // Detail Layer: face details at full opacity
+    for (const layer of processedLayers) {
+      if (layer.isFixedDetail) drawToCtx(ctx, layer.offscreen, layer, 1.0);
+    }
+
+    // Final Outline: extracted red → grey → darken blend
+    redToGrey(baseOutlines);
+    applyColorBlend(baseOutlines, dragonRgb, darkenShift);
+    offscreenCompCtx.clearRect(0, 0, width, height);
+    offscreenCompCtx.putImageData(baseOutlines, 0, 0);
+    ctx.drawImage(offscreenComp, 0, 0);
+
+  } else {
+    // ── FULL OPACITY ──
+
+    // Composite all base assets → split fills and outlines
+    const baseRaw = compositeLayersRaw(processedLayers, width, height);
+    const { fillData: baseFills, outlineData: baseOutlines } = splitRedOutlines(baseRaw);
+
+    // Base Layer: fills at full opacity
+    offscreenCompCtx.putImageData(baseFills, 0, 0);
+    ctx.drawImage(offscreenComp, 0, 0);
+
+    // Detail Layer: face details at full opacity
+    for (const layer of processedLayers) {
+      if (layer.isFixedDetail) drawToCtx(ctx, layer.offscreen, layer, 1.0);
+    }
+
+    // Final Outline: extracted red → grey → darken blend
+    redToGrey(baseOutlines);
+    applyColorBlend(baseOutlines, dragonRgb, darkenShift);
+    offscreenCompCtx.clearRect(0, 0, width, height);
+    offscreenCompCtx.putImageData(baseOutlines, 0, 0);
+    ctx.drawImage(offscreenComp, 0, 0);
+  }
 
   // ── Cleanup: release all temp canvases to free memory ──
   // Critical for mobile where canvas memory is severely limited.
-  // The per-layer offscreens, masks, and fade canvases are no longer
-  // needed once compositing is complete.
   for (const layer of processedLayers) {
     layer.offscreen.width = 0;
     layer.offscreen.height = 0;
     layer.offscreen = null;
-    layer.maskCanvas.width = 0;
-    layer.maskCanvas.height = 0;
-    layer.maskCanvas = null;
   }
   for (const layer of fadeLayers) {
     layer.offscreen.width = 0;
     layer.offscreen.height = 0;
     layer.offscreen = null;
   }
-  // Release the shared offscreen compositor
   offscreenComp.width = 0;
   offscreenComp.height = 0;
 

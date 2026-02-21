@@ -89,7 +89,7 @@ export function initOptionsTab(container) {
     if (e.key === 'Enter') {
       const cmd = consoleInput.value.trim().toLowerCase();
       if (cmd === 'tools' || cmd === 'open tools' || cmd === '') {
-        const url = new URL('tools.html', window.location.href).href;
+        const url = new URL('tools2.html', window.location.href).href;
         window.open(url, '_blank');
       }
       consoleInput.value = '';
