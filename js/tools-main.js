@@ -37,6 +37,7 @@ function initExternalLinks() {
   const openers = {
     'open-sprite-placement': 'sprite-placement.html',
     'open-spine-placement':  'spine-placement.html',
+    'open-breath-elements':  'breath-elements.html',
   };
   for (const [id, url] of Object.entries(openers)) {
     const btn = document.getElementById(id);

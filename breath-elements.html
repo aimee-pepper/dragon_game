@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Breath Elements Planner</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #ffffff;
+      color: #222;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      padding: 20px;
+    }
+    h1 { text-align: center; margin-bottom: 4px; font-size: 22px; }
+    .subtitle { text-align: center; color: #888; margin-bottom: 16px; font-size: 13px; }
+
+    /* ── Slot Selector ── */
+    .slot-section {
+      background: #f5f5f5;
+      border: 2px solid #ddd;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 24px;
+    }
+    .slot-controls {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .slot-controls label { font-size: 13px; font-weight: 600; color: #555; }
+    .slot-count-btn {
+      padding: 6px 16px; border-radius: 6px; border: 2px solid #ccc;
+      background: #fff; cursor: pointer; font-size: 13px; font-weight: 600;
+    }
+    .slot-count-btn.active { background: #4a90d9; color: #fff; border-color: #4a90d9; }
+    .slot-count-btn:hover:not(.active) { border-color: #999; }
+
+    .slot-strip {
+      display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
+      min-height: 130px; align-items: flex-start;
+    }
+    .slot-box {
+      width: 120px;
+      border: 2px dashed #ccc;
+      border-radius: 8px;
+      background: #fff;
+      cursor: pointer;
+      text-align: center;
+      padding: 6px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      position: relative;
+    }
+    .slot-box.selected { border-color: #4a90d9; box-shadow: 0 0 0 3px rgba(74,144,217,0.25); }
+    .slot-box.filled { border-style: solid; border-color: #aaa; }
+    .slot-box .slot-label {
+      font-size: 10px; color: #999; text-transform: uppercase; letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    .slot-box .slot-graphic {
+      width: 80px; height: 80px;
+      margin: 0 auto;
+      background: #f0f0f0;
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; color: #bbb;
+      overflow: hidden;
+    }
+    .slot-box.filled .slot-graphic { background: #e8f0ff; }
+    .slot-box .slot-graphic img { width: 100%; height: 100%; object-fit: contain; }
+    .slot-box .slot-name {
+      font-size: 11px; font-weight: 600; margin-top: 4px;
+      min-height: 14px; color: #333;
+    }
+    .slot-box .slot-levels {
+      font-size: 9px; color: #888; margin-top: 2px; min-height: 12px;
+    }
+    .slot-box .slot-clear {
+      position: absolute; top: 2px; right: 4px;
+      background: none; border: none; cursor: pointer;
+      font-size: 14px; color: #ccc; line-height: 1;
+    }
+    .slot-box .slot-clear:hover { color: #e44; }
+
+    /* ── Element Grid ── */
+    .grid-header {
+      text-align: center; font-size: 14px; font-weight: 600;
+      margin-bottom: 8px; color: #555;
+    }
+
+    .element-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+    }
+
+    /* Lightning tier headers */
+    .tier-header {
+      grid-column: 1 / -1;
+      background: #f8f8f8;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #555;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .tier-header .tier-icon { font-size: 16px; }
+
+    .element-cell {
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      background: #fff;
+      padding: 6px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+    }
+    .element-cell:hover { border-color: #4a90d9; transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .element-cell.in-slot { border-color: #4a90d9; background: #f0f6ff; }
+
+    .element-cell .cell-levels {
+      font-size: 9px; color: #888; line-height: 1.4;
+      margin-bottom: 4px;
+    }
+    .element-cell .cell-levels span { display: inline-block; min-width: 14px; }
+    .cell-fire { color: #d44; }
+    .cell-ice { color: #48b; }
+    .cell-lightning { color: #c90; }
+
+    .element-cell .cell-graphic {
+      width: 64px; height: 64px;
+      margin: 0 auto 4px;
+      background: #f5f5f5;
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 9px; color: #ccc;
+      overflow: hidden;
+      position: relative;
+    }
+    .element-cell .cell-graphic img { width: 100%; height: 100%; object-fit: contain; }
+    .element-cell .cell-graphic .upload-overlay {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(255,255,255,0.7);
+      opacity: 0; transition: opacity 0.15s;
+      font-size: 18px; color: #999; cursor: pointer;
+    }
+    .element-cell .cell-graphic:hover .upload-overlay { opacity: 1; }
+
+    .element-cell .cell-name {
+      font-size: 11px; font-weight: 600; color: #333;
+      text-transform: capitalize;
+    }
+
+    /* Level dots/bars */
+    .level-bar {
+      display: inline-flex; gap: 1px; margin-left: 2px;
+    }
+    .level-pip {
+      width: 6px; height: 6px; border-radius: 50%;
+      display: inline-block;
+    }
+    .level-pip.fire { background: #e55; }
+    .level-pip.fire.empty { background: #f0d0d0; }
+    .level-pip.ice { background: #4a99cc; }
+    .level-pip.ice.empty { background: #c8dff0; }
+    .level-pip.lightning { background: #cc9900; }
+    .level-pip.lightning.empty { background: #f0e8c0; }
+  </style>
+</head>
+<body>
+  <h1>Breath Elements Planner</h1>
+  <p class="subtitle">64 element combinations from Fire / Ice / Lightning — click a slot, then click a cell to assign</p>
+
+  <!-- Slot Section -->
+  <div class="slot-section">
+    <div class="slot-controls">
+      <label>Slots:</label>
+      <button class="slot-count-btn" data-count="2">2</button>
+      <button class="slot-count-btn active" data-count="4">4</button>
+      <button class="slot-count-btn" data-count="6">6</button>
+    </div>
+    <div class="slot-strip" id="slotStrip"></div>
+  </div>
+
+  <!-- Element Grid -->
+  <div class="grid-header">All 64 Elements</div>
+  <div class="element-grid" id="elementGrid"></div>
+
+  <!-- Hidden file input for graphic uploads -->
+  <input type="file" id="graphicUpload" accept="image/*" style="display:none;">
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// BREATH ELEMENT DATA — 4 lightning tiers × 4 fire × 4 ice = 64
+// ══════════════════════════════════════════════════════════════
+
+const ELEMENTS = [
+  // Lightning None (0)
+  { fire: 0, ice: 0, lightning: 0, name: 'void' },
+  { fire: 0, ice: 1, lightning: 0, name: 'chill' },
+  { fire: 0, ice: 2, lightning: 0, name: 'frost' },
+  { fire: 0, ice: 3, lightning: 0, name: 'ice' },
+  { fire: 1, ice: 0, lightning: 0, name: 'ember' },
+  { fire: 1, ice: 1, lightning: 0, name: 'warm mist' },
+  { fire: 1, ice: 2, lightning: 0, name: 'cool steam' },
+  { fire: 1, ice: 3, lightning: 0, name: 'fog' },
+  { fire: 2, ice: 0, lightning: 0, name: 'flame' },
+  { fire: 2, ice: 1, lightning: 0, name: 'scald' },
+  { fire: 2, ice: 2, lightning: 0, name: 'steam' },
+  { fire: 2, ice: 3, lightning: 0, name: 'cold geyser' },
+  { fire: 3, ice: 0, lightning: 0, name: 'fire' },
+  { fire: 3, ice: 1, lightning: 0, name: 'hot scald' },
+  { fire: 3, ice: 2, lightning: 0, name: 'geyser' },
+  { fire: 3, ice: 3, lightning: 0, name: 'torrential steam' },
+
+  // Lightning Low (1)
+  { fire: 0, ice: 0, lightning: 1, name: 'static' },
+  { fire: 0, ice: 1, lightning: 1, name: 'cold static' },
+  { fire: 0, ice: 2, lightning: 1, name: 'frost spark' },
+  { fire: 0, ice: 3, lightning: 1, name: 'frigid static' },
+  { fire: 1, ice: 0, lightning: 1, name: 'warm static' },
+  { fire: 1, ice: 1, lightning: 1, name: 'haze' },
+  { fire: 1, ice: 2, lightning: 1, name: 'charged mist' },
+  { fire: 1, ice: 3, lightning: 1, name: 'cold ionic' },
+  { fire: 2, ice: 0, lightning: 1, name: 'heat spark' },
+  { fire: 2, ice: 1, lightning: 1, name: 'charged steam' },
+  { fire: 2, ice: 2, lightning: 1, name: 'storm brew' },
+  { fire: 2, ice: 3, lightning: 1, name: 'charged fog' },
+  { fire: 3, ice: 0, lightning: 1, name: 'sunfire' },
+  { fire: 3, ice: 1, lightning: 1, name: 'flash steam' },
+  { fire: 3, ice: 2, lightning: 1, name: 'thundercloud' },
+  { fire: 3, ice: 3, lightning: 1, name: 'maelstrom' },
+
+  // Lightning Medium (2)
+  { fire: 0, ice: 0, lightning: 2, name: 'spark' },
+  { fire: 0, ice: 1, lightning: 2, name: 'ionic chill' },
+  { fire: 0, ice: 2, lightning: 2, name: 'ionic' },
+  { fire: 0, ice: 3, lightning: 2, name: 'aurora glow' },
+  { fire: 1, ice: 0, lightning: 2, name: 'flare' },
+  { fire: 1, ice: 1, lightning: 2, name: 'heat haze' },
+  { fire: 1, ice: 2, lightning: 2, name: 'charged frost' },
+  { fire: 1, ice: 3, lightning: 2, name: 'shimmer' },
+  { fire: 2, ice: 0, lightning: 2, name: 'pulsar' },
+  { fire: 2, ice: 1, lightning: 2, name: 'arc steam' },
+  { fire: 2, ice: 2, lightning: 2, name: 'surge' },
+  { fire: 2, ice: 3, lightning: 2, name: 'radiant fog' },
+  { fire: 3, ice: 0, lightning: 2, name: 'solar' },
+  { fire: 3, ice: 1, lightning: 2, name: 'solar flare' },
+  { fire: 3, ice: 2, lightning: 2, name: 'plasma wisp' },
+  { fire: 3, ice: 3, lightning: 2, name: 'corona' },
+
+  // Lightning High (3)
+  { fire: 0, ice: 0, lightning: 3, name: 'lightning' },
+  { fire: 0, ice: 1, lightning: 3, name: 'crackling chill' },
+  { fire: 0, ice: 2, lightning: 3, name: 'tempest ice' },
+  { fire: 0, ice: 3, lightning: 3, name: 'aurora' },
+  { fire: 1, ice: 0, lightning: 3, name: 'crackling flare' },
+  { fire: 1, ice: 1, lightning: 3, name: 'ion storm' },
+  { fire: 1, ice: 2, lightning: 3, name: 'aurora storm' },
+  { fire: 1, ice: 3, lightning: 3, name: 'radiance' },
+  { fire: 2, ice: 0, lightning: 3, name: 'thunder scorch' },
+  { fire: 2, ice: 1, lightning: 3, name: 'plasma arc' },
+  { fire: 2, ice: 2, lightning: 3, name: 'fusion' },
+  { fire: 2, ice: 3, lightning: 3, name: 'plasma frost' },
+  { fire: 3, ice: 0, lightning: 3, name: 'helios' },
+  { fire: 3, ice: 1, lightning: 3, name: 'supernova' },
+  { fire: 3, ice: 2, lightning: 3, name: 'cataclysm' },
+  { fire: 3, ice: 3, lightning: 3, name: 'plasma' },
+];
+
+const LEVEL_LABELS = ['none', 'low', 'medium', 'high'];
+const LIGHTNING_TIER_LABELS = ['Lightning None', 'Lightning Low', 'Lightning Medium', 'Lightning High'];
+const STORAGE_KEY = 'breath-elements-v1';
+
+// ── State ──
+let slotCount = 4;
+let selectedSlotIdx = 0;
+let slots = []; // { elementIdx: number | null }
+let graphics = {}; // { elementIdx: dataURL }
+
+// ── DOM refs ──
+const slotStrip = document.getElementById('slotStrip');
+const elementGrid = document.getElementById('elementGrid');
+const graphicUpload = document.getElementById('graphicUpload');
+let uploadTargetIdx = -1; // which element cell is being uploaded to
+
+// ── Persistence ──
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ slotCount, slots, graphics }));
+}
+
+function loadState() {
+  try {
+    const data = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (data) {
+      slotCount = data.slotCount || 4;
+      slots = data.slots || [];
+      graphics = data.graphics || {};
+    }
+  } catch {}
+}
+
+// ── Level pips ──
+function levelPips(value, type, max = 3) {
+  let html = '';
+  for (let i = 0; i < max; i++) {
+    html += `<span class="level-pip ${type}${i >= value ? ' empty' : ''}"></span>`;
+  }
+  return `<span class="level-bar">${html}</span>`;
+}
+
+function levelText(el) {
+  return `F:${LEVEL_LABELS[el.fire]} I:${LEVEL_LABELS[el.ice]} L:${LEVEL_LABELS[el.lightning]}`;
+}
+
+// ── Render Slots ──
+function renderSlots() {
+  // Ensure slots array matches count
+  while (slots.length < slotCount) slots.push({ elementIdx: null });
+  slots.length = slotCount;
+
+  slotStrip.innerHTML = '';
+  for (let i = 0; i < slotCount; i++) {
+    const slot = slots[i];
+    const el = slot.elementIdx !== null ? ELEMENTS[slot.elementIdx] : null;
+    const isSelected = i === selectedSlotIdx;
+    const isFilled = el !== null;
+
+    const box = document.createElement('div');
+    box.className = 'slot-box' + (isSelected ? ' selected' : '') + (isFilled ? ' filled' : '');
+
+    let graphicContent = '<span>empty</span>';
+    if (isFilled && graphics[slot.elementIdx]) {
+      graphicContent = `<img src="${graphics[slot.elementIdx]}" alt="${el.name}">`;
+    } else if (isFilled) {
+      graphicContent = '<span>no graphic</span>';
+    }
+
+    box.innerHTML = `
+      <div class="slot-label">Slot ${i + 1}</div>
+      <div class="slot-graphic">${graphicContent}</div>
+      <div class="slot-name">${isFilled ? el.name : ''}</div>
+      <div class="slot-levels">${isFilled ? levelText(el) : ''}</div>
+      ${isFilled ? '<button class="slot-clear" title="Clear slot">&times;</button>' : ''}
+    `;
+
+    box.addEventListener('click', (e) => {
+      if (e.target.classList.contains('slot-clear')) {
+        slots[i].elementIdx = null;
+        saveState();
+        renderSlots();
+        renderGrid();
+        return;
+      }
+      selectedSlotIdx = i;
+      renderSlots();
+    });
+
+    slotStrip.appendChild(box);
+  }
+}
+
+// ── Render Grid ──
+function renderGrid() {
+  elementGrid.innerHTML = '';
+
+  // Track which elements are currently in slots
+  const inSlotSet = new Set();
+  for (const s of slots) {
+    if (s.elementIdx !== null) inSlotSet.add(s.elementIdx);
+  }
+
+  for (let tier = 0; tier < 4; tier++) {
+    // Tier header
+    const header = document.createElement('div');
+    header.className = 'tier-header';
+    header.innerHTML = `<span class="tier-icon">&#9889;</span> ${LIGHTNING_TIER_LABELS[tier]}`;
+    elementGrid.appendChild(header);
+
+    // 16 cells per tier (4 fire × 4 ice)
+    const tierStart = tier * 16;
+    for (let i = 0; i < 16; i++) {
+      const idx = tierStart + i;
+      const el = ELEMENTS[idx];
+      const inSlot = inSlotSet.has(idx);
+
+      const cell = document.createElement('div');
+      cell.className = 'element-cell' + (inSlot ? ' in-slot' : '');
+
+      let graphicContent = '<span>—</span>';
+      if (graphics[idx]) {
+        graphicContent = `<img src="${graphics[idx]}" alt="${el.name}">`;
+      }
+
+      cell.innerHTML = `
+        <div class="cell-levels">
+          <span class="cell-fire">F${el.fire}</span>
+          ${levelPips(el.fire, 'fire')}
+          <span class="cell-ice">I${el.ice}</span>
+          ${levelPips(el.ice, 'ice')}
+          <span class="cell-lightning">L${el.lightning}</span>
+          ${levelPips(el.lightning, 'lightning')}
+        </div>
+        <div class="cell-graphic">
+          ${graphicContent}
+          <div class="upload-overlay" data-upload="${idx}" title="Upload graphic">+</div>
+        </div>
+        <div class="cell-name">${el.name}</div>
+      `;
+
+      // Click cell → assign to selected slot
+      cell.addEventListener('click', (e) => {
+        // If clicking upload overlay, handle file upload instead
+        if (e.target.classList.contains('upload-overlay')) {
+          uploadTargetIdx = idx;
+          graphicUpload.click();
+          e.stopPropagation();
+          return;
+        }
+
+        if (selectedSlotIdx >= 0 && selectedSlotIdx < slots.length) {
+          slots[selectedSlotIdx].elementIdx = idx;
+          // Auto-advance to next empty slot
+          const nextEmpty = slots.findIndex((s, si) => si > selectedSlotIdx && s.elementIdx === null);
+          if (nextEmpty >= 0) selectedSlotIdx = nextEmpty;
+          saveState();
+          renderSlots();
+          renderGrid();
+        }
+      });
+
+      elementGrid.appendChild(cell);
+    }
+  }
+}
+
+// ── File upload handler ──
+graphicUpload.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file || uploadTargetIdx < 0) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    graphics[uploadTargetIdx] = reader.result;
+    saveState();
+    renderSlots();
+    renderGrid();
+  };
+  reader.readAsDataURL(file);
+  graphicUpload.value = ''; // reset for re-upload
+});
+
+// ── Slot count buttons ──
+document.querySelectorAll('.slot-count-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.slot-count-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    slotCount = parseInt(btn.dataset.count);
+    selectedSlotIdx = 0;
+    saveState();
+    renderSlots();
+    renderGrid();
+  });
+});
+
+// ── Init ──
+loadState();
+// Set active button to match loaded state
+document.querySelectorAll('.slot-count-btn').forEach(btn => {
+  btn.classList.toggle('active', parseInt(btn.dataset.count) === slotCount);
+});
+renderSlots();
+renderGrid();
+</script>
+</body>
+</html>
