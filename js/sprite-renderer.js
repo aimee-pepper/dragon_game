@@ -510,7 +510,11 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
       anchorCtx.bodyType = bodyVariant;
     }
 
-    // Multi-stamp spines: if placements exist, create N entries instead of one
+    // Multi-stamp spines: if placements exist, create N entries instead of one.
+    // If no placements exist, skip entirely (don't fall through to single-anchor at 0,0).
+    if (asset.gene === 'spines' && !asset._spinePlacements) {
+      continue; // no placement data for this body/tail combo — don't render
+    }
     if (asset.gene === 'spines' && asset._spinePlacements) {
       const isBodyZ = asset.z === 22;
       const isTailZ = asset.z === 47;

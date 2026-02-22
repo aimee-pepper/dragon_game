@@ -1602,24 +1602,23 @@ document.getElementById('btn-copy-curve').addEventListener('click', () => {
 });
 
 document.getElementById('btn-export-renderer').addEventListener('click', () => {
-  const positions = computeSpinePositions();
-  if (positions.length === 0) {
-    const btn = document.getElementById('btn-export-renderer');
-    btn.textContent = 'No path!';
-    setTimeout(() => { btn.textContent = 'Export for Renderer'; }, 1200);
-    return;
-  }
-  // Key is body:tail_length (without spine/height — shared across all spine types)
-  const key = `${currentBody}:${currentTail}_${currentLength}`;
-  const placements = positions.map(pos => {
-    const wMul = pos.widthMul ?? 1.0;
-    return `    { x: ${Math.round(pos.x)}, y: ${Math.round(pos.y)}, rot: ${pos.angleDeg.toFixed(1)}, scale: ${pos.scale.toFixed(3)}, wid: ${wMul.toFixed(3)} }`;
-  });
-  const output = `  '${key}': [\n${placements.join(',\n')},\n  ],`;
-  navigator.clipboard.writeText(output);
   const btn = document.getElementById('btn-export-renderer');
-  btn.textContent = 'Copied!';
-  setTimeout(() => { btn.textContent = 'Export for Renderer'; }, 1200);
+  // The renderer now reads curve data directly from dragon-spine-paths-v1
+  // and computes positions on the fly via spine-math.js.
+  // This button just confirms how many combos have saved data.
+  const allPaths = loadAllPaths();
+  let count = 0;
+  const keys = [];
+  for (const [pathKey, data] of Object.entries(allPaths)) {
+    if (!data.controlPoints || data.controlPoints.length < 2) continue;
+    const parts = pathKey.split('_');
+    const rendererKey = `${parts[0]}_${parts[1]}`;
+    if (!keys.includes(rendererKey)) keys.push(rendererKey);
+    count++;
+  }
+  alert(`${count} saved paths across ${keys.length} body/tail combos.\nThe renderer reads these directly — no export needed!\n\nBody/tail combos:\n${keys.join('\n')}`);
+  btn.textContent = 'Data ready!';
+  setTimeout(() => { btn.textContent = 'Export for Renderer'; }, 2000);
 });
 
 // ── Copy / Paste ──
@@ -1744,6 +1743,7 @@ envPasteBtn.addEventListener('click', () => {
 
 // ── Init ──
 restorePath();
+
 </script>
 </body>
 </html>

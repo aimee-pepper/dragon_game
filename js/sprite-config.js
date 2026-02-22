@@ -1,3 +1,5 @@
+import { computeSpinePositions as _computeSpinePos } from './spine-math.js';
+
 // Sprite layer configuration for the dragon renderer
 // ============================================================
 // DATA-DRIVEN from artist's asset CSV
@@ -475,7 +477,7 @@ export function resolveAssetsForPhenotype(phenotype) {
   // Attach spine placement data so the renderer can stamp multiple copies.
   // Look up pre-computed positions for this body+tail combo.
   const spinePlacementKey = `${bodyVariant}:${tailVariant}_${tailModifier}`;
-  const placements = SPINE_PLACEMENTS[spinePlacementKey];
+  const placements = getSpinePlacements()[spinePlacementKey];
   if (placements && placements.length > 0) {
     for (const asset of matched) {
       if (asset.gene === 'spines') {
@@ -566,19 +568,45 @@ export const SPRITE_WIDTH_COMPACT = 688;
 export const SPRITE_HEIGHT_COMPACT = 516;
 
 // ============================================================
-// ANCHOR POSITIONS — where each trimmed PNG sits on the canvas
+// SPINE PLACEMENTS — computed from spine-placement tool's curve data
 // ============================================================
-// Key: filename (without .png) → { x, y } pixel offset on composition canvas.
-// ============================================================
-// SPINE PLACEMENTS — pre-computed positions from spine-placement tool
-// ============================================================
-// Each key is "bodyType:tailVariant_tailLength".
-// Each value is an array of { x, y, rot, scale, wid } positions
-// where spines should be stamped along the dragon's back/tail curve.
-// Exported from spine-placement.html via "Export for Renderer".
-export const SPINE_PLACEMENTS = {
-  // Will be populated as the user exports from the spine-placement tool
-};
+// Reads the saved curve data from localStorage (dragon-spine-paths-v1)
+// and computes positions on the fly using shared spine math.
+// Key: "bodyType:tailVariant_tailLength" → array of { x, y, rot, scale, wid }
+
+let _spinePlacementCache = null;
+
+export function getSpinePlacements() {
+  if (_spinePlacementCache) return _spinePlacementCache;
+
+  const result = {};
+  try {
+    const allPaths = JSON.parse(localStorage.getItem('dragon-spine-paths-v1')) || {};
+    for (const [pathKey, data] of Object.entries(allPaths)) {
+      if (!data.controlPoints || data.controlPoints.length < 2) continue;
+      // pathKey format: "body:tail_length_spine_height"
+      // renderer key: "body:tail_length" (first two parts joined by _)
+      const parts = pathKey.split('_');
+      const rendererKey = `${parts[0]}_${parts[1]}`;
+      // Only compute once per renderer key (first path wins)
+      if (result[rendererKey]) continue;
+      const positions = _computeSpinePos(data);
+      if (positions.length > 0) {
+        result[rendererKey] = positions;
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to load spine placements:', e);
+  }
+
+  _spinePlacementCache = result;
+  return result;
+}
+
+// Call this to clear the cache (e.g. if spine-placement tool updates data)
+export function invalidateSpinePlacementCache() {
+  _spinePlacementCache = null;
+}
 
 // ============================================================
 // ANCHORS — per-asset positioning data
