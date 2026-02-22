@@ -1,4 +1,5 @@
 import { computeSpinePositions as _computeSpinePos } from './spine-math.js';
+import { loadAllPaths as _loadSpinePaths, whenReady as _spineStorageReady } from './spine-storage.js';
 
 // Sprite layer configuration for the dragon renderer
 // ============================================================
@@ -581,7 +582,8 @@ export function getSpinePlacements() {
 
   const result = {};
   try {
-    const allPaths = JSON.parse(localStorage.getItem('dragon-spine-paths-v1')) || {};
+    // Read from IndexedDB cache (sync — populated on init)
+    const allPaths = _loadSpinePaths();
     for (const [pathKey, data] of Object.entries(allPaths)) {
       if (!data.controlPoints || data.controlPoints.length < 2) continue;
       // pathKey format: "body:tail_length_spine_height"
@@ -607,6 +609,9 @@ export function getSpinePlacements() {
 export function invalidateSpinePlacementCache() {
   _spinePlacementCache = null;
 }
+
+// Ensure storage is ready before first render
+export { _spineStorageReady as spineStorageReady };
 
 // ============================================================
 // ANCHORS — per-asset positioning data

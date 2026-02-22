@@ -172,9 +172,15 @@
     <span class="sep"></span>
     <button id="btn-clear-path" class="danger">Clear Path</button>
     <button id="btn-save" class="secondary">Save</button>
+    <label id="done-label" style="display:inline-flex;align-items:center;gap:3px;cursor:pointer;margin-left:4px;font-size:12px;color:#8a7e72;">
+      <input type="checkbox" id="chk-done" style="accent-color:#6a9f5b;cursor:pointer;">
+      <span id="done-text">Done</span>
+    </label>
+    <span class="sep"></span>
     <button id="btn-copy-anchors">Copy Anchors</button>
     <button id="btn-copy-curve">Copy Curve</button>
     <button id="btn-export-renderer" style="background:#6a9f5b;">Export for Renderer</button>
+    <button id="btn-backup" style="background:#557799;">💾 Backup All</button>
   </div>
 
   <div class="main-layout">
@@ -268,6 +274,12 @@ import {
   SPRITE_WIDTH,
   SPRITE_HEIGHT,
 } from './js/sprite-config.js';
+import {
+  loadAllPaths as idbLoadAllPaths,
+  savePath as idbSavePath,
+  saveAllPaths as idbSaveAllPaths,
+  whenReady as storageReady,
+} from './js/spine-storage.js';
 
 // ── Constants ──
 const ASSET_BASE = 'assets/sprites/';
@@ -312,7 +324,8 @@ const SPINE_MARKER_COLOR = '#6a9f5b';
 const ENDPOINT_COLOR_START = '#cc5555';
 const ENDPOINT_COLOR_END = '#5588cc';
 
-const STORAGE_KEY = 'dragon-spine-paths-v1';
+// Storage now handled by spine-storage.js (IndexedDB).
+// Old localStorage key was 'dragon-spine-paths-v1' — migrated automatically.
 
 // ── State ──
 let currentBody = 'standard';
@@ -1011,6 +1024,8 @@ function updateEnvelopeList() {
   }
 
   // Attach slider handlers (after DOM insertion)
+  // NOTE: save on 'input' not 'change', because render() rebuilds this DOM
+  // on every input event — the old element is destroyed before 'change' fires.
   for (let i = 0; i < heightControlPoints.length; i++) {
     const mulSlider = envelopeListEl.querySelector(`[data-hcp-mul="${i}"]`);
     const mulValSpan = envelopeListEl.querySelector(`[data-hcp-mul-val="${i}"]`);
@@ -1018,9 +1033,9 @@ function updateEnvelopeList() {
       mulSlider.addEventListener('input', () => {
         heightControlPoints[i].mul = parseFloat(mulSlider.value);
         mulValSpan.textContent = parseFloat(mulSlider.value).toFixed(2) + 'x';
+        saveAll();
         render();
       });
-      mulSlider.addEventListener('change', saveAll);
     }
 
     const slider = envelopeListEl.querySelector(`[data-hcp-rot="${i}"]`);
@@ -1029,9 +1044,9 @@ function updateEnvelopeList() {
       slider.addEventListener('input', () => {
         heightControlPoints[i].rot = parseInt(slider.value);
         valSpan.textContent = slider.value + '°';
+        saveAll();
         render();
       });
-      slider.addEventListener('change', saveAll);
     }
 
     const widSlider = envelopeListEl.querySelector(`[data-hcp-wid="${i}"]`);
@@ -1040,9 +1055,9 @@ function updateEnvelopeList() {
       widSlider.addEventListener('input', () => {
         heightControlPoints[i].wid = parseFloat(widSlider.value);
         widValSpan.textContent = parseFloat(widSlider.value).toFixed(2) + 'x';
+        saveAll();
         render();
       });
-      widSlider.addEventListener('change', saveAll);
     }
 
     const spcSlider = envelopeListEl.querySelector(`[data-hcp-spc="${i}"]`);
@@ -1051,9 +1066,9 @@ function updateEnvelopeList() {
       spcSlider.addEventListener('input', () => {
         heightControlPoints[i].spc = parseFloat(spcSlider.value);
         spcValSpan.textContent = parseFloat(spcSlider.value).toFixed(2) + 'x';
+        saveAll();
         render();
       });
-      spcSlider.addEventListener('change', saveAll);
     }
 
     const resetBtn = envelopeListEl.querySelector(`[data-hcp-reset="${i}"]`);
@@ -1119,10 +1134,9 @@ function snapshotCurrentPath() {
   };
 }
 
-// ── LocalStorage ──
+// ── Storage (IndexedDB via spine-storage.js) ──
 function saveAll() {
-  const allPaths = loadAllPaths();
-  allPaths[currentPathKey()] = {
+  const data = {
     controlPoints: controlPoints.map(p => ({ x: Math.round(p.x), y: Math.round(p.y) })),
     spineCount, spineSpacing, spineScale, heightOffset, globalRotation,
     perSpineOverrides: { ...perSpineOverrides },
@@ -1130,20 +1144,61 @@ function saveAll() {
     spineType: currentSpine,
     spineHeight: currentHeight,
   };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(allPaths));
+  idbSavePath(currentPathKey(), data);
 }
 
 function loadAllPaths() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
-  } catch { return {}; }
+  return idbLoadAllPaths();
+}
+
+// ── Done flags (lightweight, separate key) ──
+const DONE_KEY = 'dragon-spine-done-v1';
+
+function loadDoneFlags() {
+  try { return JSON.parse(localStorage.getItem(DONE_KEY)) || {}; } catch { return {}; }
+}
+
+function saveDoneFlags(flags) {
+  try { localStorage.setItem(DONE_KEY, JSON.stringify(flags)); } catch (e) {
+    console.error('Failed to save done flags:', e);
+  }
+}
+
+function isDone(pathKey) {
+  return !!loadDoneFlags()[pathKey];
+}
+
+function setDone(pathKey, done) {
+  const flags = loadDoneFlags();
+  if (done) flags[pathKey] = true;
+  else delete flags[pathKey];
+  saveDoneFlags(flags);
+}
+
+function updateDoneCheckbox() {
+  const chk = document.getElementById('chk-done');
+  const label = document.getElementById('done-text');
+  const done = isDone(currentPathKey());
+  chk.checked = done;
+  label.textContent = done ? 'Done ✓' : 'Done';
+  label.style.color = done ? '#6a9f5b' : '#8a7e72';
 }
 
 function restorePath(seedFrom) {
   const allPaths = loadAllPaths();
-  // Try new key first, fall back to old key format (body:tail_length without spine/height)
+  // Try exact key first, then old key, then any key sharing the same body:tail_length prefix
   const oldKey = `${currentBody}:${currentTail}_${currentLength}`;
-  const data = allPaths[currentPathKey()] || allPaths[oldKey];
+  const prefix = oldKey + '_';
+  let data = allPaths[currentPathKey()] || allPaths[oldKey];
+  if (!data) {
+    // Find any entry with matching body:tail_length prefix
+    for (const [key, val] of Object.entries(allPaths)) {
+      if (key.startsWith(prefix) && val.controlPoints && val.controlPoints.length >= 2) {
+        data = val;
+        break;
+      }
+    }
+  }
   if (data) {
     // Existing saved path — load it
     controlPoints = data.controlPoints || [];
@@ -1182,6 +1237,7 @@ function restorePath(seedFrom) {
   heightOffsetVal.textContent = Math.round(heightOffset);
   globalRotSlider.value = globalRotation;
   globalRotVal.textContent = globalRotation + '°';
+  updateDoneCheckbox();
   render();
 }
 
@@ -1511,6 +1567,12 @@ initTabGroup('[data-height]', (btn) => {
   restorePath(seed);
 });
 
+// ── Done Checkbox ──
+document.getElementById('chk-done').addEventListener('change', (e) => {
+  setDone(currentPathKey(), e.target.checked);
+  updateDoneCheckbox();
+});
+
 // ── Slider Handlers ──
 spineCountSlider.addEventListener('input', () => {
   spineCount = parseInt(spineCountSlider.value);
@@ -1603,22 +1665,48 @@ document.getElementById('btn-copy-curve').addEventListener('click', () => {
 
 document.getElementById('btn-export-renderer').addEventListener('click', () => {
   const btn = document.getElementById('btn-export-renderer');
-  // The renderer now reads curve data directly from dragon-spine-paths-v1
-  // and computes positions on the fly via spine-math.js.
-  // This button just confirms how many combos have saved data.
   const allPaths = loadAllPaths();
-  let count = 0;
-  const keys = [];
+  const doneFlags = loadDoneFlags();
+
+  // Group by body:tail_length (renderer key)
+  const combos = {};  // rendererKey → { paths: [...pathKeys], hasDone: bool }
   for (const [pathKey, data] of Object.entries(allPaths)) {
     if (!data.controlPoints || data.controlPoints.length < 2) continue;
     const parts = pathKey.split('_');
     const rendererKey = `${parts[0]}_${parts[1]}`;
-    if (!keys.includes(rendererKey)) keys.push(rendererKey);
-    count++;
+    if (!combos[rendererKey]) combos[rendererKey] = { paths: [], doneCount: 0, totalCount: 0 };
+    combos[rendererKey].paths.push(pathKey);
+    combos[rendererKey].totalCount++;
+    if (doneFlags[pathKey]) combos[rendererKey].doneCount++;
   }
-  alert(`${count} saved paths across ${keys.length} body/tail combos.\nThe renderer reads these directly — no export needed!\n\nBody/tail combos:\n${keys.join('\n')}`);
+
+  const lines = [];
+  let totalDone = 0;
+  let totalCombos = Object.keys(combos).length;
+  for (const [rk, info] of Object.entries(combos)) {
+    const allDone = info.doneCount > 0;
+    if (allDone) totalDone++;
+    lines.push(`${allDone ? '✅' : '⬜'} ${rk} (${info.totalCount} paths, ${info.doneCount} done)`);
+  }
+
+  alert(`${totalDone}/${totalCombos} body/tail combos marked done.\nThe renderer reads saved data directly.\n\n${lines.join('\n')}`);
   btn.textContent = 'Data ready!';
   setTimeout(() => { btn.textContent = 'Export for Renderer'; }, 2000);
+});
+
+document.getElementById('btn-backup').addEventListener('click', () => {
+  const btn = document.getElementById('btn-backup');
+  const allPaths = loadAllPaths();
+  const json = JSON.stringify(allPaths, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `spine-paths-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  btn.textContent = '✓ Saved!';
+  setTimeout(() => { btn.textContent = '💾 Backup All'; }, 1500);
 });
 
 // ── Copy / Paste ──
@@ -1700,49 +1788,27 @@ envPasteBtn.addEventListener('click', () => {
     return;
   }
   heightControlPoints = JSON.parse(JSON.stringify(envClipboard));
-  saveAll();
+  try {
+    saveAll();
+  } catch (e) {
+    console.warn('Save failed after envelope paste:', e);
+  }
   render();
   envCpStatus.style.color = '#6a9f5b';
   envCpStatus.textContent = `Pasted ${heightControlPoints.length} pts from: ${envClipboardLabel}`;
-  // Flash the paste button to confirm
   envPasteBtn.textContent = '✓ Pasted';
   setTimeout(() => { envPasteBtn.textContent = '📥 Paste'; }, 1000);
 });
 
-// ── Migrate old storage keys ──
-// Old format: "body:tail_length" → New format: "body:tail_length_spine_height"
-// Old saved data has spineType/spineHeight fields we can use to build the new key.
-(function migrateOldKeys() {
-  const allPaths = loadAllPaths();
-  let changed = false;
-  const spineTypes = ['spike', 'sail', 'ridge'];
-  const spineHeights = ['low', 'medium', 'tall'];
-  for (const [key, data] of Object.entries(allPaths)) {
-    // Old keys: "body:tail_length" (2 underscore-separated parts)
-    // New keys: "body:tail_length_spine_height" (4 underscore-separated parts)
-    const parts = key.split('_');
-    if (parts.length === 2) {
-      // Old-format key — copy to ALL spine/height combos so no placements are lost
-      for (const st of spineTypes) {
-        for (const sh of spineHeights) {
-          const newKey = `${key}_${st}_${sh}`;
-          if (!allPaths[newKey]) {
-            allPaths[newKey] = JSON.parse(JSON.stringify(data));
-            allPaths[newKey].spineType = st;
-            allPaths[newKey].spineHeight = sh;
-            changed = true;
-          }
-        }
-      }
-    }
-  }
-  if (changed) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(allPaths));
-  }
-})();
+// Clean up stale keys
+localStorage.removeItem('dragon-spine-positions-v1');
 
-// ── Init ──
-restorePath();
+// ── Init: wait for IndexedDB to be ready, then restore ──
+storageReady().then(() => {
+  console.log(`Storage ready: ${Object.keys(loadAllPaths()).length} paths loaded`);
+  restorePath();
+  render();
+});
 
 </script>
 </body>
