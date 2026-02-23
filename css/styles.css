@@ -106,7 +106,7 @@ header {
 /* (header-row and theme toggle removed — theme moved to Options tab) */
 
 .header-title-img {
-  height: 30px;
+  height: 44px;
   width: auto;
   flex-shrink: 0;
   object-fit: contain;
@@ -115,7 +115,6 @@ header {
 /* Desktop: show full title, hide initials */
 .header-title-full {
   display: inline-block;
-  max-width: 200px;
 }
 .header-title-init {
   display: none;
