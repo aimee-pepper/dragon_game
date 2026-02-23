@@ -390,8 +390,9 @@ header {
 
 .dragon-name-text {
   font-family: 'AimeeHandwriting', cursive;
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 400;
+  text-transform: uppercase;
   color: #2a2015; /* dark text on light beige banner */
   white-space: nowrap;
   overflow: hidden;
