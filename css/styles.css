@@ -319,11 +319,11 @@ header h1 {
 }
 
 .banner-bg-fill {
-  inset: -9px 0 -19px 0;
+  inset: -11px 0 -21px 0;
 }
 
 .banner-bg-outline {
-  inset: -16px -2px;
+  inset: -16px 0 -16px 0;
 }
 
 /* Tail pieces: height matches main banner, width derived from aspect-ratio so nothing clips */
@@ -337,8 +337,8 @@ header h1 {
 }
 
 .banner-bg-tail-fill {
-  top: -9px;
-  bottom: -19px;
+  top: -11px;
+  bottom: -21px;
   aspect-ratio: 155 / 136;
   transform: translateX(98%) translateY(5px);
 }
