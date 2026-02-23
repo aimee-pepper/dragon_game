@@ -65,8 +65,20 @@ body.light-mode {
   --btn-secondary-bg: #d9cfbf;
   --success: #4a7d3e;
   --mutation: #b08828;
-  --bg-breakdown: #b0a48c;
+  --bg-breakdown: #d6cab4;
 }
+
+/* Light mode: darken colored breakdown text for readability */
+body.light-mode .cmy-c { color: #1a8a8a; }
+body.light-mode .cmy-m { color: #993388; }
+body.light-mode .cmy-y { color: #8a7a20; }
+body.light-mode .breath-f { color: #cc3311; }
+body.light-mode .breath-i { color: #2266bb; }
+body.light-mode .breath-l { color: #8a7a10; }
+body.light-mode .finish-o { color: #6b5a38; }
+body.light-mode .finish-s { color: #336699; }
+body.light-mode .finish-sc { color: #7a3399; }
+body.light-mode .finish-hint-axis { color: #7a3399; }
 
 * {
   box-sizing: border-box;

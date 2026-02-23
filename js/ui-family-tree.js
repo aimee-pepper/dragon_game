@@ -556,7 +556,8 @@ export function openFamilyTree(dragon, registry) {
   nodeCounter = 0;
 
   // Resolve card background color once (handles light/dark theme)
-  const resolved = getComputedStyle(document.documentElement)
+  // Read from document.body since light-mode overrides are on body.light-mode
+  const resolved = getComputedStyle(document.body)
     .getPropertyValue('--bg-card').trim();
   if (resolved) cardBgBase = resolved;
 
@@ -955,17 +956,9 @@ function attachZoomPan(scrollEl, stage) {
     applyTransform();
   };
 
-  // Initially fit-to-view after a frame so dimensions are computed
+  // Initially fit the whole tree into view, centered
   requestAnimationFrame(() => {
     fitToView();
-    // Then scroll to bottom (subject) — adjust panY so subject is visible
-    const subjectY = stage.offsetHeight * scale + panY;
-    const ch = scrollEl.clientHeight;
-    if (subjectY > ch) {
-      panY -= (subjectY - ch) + 20;
-      clampPan();
-      applyTransform();
-    }
   });
 }
 
