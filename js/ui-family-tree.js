@@ -62,6 +62,7 @@ function buildFullTree(dragon, registry, depth = 0, allNodes = null) {
     depth,
     parentA: null,  // sire (left)
     parentB: null,  // dam (right)
+    siblings: [],   // other children of same parents grouped here
     isPrimary: false,
     primaryNodeId: null,
     // Layout fields — filled in by layoutX / layoutY
@@ -80,6 +81,52 @@ function buildFullTree(dragon, registry, depth = 0, allNodes = null) {
   }
 
   return node;
+}
+
+/**
+ * Post-process: merge siblings that share the same parents.
+ * When two nodes at the same depth have identical parentIds, keep one as
+ * the "anchor" with the shared parent subtree, and move the others into
+ * anchor.siblings[]. Their parentA/parentB are nulled out so the layout
+ * doesn't duplicate the parent subtrees.
+ */
+function mergeSiblings(tree) {
+  const allByDepth = new Map(); // depth → [node]
+  collectByDepth(tree, allByDepth);
+
+  for (const [, nodes] of allByDepth) {
+    // Group by parentIds key (sorted pair)
+    const groups = new Map();
+    for (const n of nodes) {
+      if (!n.dragon.parentIds) continue;
+      const key = n.dragon.parentIds[0] + ':' + n.dragon.parentIds[1];
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(n);
+    }
+
+    for (const [, group] of groups) {
+      if (group.length < 2) continue;
+      // Use the first node as anchor — it keeps its parentA/parentB
+      const anchor = group[0];
+      for (let i = 1; i < group.length; i++) {
+        const sib = group[i];
+        anchor.siblings.push(sib);
+        // Remove the sibling's parent subtrees (anchor owns them now)
+        sib.parentA = null;
+        sib.parentB = null;
+      }
+    }
+  }
+}
+
+function collectByDepth(node, map) {
+  if (!map.has(node.depth)) map.set(node.depth, []);
+  map.get(node.depth).push(node);
+  if (node.parentA) collectByDepth(node.parentA, map);
+  if (node.parentB) collectByDepth(node.parentB, map);
+  for (const sib of (node.siblings || [])) {
+    collectByDepth(sib, map);
+  }
 }
 
 function markPrimaryInstances(allNodes) {
@@ -119,12 +166,28 @@ function layoutX(node, startX) {
   node.w = w;
   node.h = h;
 
-  // Leaf: no parents → place at startX
-  if (!node.parentA && !node.parentB) {
-    node.x = startX;
-    return w;
+  // Also size any siblings
+  for (const sib of node.siblings) {
+    const sd = nodeDims(sib);
+    sib.w = sd.w;
+    sib.h = sd.h;
   }
 
+  // Leaf: no parents and no siblings with parents → place at startX
+  if (!node.parentA && !node.parentB) {
+    node.x = startX;
+    // Place siblings side-by-side (they also have no parents since they were merged)
+    let cursor = startX + w;
+    for (const sib of node.siblings) {
+      cursor += COL_GAP;
+      sib.x = cursor;
+      cursor += sib.w;
+    }
+    const totalSibW = node.siblings.length > 0 ? (cursor - startX) : w;
+    return totalSibW;
+  }
+
+  // Layout parent subtrees first
   let cursor = startX;
   let leftW = 0;
   let rightW = 0;
@@ -140,13 +203,26 @@ function layoutX(node, startX) {
     rightW = layoutX(node.parentB, cursor);
   }
 
-  const totalChildW = leftW + (node.parentA && node.parentB ? COL_GAP : 0) + rightW;
+  const totalParentW = leftW + (node.parentA && node.parentB ? COL_GAP : 0) + rightW;
 
-  // Center this node under its children subtree
-  const childrenCenter = startX + totalChildW / 2;
-  node.x = childrenCenter - w / 2;
+  // Calculate total width of this node + all siblings
+  const allChildren = [node, ...node.siblings];
+  const totalChildrenW = allChildren.reduce((sum, c) => sum + c.w, 0)
+    + (allChildren.length - 1) * COL_GAP;
 
-  return Math.max(totalChildW, w);
+  const totalW = Math.max(totalParentW, totalChildrenW);
+
+  // Center all children (node + siblings) under the parent subtree
+  const groupCenter = startX + totalW / 2;
+  const groupStart = groupCenter - totalChildrenW / 2;
+
+  let childCursor = groupStart;
+  for (const child of allChildren) {
+    child.x = childCursor;
+    childCursor += child.w + COL_GAP;
+  }
+
+  return Math.max(totalW, w);
 }
 
 /**
@@ -156,6 +232,11 @@ function layoutY(node, maxDepth) {
   const row = maxDepth - node.depth; // row 0 = topmost ancestors
   node.y = row * (NODE_H + ROW_GAP);
 
+  // Siblings share the same y
+  for (const sib of node.siblings) {
+    sib.y = node.y;
+  }
+
   if (node.parentA) layoutY(node.parentA, maxDepth);
   if (node.parentB) layoutY(node.parentB, maxDepth);
 }
@@ -164,12 +245,17 @@ function getMaxDepth(node) {
   let d = node.depth;
   if (node.parentA) d = Math.max(d, getMaxDepth(node.parentA));
   if (node.parentB) d = Math.max(d, getMaxDepth(node.parentB));
+  for (const sib of node.siblings) d = Math.max(d, sib.depth);
   return d;
 }
 
 function getExtent(node) {
   let maxX = node.x + node.w;
   let maxY = node.y + node.h;
+  for (const sib of node.siblings) {
+    maxX = Math.max(maxX, sib.x + sib.w);
+    maxY = Math.max(maxY, sib.y + sib.h);
+  }
   if (node.parentA) {
     const e = getExtent(node.parentA);
     maxX = Math.max(maxX, e.maxX);
@@ -211,34 +297,82 @@ function svgLine(svg, x1, y1, x2, y2, dashed) {
 /**
  * Draw connecting lines: child → horizontal bar → each parent.
  *
+ * Normal (single child):
  *    [Sire]          [Dam]
  *      |                |
  *      └───────┬────────┘
  *              |
  *           [Child]
+ *
+ * Sibling group:
+ *    [Sire]         [Dam]
+ *      |              |
+ *      └──────┬───────┘
+ *             |
+ *    ┌────────┼────────┐
+ * [Sib A]  [Sib B]  [Sib C]
  */
 function drawConnectors(svg, node) {
   if (!node.parentA && !node.parentB) return;
 
-  const childCx = node.x + node.w / 2;
-  const childTop = node.y;
-  const midY = childTop - ROW_GAP / 2;
+  const allChildren = [node, ...node.siblings];
 
-  // Vertical from child top up to midpoint
-  svgLine(svg, childCx, childTop, childCx, midY, false);
+  if (allChildren.length > 1) {
+    // Sibling group: draw bracket from parents down to all children
+    const midY = node.y - ROW_GAP / 2;
+    const branchY = node.y - ROW_GAP * 0.25; // horizontal bar across siblings
 
-  // For each parent: horizontal bar + vertical up to parent bottom
-  for (const parent of [node.parentA, node.parentB]) {
-    if (!parent) continue;
-    const pCx = parent.x + parent.w / 2;
-    const pBottom = parent.y + parent.h;
-    const dashed = !parent.isPrimary;
+    // Find the center of the sibling group for the vertical trunk
+    const leftmost = allChildren[0];
+    const rightmost = allChildren[allChildren.length - 1];
+    const groupCx = (leftmost.x + leftmost.w / 2 + rightmost.x + rightmost.w / 2) / 2;
 
-    svgLine(svg, childCx, midY, pCx, midY, dashed);
-    svgLine(svg, pCx, midY, pCx, pBottom, dashed);
+    // Vertical trunk from parents' midpoint down to branch bar
+    svgLine(svg, groupCx, midY, groupCx, branchY, false);
+
+    // Horizontal bar spanning all siblings
+    const barLeft = leftmost.x + leftmost.w / 2;
+    const barRight = rightmost.x + rightmost.w / 2;
+    svgLine(svg, barLeft, branchY, barRight, branchY, false);
+
+    // Vertical drops from bar down to each child
+    for (const child of allChildren) {
+      const cx = child.x + child.w / 2;
+      svgLine(svg, cx, branchY, cx, child.y, false);
+    }
+
+    // Connect up to parents from the midpoint
+    for (const parent of [node.parentA, node.parentB]) {
+      if (!parent) continue;
+      const pCx = parent.x + parent.w / 2;
+      const pBottom = parent.y + parent.h;
+      const dashed = !parent.isPrimary;
+
+      svgLine(svg, groupCx, midY, pCx, midY, dashed);
+      svgLine(svg, pCx, midY, pCx, pBottom, dashed);
+    }
+  } else {
+    // Single child: original connector pattern
+    const childCx = node.x + node.w / 2;
+    const childTop = node.y;
+    const midY = childTop - ROW_GAP / 2;
+
+    // Vertical from child top up to midpoint
+    svgLine(svg, childCx, childTop, childCx, midY, false);
+
+    // For each parent: horizontal bar + vertical up to parent bottom
+    for (const parent of [node.parentA, node.parentB]) {
+      if (!parent) continue;
+      const pCx = parent.x + parent.w / 2;
+      const pBottom = parent.y + parent.h;
+      const dashed = !parent.isPrimary;
+
+      svgLine(svg, childCx, midY, pCx, midY, dashed);
+      svgLine(svg, pCx, midY, pCx, pBottom, dashed);
+    }
   }
 
-  // Recurse
+  // Recurse into parents (siblings don't have parents — they were merged)
   if (node.parentA) drawConnectors(svg, node.parentA);
   if (node.parentB) drawConnectors(svg, node.parentB);
 }
@@ -398,6 +532,10 @@ function renderNodeCard(node, registry, treeOverlay) {
 /** Flatten the tree into a list for rendering. */
 function flattenTree(node, out = []) {
   out.push(node);
+  // Include grouped siblings
+  for (const sib of node.siblings) {
+    out.push(sib);
+  }
   if (node.parentA) flattenTree(node.parentA, out);
   if (node.parentB) flattenTree(node.parentB, out);
   return out;
@@ -416,6 +554,7 @@ export function openFamilyTree(dragon, registry) {
   // 1. Build data tree
   const allNodes = new Map();
   const tree = buildFullTree(dragon, registry, 0, allNodes);
+  mergeSiblings(tree);       // group siblings from same parents
   markPrimaryInstances(allNodes);
 
   // 2. Calculate layout
