@@ -389,7 +389,7 @@ header {
 }
 
 .dragon-name-text {
-  font-family: 'MedievalSharp', cursive;
+  font-family: 'AimeeHandwriting', cursive;
   font-size: 18px;
   font-weight: 400;
   color: #2a2015; /* dark text on light beige banner */
@@ -2077,11 +2077,16 @@ header {
   display: flex;
   gap: var(--spacing);
   align-items: flex-start;
+  margin-left: calc(-1 * var(--spacing));
+  margin-right: calc(-1 * var(--spacing));
+  padding-left: var(--spacing);
+  padding-right: var(--spacing);
 }
 
 .almanac-pane {
   flex: 1;
   min-width: 0;
+  overflow-x: auto;
 }
 
 /* Pane header */
@@ -3178,7 +3183,7 @@ header {
   }
 
   .header-title-img {
-    height: 32px;
+    height: 20px;
   }
 
   /* Tab nav: smaller text, tighter for mobile */
@@ -3377,7 +3382,7 @@ header {
 /* Extra-small screens (iPhone SE, etc.) */
 @media (max-width: 380px) {
   .header-title-img {
-    height: 26px;
+    height: 16px;
   }
 
   .tab-btn {
@@ -3451,6 +3456,13 @@ header {
   text-align: center;
 }
 
+.loading-title {
+  width: 60%;
+  max-width: 300px;
+  height: auto;
+  margin-bottom: 24px;
+}
+
 .loading-egg {
   width: 48px;
   height: 60px;
@@ -3466,7 +3478,7 @@ header {
 }
 
 .loading-text {
-  font-family: 'Georgia', serif;
+  font-family: 'AimeeHandwriting', cursive;
   font-size: 18px;
   color: var(--accent);
   letter-spacing: 2px;
