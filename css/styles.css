@@ -1884,6 +1884,8 @@ header {
 
 .family-tree-panel {
   max-height: 85vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .family-tree-gen-info {
@@ -1895,9 +1897,45 @@ header {
 }
 
 .family-tree-container {
-  overflow: auto;
+  overflow: hidden;
   padding: var(--spacing-sm);
   -webkit-overflow-scrolling: touch;
+  touch-action: none;        /* we handle all gestures in JS */
+  user-select: none;
+  -webkit-user-select: none;
+  position: relative;
+  flex: 1 1 0;
+  min-height: 200px;
+}
+
+/* Zoom controls floating over the tree */
+.tree-zoom-controls {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  display: flex;
+  gap: 6px;
+  z-index: 10;
+}
+.tree-zoom-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.8;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+.tree-zoom-btn:active {
+  opacity: 1;
+  background: var(--accent);
 }
 
 /* ---- Pedigree Layout (SVG lines + absolutely-positioned DOM nodes) ---- */

@@ -517,7 +517,16 @@ function renderNodeCard(node, registry, treeOverlay) {
     if (!node.isPrimary && node.primaryNodeId) {
       const target = document.querySelector(`[data-node-id="${node.primaryNodeId}"]`);
       if (target) {
-        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Use zoom-aware panning instead of scrollIntoView
+        const scrollEl = target.closest('.family-tree-container');
+        if (scrollEl && scrollEl._zoomPanTo) {
+          scrollEl._zoomPanTo(
+            parseInt(target.style.left),
+            parseInt(target.style.top),
+            parseInt(target.style.width),
+            parseInt(target.style.height)
+          );
+        }
         target.classList.add('ped-highlight');
         setTimeout(() => target.classList.remove('ped-highlight'), 1500);
       }
@@ -586,7 +595,6 @@ export function openFamilyTree(dragon, registry) {
     position: relative;
     width: ${stageW}px;
     height: ${stageH}px;
-    margin: 0 auto;
   `;
 
   // SVG line layer (behind cards)
@@ -632,7 +640,10 @@ export function openFamilyTree(dragon, registry) {
   // Close
   const closeRow = el('div', 'picker-close');
   const closeBtn = el('button', 'btn btn-secondary', 'Close');
-  closeBtn.addEventListener('click', () => overlay.remove());
+  closeBtn.addEventListener('click', () => {
+    // Clean up window-level listeners by removing overlay
+    overlay.remove();
+  });
   closeRow.appendChild(closeBtn);
   panel.appendChild(closeRow);
 
@@ -643,10 +654,8 @@ export function openFamilyTree(dragon, registry) {
 
   document.body.appendChild(overlay);
 
-  // Scroll to bottom so the subject is visible first
-  requestAnimationFrame(() => {
-    scroll.scrollTop = scroll.scrollHeight;
-  });
+  // Attach zoom & pan (replaces simple scroll-to-bottom)
+  attachZoomPan(scroll, stage);
 }
 
 // ─── Generation Legend ───────────────────────────────────────
@@ -706,6 +715,258 @@ function openAncestorDetail(dragon, registry, parentOverlay) {
   });
 
   document.body.appendChild(overlay);
+}
+
+// ─── Zoom & Pan ─────────────────────────────────────────────
+// Adds pinch-to-zoom, two-finger pan, and scroll-wheel zoom
+// to the family tree container. Works on mobile and desktop.
+
+function attachZoomPan(scrollEl, stage) {
+  let scale = 1;
+  let panX = 0;
+  let panY = 0;
+  const MIN_SCALE = 0.25;
+  const MAX_SCALE = 2.5;
+
+  // AbortController for window-level listeners — cleaned up when overlay closes
+  const ac = new AbortController();
+  const sig = ac.signal;
+
+  // Apply current transform
+  function applyTransform() {
+    stage.style.transformOrigin = '0 0';
+    stage.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+  }
+
+  // Clamp pan so stage doesn't fly off-screen entirely
+  function clampPan() {
+    const cw = scrollEl.clientWidth;
+    const ch = scrollEl.clientHeight;
+    const sw = stage.offsetWidth * scale;
+    const sh = stage.offsetHeight * scale;
+
+    // Allow panning so at least 60px of the stage remains visible
+    const margin = 60;
+    panX = Math.max(-(sw - margin), Math.min(cw - margin, panX));
+    panY = Math.max(-(sh - margin), Math.min(ch - margin, panY));
+  }
+
+  // ── Touch gesture state ──
+  let touches = [];       // active touch points
+  let lastDist = 0;       // pinch distance
+  let lastMidX = 0;
+  let lastMidY = 0;
+  let isDragging = false;
+
+  function getTouchDist(t) {
+    const dx = t[0].clientX - t[1].clientX;
+    const dy = t[0].clientY - t[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  scrollEl.addEventListener('touchstart', (e) => {
+    touches = [...e.touches];
+    if (touches.length === 2) {
+      lastDist = getTouchDist(touches);
+      lastMidX = (touches[0].clientX + touches[1].clientX) / 2;
+      lastMidY = (touches[0].clientY + touches[1].clientY) / 2;
+    } else if (touches.length === 1) {
+      lastMidX = touches[0].clientX;
+      lastMidY = touches[0].clientY;
+    }
+    isDragging = true;
+  }, { passive: false });
+
+  scrollEl.addEventListener('touchmove', (e) => {
+    e.preventDefault();   // prevent browser scroll/zoom
+    touches = [...e.touches];
+
+    if (touches.length === 2) {
+      // Pinch zoom
+      const dist = getTouchDist(touches);
+      const midX = (touches[0].clientX + touches[1].clientX) / 2;
+      const midY = (touches[0].clientY + touches[1].clientY) / 2;
+
+      if (lastDist > 0) {
+        const ratio = dist / lastDist;
+        const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * ratio));
+
+        // Zoom toward the pinch center
+        const rect = scrollEl.getBoundingClientRect();
+        const ox = midX - rect.left;
+        const oy = midY - rect.top;
+
+        panX = ox - (ox - panX) * (newScale / scale);
+        panY = oy - (oy - panY) * (newScale / scale);
+        scale = newScale;
+      }
+
+      // Also pan with two-finger drag
+      panX += midX - lastMidX;
+      panY += midY - lastMidY;
+
+      lastDist = dist;
+      lastMidX = midX;
+      lastMidY = midY;
+    } else if (touches.length === 1 && isDragging) {
+      // Single-finger pan
+      panX += touches[0].clientX - lastMidX;
+      panY += touches[0].clientY - lastMidY;
+      lastMidX = touches[0].clientX;
+      lastMidY = touches[0].clientY;
+    }
+
+    clampPan();
+    applyTransform();
+  }, { passive: false });
+
+  scrollEl.addEventListener('touchend', (e) => {
+    touches = [...e.touches];
+    if (touches.length === 0) {
+      isDragging = false;
+      lastDist = 0;
+    } else if (touches.length === 1) {
+      lastMidX = touches[0].clientX;
+      lastMidY = touches[0].clientY;
+      lastDist = 0;
+    }
+  });
+
+  // ── Mouse wheel zoom (desktop) ──
+  scrollEl.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const rect = scrollEl.getBoundingClientRect();
+    const ox = e.clientX - rect.left;
+    const oy = e.clientY - rect.top;
+
+    const factor = e.deltaY < 0 ? 1.08 : 0.92;
+    const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * factor));
+
+    panX = ox - (ox - panX) * (newScale / scale);
+    panY = oy - (oy - panY) * (newScale / scale);
+    scale = newScale;
+
+    clampPan();
+    applyTransform();
+  }, { passive: false });
+
+  // ── Mouse drag pan (desktop) ──
+  let mouseDown = false;
+  let mouseStartX = 0;
+  let mouseStartY = 0;
+
+  scrollEl.addEventListener('mousedown', (e) => {
+    // Don't interfere with card clicks
+    if (e.target.closest('.ped-node')) return;
+    mouseDown = true;
+    mouseStartX = e.clientX;
+    mouseStartY = e.clientY;
+    scrollEl.style.cursor = 'grabbing';
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!mouseDown) return;
+    panX += e.clientX - mouseStartX;
+    panY += e.clientY - mouseStartY;
+    mouseStartX = e.clientX;
+    mouseStartY = e.clientY;
+    clampPan();
+    applyTransform();
+  }, { signal: sig });
+
+  window.addEventListener('mouseup', () => {
+    if (mouseDown) {
+      mouseDown = false;
+      scrollEl.style.cursor = '';
+    }
+  }, { signal: sig });
+
+  // Clean up window listeners when the overlay is removed from DOM
+  const overlay = scrollEl.closest('.family-tree-overlay');
+  if (overlay) {
+    const observer = new MutationObserver(() => {
+      if (!document.contains(overlay)) {
+        ac.abort();
+        observer.disconnect();
+      }
+    });
+    observer.observe(document.body, { childList: true });
+  }
+
+  // ── Zoom buttons ──
+  const controls = el('div', 'tree-zoom-controls');
+
+  const btnIn = el('button', 'tree-zoom-btn', '+');
+  btnIn.addEventListener('click', () => {
+    zoomBy(1.25);
+  });
+
+  const btnOut = el('button', 'tree-zoom-btn', '−');
+  btnOut.addEventListener('click', () => {
+    zoomBy(0.8);
+  });
+
+  const btnReset = el('button', 'tree-zoom-btn', '⌂');
+  btnReset.addEventListener('click', () => {
+    fitToView();
+  });
+
+  controls.appendChild(btnOut);
+  controls.appendChild(btnReset);
+  controls.appendChild(btnIn);
+  scrollEl.appendChild(controls);
+
+  function zoomBy(factor) {
+    const rect = scrollEl.getBoundingClientRect();
+    const cx = rect.width / 2;
+    const cy = rect.height / 2;
+
+    const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * factor));
+    panX = cx - (cx - panX) * (newScale / scale);
+    panY = cy - (cy - panY) * (newScale / scale);
+    scale = newScale;
+    clampPan();
+    applyTransform();
+  }
+
+  // Fit entire tree into view and center it
+  function fitToView() {
+    const cw = scrollEl.clientWidth;
+    const ch = scrollEl.clientHeight;
+    const sw = stage.offsetWidth;
+    const sh = stage.offsetHeight;
+
+    scale = Math.min(cw / sw, ch / sh, 1);
+    scale = Math.max(MIN_SCALE, scale);
+
+    panX = (cw - sw * scale) / 2;
+    panY = (ch - sh * scale) / 2;
+    applyTransform();
+  }
+
+  // Expose panTo so echo clicks can navigate within the zoom view
+  scrollEl._zoomPanTo = function(nodeX, nodeY, nodeW, nodeH) {
+    const cw = scrollEl.clientWidth;
+    const ch = scrollEl.clientHeight;
+    // Center the target node in the viewport
+    panX = cw / 2 - (nodeX + nodeW / 2) * scale;
+    panY = ch / 2 - (nodeY + nodeH / 2) * scale;
+    clampPan();
+    applyTransform();
+  };
+
+  // Initially fit-to-view after a frame so dimensions are computed
+  requestAnimationFrame(() => {
+    fitToView();
+    // Then scroll to bottom (subject) — adjust panY so subject is visible
+    const subjectY = stage.offsetHeight * scale + panY;
+    const ch = scrollEl.clientHeight;
+    if (subjectY > ch) {
+      panY -= (subjectY - ch) + 20;
+      clampPan();
+      applyTransform();
+    }
+  });
 }
 
 // ─── Utility ────────────────────────────────────────────────
