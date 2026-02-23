@@ -3159,18 +3159,18 @@ header {
     padding-bottom: var(--spacing-xs);
   }
 
-  header h1 {
-    font-size: 18px;
+  .header-title-img {
+    height: 32px;
   }
 
   /* Tab nav: smaller text, tighter for mobile */
   .tab-btn {
     padding: 8px 0;
-    font-size: 12px;
+    font-size: 14px;
   }
 
   #footer-nav .tab-btn {
-    font-size: 12px;
+    font-size: 13px;
     padding: 8px 0;
     min-height: 36px;
   }
@@ -3260,12 +3260,12 @@ header {
   /* Buttons: bigger touch targets */
   .btn {
     min-height: 48px;
-    font-size: 14px;
+    font-size: 16px;
   }
 
   .btn-small {
     min-height: 40px;
-    font-size: 12px;
+    font-size: 14px;
   }
 
   /* Quest widget: smaller on mobile */
@@ -3358,12 +3358,12 @@ header {
 
 /* Extra-small screens (iPhone SE, etc.) */
 @media (max-width: 380px) {
-  header h1 {
-    font-size: 16px;
+  .header-title-img {
+    height: 26px;
   }
 
   .tab-btn {
-    font-size: 11px;
+    font-size: 12px;
     padding: 6px 0;
   }
 
