@@ -12,7 +12,9 @@ import {
   refreshAllActiveQuests,
 } from './quest-engine.js';
 import { getHighlightedQuest, setHighlightedQuest } from './quest-highlight.js';
-import { incrementStat, triggerSave } from './save-manager.js';
+import { incrementStat, addToStat, triggerSave, getStats } from './save-manager.js';
+import { calculateQuestReward } from './reward-engine.js';
+import { QUEST_REWARDS } from './reward-config.js';
 
 let questContainer = null;
 let dragonRegistry = null;
@@ -63,6 +65,14 @@ function renderQuests() {
   const stabledCount = getStabledDragons().length;
   header.appendChild(el('span', 'quests-hint', `${stabledCount} dragon${stabledCount !== 1 ? 's' : ''} in stables`));
   questContainer.appendChild(header);
+
+  // Currency bar
+  const currStats = getStats();
+  const currencyBar = el('div', 'currency-bar');
+  currencyBar.appendChild(el('span', 'currency currency-gold', `💰 ${currStats.gold.toLocaleString()}`));
+  currencyBar.appendChild(el('span', 'currency currency-exp', `⭐ ${currStats.exp.toLocaleString()} EXP`));
+  currencyBar.appendChild(el('span', 'currency currency-rep', `🏛 ${currStats.rep.toLocaleString()} Rep`));
+  questContainer.appendChild(currencyBar);
 
   // Active quests
   const active = getActiveQuests();
@@ -210,6 +220,16 @@ function renderQuestCard(quest) {
   }
   card.appendChild(reqList);
 
+  // Reward preview
+  const baseReward = QUEST_REWARDS[quest.difficulty];
+  if (baseReward) {
+    const rewardRow = el('div', 'quest-reward-preview');
+    rewardRow.appendChild(el('span', 'currency currency-gold', `💰 ${baseReward.gold}`));
+    rewardRow.appendChild(el('span', 'currency currency-exp', `⭐ ${baseReward.exp}`));
+    rewardRow.appendChild(el('span', 'currency currency-rep', `🏛 ${baseReward.rep}`));
+    card.appendChild(rewardRow);
+  }
+
   // Submit button
   const submitBtn = el('button', 'btn quest-submit-btn', 'Submit Dragon');
   submitBtn.addEventListener('click', () => openQuestPicker(quest));
@@ -281,8 +301,14 @@ function openQuestPicker(quest) {
       const result = submitDragonToQuest(selected, quest.id);
       if (result.success) {
         incrementStat('totalQuestsCompleted');
+        // Grant rewards
+        const rewards = calculateQuestReward(result.difficulty, result.generation);
+        addToStat('gold', rewards.gold);
+        addToStat('exp', rewards.exp);
+        addToStat('rep', rewards.rep);
         triggerSave();
-        showQuestMessage(result.message, 'success');
+        const rewardMsg = ` +${rewards.gold} gold, +${rewards.exp} EXP, +${rewards.rep} rep`;
+        showQuestMessage(result.message + rewardMsg, 'success');
         // Clear highlight if this was the highlighted quest
         const hl = getHighlightedQuest();
         if (hl && hl.id === quest.id) {

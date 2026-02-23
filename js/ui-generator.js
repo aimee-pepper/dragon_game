@@ -80,7 +80,6 @@ function generateOne(listContainer) {
 
   const card = renderDragonCard(dragon, {
     onSaveToStables: (d) => addToStables(d),
-    onViewLineage: (d) => openFamilyTree(d, dragonRegistry),
     onUseAsParentA: (d) => { setParentExternal('A', d); showParentSetToast('A', d); },
     onUseAsParentB: (d) => { setParentExternal('B', d); showParentSetToast('B', d); },
     highlightGenes,
@@ -123,7 +122,6 @@ export function restoreCapturedDragons(dragons) {
   for (const dragon of dragons) {
     const card = renderDragonCard(dragon, {
       onSaveToStables: (d) => addToStables(d),
-      onViewLineage: (d) => openFamilyTree(d, dragonRegistry),
       onUseAsParentA: (d) => { setParentExternal('A', d); showParentSetToast('A', d); },
       onUseAsParentB: (d) => { setParentExternal('B', d); showParentSetToast('B', d); },
       highlightGenes,

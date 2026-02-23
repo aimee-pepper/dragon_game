@@ -80,6 +80,10 @@ const stats = {
   totalQuestsCompleted: 0,
   totalStabled: 0,
   totalReleased: 0,
+  // Currency (earned from quests, spent in shop)
+  gold: 0,
+  exp: 0,
+  rep: 0,
 };
 
 export function getStats() {
@@ -100,6 +104,15 @@ function notifyStatChange() {
 export function incrementStat(key) {
   if (key in stats) {
     stats[key]++;
+    debouncedSave();
+    notifyStatChange();
+  }
+}
+
+/** Add an arbitrary amount to a stat (for currency rewards). */
+export function addToStat(key, amount) {
+  if (key in stats && typeof amount === 'number') {
+    stats[key] += amount;
     debouncedSave();
     notifyStatChange();
   }

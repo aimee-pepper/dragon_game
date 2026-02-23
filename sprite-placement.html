@@ -189,6 +189,7 @@
       <div class="tab-btn" data-batch="tail">Tail</div>
       <div class="tab-btn" data-batch="wings">Wings</div>
       <div class="tab-btn" data-batch="vestigial">Vest Wings</div>
+      <div class="tab-btn" data-batch="wingfade">Fade Wings</div>
       <div class="tab-btn" data-batch="horns">Horns</div>
       <div class="tab-btn" data-batch="headspines">Head Spines</div>
       <div class="tab-btn" data-batch="all">All</div>
@@ -324,6 +325,27 @@
       },
     };
 
+    const WINGFADE_MODELS = {
+      wingfade_bg: {
+        label: 'BG Fade Wing Model',
+        layers: [
+          { modelId: 'wingfade_bg_model:inner_f', file: 'wingfade_bg_inner_f', label: 'BG Inner Fill' },
+          { modelId: 'wingfade_bg_model:inner_o', file: 'wingfade_bg_inner_o', label: 'BG Inner Outline' },
+          { modelId: 'wingfade_bg_model:outer_f', file: 'wingfade_bg_outer_f', label: 'BG Outer Fill' },
+          { modelId: 'wingfade_bg_model:outer_o', file: 'wingfade_bg_outer_o', label: 'BG Outer Outline' },
+        ],
+      },
+      wingfade_fg: {
+        label: 'FG Fade Wing Model',
+        layers: [
+          { modelId: 'wingfade_fg_model:inner_f', file: 'wingfade_fg_inner_f', label: 'FG Inner Fill' },
+          { modelId: 'wingfade_fg_model:inner_o', file: 'wingfade_fg_inner_o', label: 'FG Inner Outline' },
+          { modelId: 'wingfade_fg_model:outer_f', file: 'wingfade_fg_outer_f', label: 'FG Outer Fill' },
+          { modelId: 'wingfade_fg_model:outer_o', file: 'wingfade_fg_outer_o', label: 'FG Outer Outline' },
+        ],
+      },
+    };
+
     const LEG_MODELS = {
       leg_bg: {
         label: 'BG Leg Model',
@@ -342,7 +364,7 @@
     };
 
     // MODEL_BATCHES: batches that use the model system (wings, legs)
-    const MODEL_BATCHES = new Set(['wings', 'legs']);
+    const MODEL_BATCHES = new Set(['wings', 'wingfade', 'legs']);
 
     // ── Non-model layer definitions ──
     const LAYERS = {
@@ -445,7 +467,7 @@
     }
 
     // Batch classification
-    const BODY_DEPENDENT = new Set(['head', 'legs', 'tail', 'wings', 'vestigial']);
+    const BODY_DEPENDENT = new Set(['head', 'legs', 'tail', 'wings', 'vestigial', 'wingfade']);
     const CHAINED_TO_HEAD = new Set(['horns', 'headspines']);
 
     const GHOST_BODY_FILES = {
@@ -484,7 +506,7 @@
     function groupAnchorKey(groupName) {
       if (currentBatch === 'body') return groupName;
       if (CHAINED_TO_HEAD.has(currentBatch)) return groupName;
-      if (currentBatch === 'wings') return groupName + ':' + currentBodyType + ':' + currentWingCount + 'w';
+      if (currentBatch === 'wings' || currentBatch === 'wingfade') return groupName + ':' + currentBodyType + ':' + currentWingCount + 'w';
       if (currentBatch === 'legs') return groupName + ':' + currentBodyType + ':' + currentLimbCount + 'l';
       if (BODY_DEPENDENT.has(currentBatch)) return groupName + ':' + currentBodyType;
       return groupName;
@@ -494,7 +516,7 @@
     function groupAnchorKeyFor(groupName, batchName, bodyType, wingCount, limbCount) {
       if (batchName === 'body') return groupName;
       if (CHAINED_TO_HEAD.has(batchName)) return groupName;
-      if (batchName === 'wings') return groupName + ':' + bodyType + ':' + wingCount + 'w';
+      if (batchName === 'wings' || batchName === 'wingfade') return groupName + ':' + bodyType + ':' + wingCount + 'w';
       if (batchName === 'legs') return groupName + ':' + bodyType + ':' + limbCount + 'l';
       if (BODY_DEPENDENT.has(batchName)) return groupName + ':' + bodyType;
       return groupName;
@@ -515,7 +537,7 @@
 
     // Get active pairs for current config
     function getActivePairs(batchName) {
-      if (batchName === 'wings') {
+      if (batchName === 'wings' || batchName === 'wingfade') {
         const max = wingCountToMaxPair(currentWingCount);
         return Array.from({ length: max }, (_, i) => i + 1);
       }
@@ -529,6 +551,7 @@
     // Get the model definition for a batch
     function getModels(batchName) {
       if (batchName === 'wings') return WING_MODELS;
+      if (batchName === 'wingfade') return WINGFADE_MODELS;
       if (batchName === 'legs') return LEG_MODELS;
       return null;
     }
@@ -583,7 +606,7 @@
     }
 
     function isRotatableGroup(groupId) {
-      return groupId && (groupId.startsWith('wing_') || groupId.startsWith('vest_'));
+      return groupId && (groupId.startsWith('wing_') || groupId.startsWith('vest_') || groupId.startsWith('wingfade_'));
     }
 
     // ── Get batch layers (non-model batches) ──
@@ -869,7 +892,7 @@
       const limbLabel = document.getElementById('limbCountLabel');
       const limbTabs = document.getElementById('limbCountTabs');
 
-      const showWings = currentBatch === 'wings';
+      const showWings = currentBatch === 'wings' || currentBatch === 'wingfade';
       const showLimbs = currentBatch === 'legs';
 
       configRow.style.display = (showWings || showLimbs) ? '' : 'none';
@@ -2065,19 +2088,21 @@
         }
       }
 
-      // Wings (config-dependent: body type × wing count × pair)
-      for (const wc of [2, 4, 6]) {
-        const maxPair = wingCountToMaxPair(wc);
-        for (const bt of BODY_TYPES) {
-          for (const [modelName, model] of Object.entries(WING_MODELS)) {
-            for (let p = 1; p <= maxPair; p++) {
-              const gKey = groupAnchorKeyFor(modelName + ':p' + p, 'wings', bt, wc, currentLimbCount);
-              const gPos = groupAnchors[gKey] || { x: 0, y: 0, rot: 0 };
-              for (const ml of model.layers) {
-                const mOff = modelOffsets[ml.modelId] || { x: 0, y: 0 };
-                const exportKey = `${ml.file}:p${p}:${bt}:${wc}w`;
-                flat[exportKey] = { x: gPos.x + mOff.x, y: gPos.y + mOff.y };
-                if (gPos.rot) flat[exportKey].rot = gPos.rot;
+      // Wings + wingfade (config-dependent: body type × wing count × pair)
+      for (const [models, batchName] of [[WING_MODELS, 'wings'], [WINGFADE_MODELS, 'wingfade']]) {
+        for (const wc of [2, 4, 6]) {
+          const maxPair = wingCountToMaxPair(wc);
+          for (const bt of BODY_TYPES) {
+            for (const [modelName, model] of Object.entries(models)) {
+              for (let p = 1; p <= maxPair; p++) {
+                const gKey = groupAnchorKeyFor(modelName + ':p' + p, batchName, bt, wc, currentLimbCount);
+                const gPos = groupAnchors[gKey] || { x: 0, y: 0, rot: 0 };
+                for (const ml of model.layers) {
+                  const mOff = modelOffsets[ml.modelId] || { x: 0, y: 0 };
+                  const exportKey = `${ml.file}:p${p}:${bt}:${wc}w`;
+                  flat[exportKey] = { x: gPos.x + mOff.x, y: gPos.y + mOff.y };
+                  if (gPos.rot) flat[exportKey].rot = gPos.rot;
+                }
               }
             }
           }
@@ -2197,35 +2222,39 @@
       }
 
       // Vestigial wings go into wings
-      for (const bt of BODY_TYPES) {
-        for (const layer of (LAYERS.vestigial || [])) {
-          const group = getLinkGroup(layer.id);
-          const off = layerOffsets[layer.id] || { x: 0, y: 0 };
-          let gx = 0, gy = 0, rot = 0;
-          if (group) {
-            const gKey = groupAnchorKeyFor(group, 'vestigial', bt, currentWingCount, currentLimbCount);
-            const gPos = groupAnchors[gKey] || { x: 0, y: 0, rot: 0 };
-            gx = gPos.x; gy = gPos.y; rot = gPos.rot || 0;
+      for (const fadeBatch of ['vestigial']) {
+        for (const bt of BODY_TYPES) {
+          for (const layer of (LAYERS[fadeBatch] || [])) {
+            const group = getLinkGroup(layer.id);
+            const off = layerOffsets[layer.id] || { x: 0, y: 0 };
+            let gx = 0, gy = 0, rot = 0;
+            if (group) {
+              const gKey = groupAnchorKeyFor(group, fadeBatch, bt, currentWingCount, currentLimbCount);
+              const gPos = groupAnchors[gKey] || { x: 0, y: 0, rot: 0 };
+              gx = gPos.x; gy = gPos.y; rot = gPos.rot || 0;
+            }
+            const key = layer.id + ':' + bt;
+            parts.wings[key] = { x: gx + off.x, y: gy + off.y };
+            if (rot) parts.wings[key].rot = rot;
           }
-          const key = layer.id + ':' + bt;
-          parts.wings[key] = { x: gx + off.x, y: gy + off.y };
-          if (rot) parts.wings[key].rot = rot;
         }
       }
 
-      // Wings (config-dependent)
-      for (const wc of [2, 4, 6]) {
-        const maxPair = wingCountToMaxPair(wc);
-        for (const bt of BODY_TYPES) {
-          for (const [modelName, model] of Object.entries(WING_MODELS)) {
-            for (let p = 1; p <= maxPair; p++) {
-              const gKey = groupAnchorKeyFor(modelName + ':p' + p, 'wings', bt, wc, currentLimbCount);
-              const gPos = groupAnchors[gKey] || { x: 0, y: 0, rot: 0 };
-              for (const ml of model.layers) {
-                const mOff = modelOffsets[ml.modelId] || { x: 0, y: 0 };
-                const exportKey = `${ml.file}:p${p}:${bt}:${wc}w`;
-                parts.wings[exportKey] = { x: gPos.x + mOff.x, y: gPos.y + mOff.y };
-                if (gPos.rot) parts.wings[exportKey].rot = gPos.rot;
+      // Wings + wingfade (config-dependent)
+      for (const [models, batchName] of [[WING_MODELS, 'wings'], [WINGFADE_MODELS, 'wingfade']]) {
+        for (const wc of [2, 4, 6]) {
+          const maxPair = wingCountToMaxPair(wc);
+          for (const bt of BODY_TYPES) {
+            for (const [modelName, model] of Object.entries(models)) {
+              for (let p = 1; p <= maxPair; p++) {
+                const gKey = groupAnchorKeyFor(modelName + ':p' + p, batchName, bt, wc, currentLimbCount);
+                const gPos = groupAnchors[gKey] || { x: 0, y: 0, rot: 0 };
+                for (const ml of model.layers) {
+                  const mOff = modelOffsets[ml.modelId] || { x: 0, y: 0 };
+                  const exportKey = `${ml.file}:p${p}:${bt}:${wc}w`;
+                  parts.wings[exportKey] = { x: gPos.x + mOff.x, y: gPos.y + mOff.y };
+                  if (gPos.rot) parts.wings[exportKey].rot = gPos.rot;
+                }
               }
             }
           }
@@ -2352,18 +2381,20 @@
           if (rot) parts.wings[key].rot = rot;
         }
       }
-      for (const wc of [2, 4, 6]) {
-        const maxPair = wingCountToMaxPair(wc);
-        for (const bt of BODY_TYPES) {
-          for (const [modelName, model] of Object.entries(WING_MODELS)) {
-            for (let p = 1; p <= maxPair; p++) {
-              const gKey = groupAnchorKeyFor(modelName + ':p' + p, 'wings', bt, wc, currentLimbCount);
-              const gPos = groupAnchors[gKey] || { x: 0, y: 0, rot: 0 };
-              for (const ml of model.layers) {
-                const mOff = modelOffsets[ml.modelId] || { x: 0, y: 0 };
-                const exportKey = `${ml.file}:p${p}:${bt}:${wc}w`;
-                parts.wings[exportKey] = { x: gPos.x + mOff.x, y: gPos.y + mOff.y };
-                if (gPos.rot) parts.wings[exportKey].rot = gPos.rot;
+      for (const [models, batchName] of [[WING_MODELS, 'wings'], [WINGFADE_MODELS, 'wingfade']]) {
+        for (const wc of [2, 4, 6]) {
+          const maxPair = wingCountToMaxPair(wc);
+          for (const bt of BODY_TYPES) {
+            for (const [modelName, model] of Object.entries(models)) {
+              for (let p = 1; p <= maxPair; p++) {
+                const gKey = groupAnchorKeyFor(modelName + ':p' + p, batchName, bt, wc, currentLimbCount);
+                const gPos = groupAnchors[gKey] || { x: 0, y: 0, rot: 0 };
+                for (const ml of model.layers) {
+                  const mOff = modelOffsets[ml.modelId] || { x: 0, y: 0 };
+                  const exportKey = `${ml.file}:p${p}:${bt}:${wc}w`;
+                  parts.wings[exportKey] = { x: gPos.x + mOff.x, y: gPos.y + mOff.y };
+                  if (gPos.rot) parts.wings[exportKey].rot = gPos.rot;
+                }
               }
             }
           }
@@ -2409,7 +2440,7 @@
       // Map batch name to export part name
       const batchToPartMap = {
         body: 'body', head: 'head', horns: 'horns', headspines: 'headspines',
-        tail: 'tail', wings: 'wings', vestigial: 'wings', legs: 'legs',
+        tail: 'tail', wings: 'wings', vestigial: 'wings', wingfade: 'wings', legs: 'legs',
       };
       if (currentBatch === 'all') {
         // If on "all" tab, export everything (same as Export by Part)
@@ -2565,35 +2596,37 @@
         }
       }
 
-      // Wings: ANCHORS[file:pN:bt:Xw] → groupAnchors + modelOffsets
-      for (const wc of [2, 4, 6]) {
-        const maxPair = wingCountToMaxPair(wc);
-        for (const bt of BODY_TYPES) {
-          for (const [modelName, model] of Object.entries(WING_MODELS)) {
-            for (let p = 1; p <= maxPair; p++) {
-              const gKey = groupAnchorKeyFor(modelName + ':p' + p, 'wings', bt, wc, currentLimbCount);
-              // Use first model layer to determine group position
-              const firstMl = model.layers[0];
-              const firstVal = A[`${firstMl.file}:p${p}:${bt}:${wc}w`];
-              if (!firstVal) continue;
+      // Wings + wingfade: ANCHORS[file:pN:bt:Xw] → groupAnchors + modelOffsets
+      for (const [models, batchName] of [[WING_MODELS, 'wings'], [WINGFADE_MODELS, 'wingfade']]) {
+        for (const wc of [2, 4, 6]) {
+          const maxPair = wingCountToMaxPair(wc);
+          for (const bt of BODY_TYPES) {
+            for (const [modelName, model] of Object.entries(models)) {
+              for (let p = 1; p <= maxPair; p++) {
+                const gKey = groupAnchorKeyFor(modelName + ':p' + p, batchName, bt, wc, currentLimbCount);
+                // Use first model layer to determine group position
+                const firstMl = model.layers[0];
+                const firstVal = A[`${firstMl.file}:p${p}:${bt}:${wc}w`];
+                if (!firstVal) continue;
 
-              const mOff = modelOffsets[firstMl.modelId] || { x: 0, y: 0 };
-              groupAnchors[gKey] = {
-                x: firstVal.x - mOff.x,
-                y: firstVal.y - mOff.y,
-                rot: firstVal.rot || 0,
-              };
-              count++;
+                const mOff = modelOffsets[firstMl.modelId] || { x: 0, y: 0 };
+                groupAnchors[gKey] = {
+                  x: firstVal.x - mOff.x,
+                  y: firstVal.y - mOff.y,
+                  rot: firstVal.rot || 0,
+                };
+                count++;
 
-              // Set model offsets from remaining layers (only on first pair/bt to avoid overwriting)
-              if (p === 1 && bt === 'standard') {
-                for (const ml of model.layers) {
-                  const val = A[`${ml.file}:p${p}:${bt}:${wc}w`];
-                  if (val) {
-                    modelOffsets[ml.modelId] = {
-                      x: val.x - groupAnchors[gKey].x,
-                      y: val.y - groupAnchors[gKey].y,
-                    };
+                // Set model offsets from remaining layers (only on first pair/bt to avoid overwriting)
+                if (p === 1 && bt === 'standard') {
+                  for (const ml of model.layers) {
+                    const val = A[`${ml.file}:p${p}:${bt}:${wc}w`];
+                    if (val) {
+                      modelOffsets[ml.modelId] = {
+                        x: val.x - groupAnchors[gKey].x,
+                        y: val.y - groupAnchors[gKey].y,
+                      };
+                    }
                   }
                 }
               }

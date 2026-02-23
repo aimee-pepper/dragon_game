@@ -125,25 +125,25 @@ export const ASSET_TABLE = [
   { filename: 'leg_fg_f',              layerGroup: 'front leg',  gene: 'leg',  variant: 'six',       modifier: null,    z: 45, colorMode: 'base',    opacityMode: 'body' },
   { filename: 'leg_fg_o',              layerGroup: 'front leg',  gene: 'leg',  variant: 'six',       modifier: null,    z: 46, colorMode: 'darken',  opacityMode: 'opaque' },
 
-  // ──── TAIL SPINES (between fg legs and tail — behind tail) ────
+  // ──── TAIL SPINES (in front of tail) ────
   // Spike (outline-only, single layer)
-  { filename: 'spine_spike_S',         layerGroup: 'spines',    gene: 'spines', variant: 'spike',   modifier: 'low',     z: 47, colorMode: 'darken',  opacityMode: 'opaque' },
-  { filename: 'spine_spike_M',         layerGroup: 'spines',    gene: 'spines', variant: 'spike',   modifier: 'medium',  z: 47, colorMode: 'darken',  opacityMode: 'opaque' },
-  { filename: 'spine_spike_L',         layerGroup: 'spines',    gene: 'spines', variant: 'spike',   modifier: 'tall',    z: 47, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'spine_spike_S',         layerGroup: 'spines',    gene: 'spines', variant: 'spike',   modifier: 'low',     z: 50, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'spine_spike_M',         layerGroup: 'spines',    gene: 'spines', variant: 'spike',   modifier: 'medium',  z: 50, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'spine_spike_L',         layerGroup: 'spines',    gene: 'spines', variant: 'spike',   modifier: 'tall',    z: 50, colorMode: 'darken',  opacityMode: 'opaque' },
   // Ridge (fill + outline)
-  { filename: 'spine_ridge_S_f',       layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'low',     z: 47, colorMode: 'base',    opacityMode: 'body' },
-  { filename: 'spine_ridge_S_o',       layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'low',     z: 47, colorMode: 'darken',  opacityMode: 'opaque' },
-  { filename: 'spine_ridge_M_f',       layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'medium',  z: 47, colorMode: 'base',    opacityMode: 'body' },
-  { filename: 'spine_ridge_M_o',       layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'medium',  z: 47, colorMode: 'darken',  opacityMode: 'opaque' },
-  { filename: 'spine_ridge_L_f',       layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'tall',    z: 47, colorMode: 'base',    opacityMode: 'body' },
-  { filename: 'spine_ridge_L_o',       layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'tall',    z: 47, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'spine_ridge_S_f',       layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'low',     z: 50, colorMode: 'base',    opacityMode: 'body' },
+  { filename: 'spine_ridge_S_o',       layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'low',     z: 50, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'spine_ridge_M_f',       layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'medium',  z: 50, colorMode: 'base',    opacityMode: 'body' },
+  { filename: 'spine_ridge_M_o',       layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'medium',  z: 50, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'spine_ridge_L_f',       layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'tall',    z: 50, colorMode: 'base',    opacityMode: 'body' },
+  { filename: 'spine_ridge_L_o',       layerGroup: 'spines',    gene: 'spines', variant: 'ridge',   modifier: 'tall',    z: 50, colorMode: 'darken',  opacityMode: 'opaque' },
   // Sail (fill + outline)
-  { filename: 'spine_sail_S_f',        layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'low',     z: 47, colorMode: 'base',    opacityMode: 'body' },
-  { filename: 'spine_sail_S_o',        layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'low',     z: 47, colorMode: 'darken',  opacityMode: 'opaque' },
-  { filename: 'spine_sail_M_f',        layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'medium',  z: 47, colorMode: 'base',    opacityMode: 'body' },
-  { filename: 'spine_sail_M_o',        layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'medium',  z: 47, colorMode: 'darken',  opacityMode: 'opaque' },
-  { filename: 'spine_sail_L_f',        layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'tall',    z: 47, colorMode: 'base',    opacityMode: 'body' },
-  { filename: 'spine_sail_L_o',        layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'tall',    z: 47, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'spine_sail_S_f',        layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'low',     z: 50, colorMode: 'base',    opacityMode: 'body' },
+  { filename: 'spine_sail_S_o',        layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'low',     z: 50, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'spine_sail_M_f',        layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'medium',  z: 50, colorMode: 'base',    opacityMode: 'body' },
+  { filename: 'spine_sail_M_o',        layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'medium',  z: 50, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'spine_sail_L_f',        layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'tall',    z: 50, colorMode: 'base',    opacityMode: 'body' },
+  { filename: 'spine_sail_L_o',        layerGroup: 'spines',    gene: 'spines', variant: 'sail',    modifier: 'tall',    z: 50, colorMode: 'darken',  opacityMode: 'opaque' },
 
   // ──── TAIL ────
   { filename: 'tail_whip_s_f',         layerGroup: 'tail',      gene: 'tail',   variant: 'whip',    modifier: 'short',   z: 48, colorMode: 'base',    opacityMode: 'body' },
@@ -166,32 +166,32 @@ export const ASSET_TABLE = [
   { filename: 'tail_heavy_l_o',        layerGroup: 'tail',      gene: 'tail',   variant: 'heavy',   modifier: 'long',    z: 49, colorMode: 'darken',  opacityMode: 'opaque' },
 
   // ──── HEAD ────
-  { filename: 'head_f',                layerGroup: 'head',      gene: 'head',   variant: null,      modifier: null,      z: 50, colorMode: 'base',    opacityMode: 'body' },
-  { filename: 'head_o',                layerGroup: 'head',      gene: 'head',   variant: null,      modifier: null,      z: 51, colorMode: 'darken',  opacityMode: 'opaque' },
-  { filename: 'head_d',                layerGroup: 'head',      gene: 'head',   variant: null,      modifier: null,      z: 52, colorMode: 'fixed',   opacityMode: 'opaque' },
+  { filename: 'head_f',                layerGroup: 'head',      gene: 'head',   variant: null,      modifier: null,      z: 51, colorMode: 'base',    opacityMode: 'body' },
+  { filename: 'head_o',                layerGroup: 'head',      gene: 'head',   variant: null,      modifier: null,      z: 52, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'head_d',                layerGroup: 'head',      gene: 'head',   variant: null,      modifier: null,      z: 53, colorMode: 'fixed',   opacityMode: 'opaque' },
 
   // ──── BG HORNS (behind head — far-side horn) ────
   // Smooth
-  { filename: 'horns_bg_sm_for_f',      layerGroup: 'horns',     gene: 'horns',  variant: 'smooth',  modifier: 'forward', z: 53, colorMode: 'horn',    opacityMode: 'body' },
-  { filename: 'horns_bg_sm_for_o',      layerGroup: 'horns',     gene: 'horns',  variant: 'smooth',  modifier: 'forward', z: 54, colorMode: 'darken',  opacityMode: 'opaque' },
-  { filename: 'horns_bg_sm_up_f',       layerGroup: 'horns',     gene: 'horns',  variant: 'smooth',  modifier: 'up',      z: 53, colorMode: 'horn',    opacityMode: 'body' },
-  { filename: 'horns_bg_sm_up_o',       layerGroup: 'horns',     gene: 'horns',  variant: 'smooth',  modifier: 'up',      z: 54, colorMode: 'darken',  opacityMode: 'opaque' },
-  { filename: 'horns_bg_sm_back_f',     layerGroup: 'horns',     gene: 'horns',  variant: 'smooth',  modifier: 'back',    z: 53, colorMode: 'horn',    opacityMode: 'body' },
-  { filename: 'horns_bg_sm_back_o',     layerGroup: 'horns',     gene: 'horns',  variant: 'smooth',  modifier: 'back',    z: 54, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'horns_bg_sm_for_f',      layerGroup: 'horns',     gene: 'horns',  variant: 'smooth',  modifier: 'forward', z: 54, colorMode: 'horn',    opacityMode: 'body' },
+  { filename: 'horns_bg_sm_for_o',      layerGroup: 'horns',     gene: 'horns',  variant: 'smooth',  modifier: 'forward', z: 55, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'horns_bg_sm_up_f',       layerGroup: 'horns',     gene: 'horns',  variant: 'smooth',  modifier: 'up',      z: 54, colorMode: 'horn',    opacityMode: 'body' },
+  { filename: 'horns_bg_sm_up_o',       layerGroup: 'horns',     gene: 'horns',  variant: 'smooth',  modifier: 'up',      z: 55, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'horns_bg_sm_back_f',     layerGroup: 'horns',     gene: 'horns',  variant: 'smooth',  modifier: 'back',    z: 54, colorMode: 'horn',    opacityMode: 'body' },
+  { filename: 'horns_bg_sm_back_o',     layerGroup: 'horns',     gene: 'horns',  variant: 'smooth',  modifier: 'back',    z: 55, colorMode: 'darken',  opacityMode: 'opaque' },
   // Gnarled
-  { filename: 'horns_bg_gn_for_f',      layerGroup: 'horns',     gene: 'horns',  variant: 'gnarled', modifier: 'forward', z: 53, colorMode: 'horn',    opacityMode: 'body' },
-  { filename: 'horns_bg_gn_for_o',      layerGroup: 'horns',     gene: 'horns',  variant: 'gnarled', modifier: 'forward', z: 54, colorMode: 'darken',  opacityMode: 'opaque' },
-  { filename: 'horns_bg_gn_up_f',       layerGroup: 'horns',     gene: 'horns',  variant: 'gnarled', modifier: 'up',      z: 53, colorMode: 'horn',    opacityMode: 'body' },
-  { filename: 'horns_bg_gn_up_o',       layerGroup: 'horns',     gene: 'horns',  variant: 'gnarled', modifier: 'up',      z: 54, colorMode: 'darken',  opacityMode: 'opaque' },
-  { filename: 'horns_bg_gn_back_f',     layerGroup: 'horns',     gene: 'horns',  variant: 'gnarled', modifier: 'back',    z: 53, colorMode: 'horn',    opacityMode: 'body' },
-  { filename: 'horns_bg_gn_back_o',     layerGroup: 'horns',     gene: 'horns',  variant: 'gnarled', modifier: 'back',    z: 54, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'horns_bg_gn_for_f',      layerGroup: 'horns',     gene: 'horns',  variant: 'gnarled', modifier: 'forward', z: 54, colorMode: 'horn',    opacityMode: 'body' },
+  { filename: 'horns_bg_gn_for_o',      layerGroup: 'horns',     gene: 'horns',  variant: 'gnarled', modifier: 'forward', z: 55, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'horns_bg_gn_up_f',       layerGroup: 'horns',     gene: 'horns',  variant: 'gnarled', modifier: 'up',      z: 54, colorMode: 'horn',    opacityMode: 'body' },
+  { filename: 'horns_bg_gn_up_o',       layerGroup: 'horns',     gene: 'horns',  variant: 'gnarled', modifier: 'up',      z: 55, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'horns_bg_gn_back_f',     layerGroup: 'horns',     gene: 'horns',  variant: 'gnarled', modifier: 'back',    z: 54, colorMode: 'horn',    opacityMode: 'body' },
+  { filename: 'horns_bg_gn_back_o',     layerGroup: 'horns',     gene: 'horns',  variant: 'gnarled', modifier: 'back',    z: 55, colorMode: 'darken',  opacityMode: 'opaque' },
   // Knobbed
-  { filename: 'horns_bg_kn_for_f',      layerGroup: 'horns',     gene: 'horns',  variant: 'knobbed', modifier: 'forward', z: 53, colorMode: 'horn',    opacityMode: 'body' },
-  { filename: 'horns_bg_kn_for_o',      layerGroup: 'horns',     gene: 'horns',  variant: 'knobbed', modifier: 'forward', z: 54, colorMode: 'darken',  opacityMode: 'opaque' },
-  { filename: 'horns_bg_kn_up_f',       layerGroup: 'horns',     gene: 'horns',  variant: 'knobbed', modifier: 'up',      z: 53, colorMode: 'horn',    opacityMode: 'body' },
-  { filename: 'horns_bg_kn_up_o',       layerGroup: 'horns',     gene: 'horns',  variant: 'knobbed', modifier: 'up',      z: 54, colorMode: 'darken',  opacityMode: 'opaque' },
-  { filename: 'horns_bg_kn_back_f',     layerGroup: 'horns',     gene: 'horns',  variant: 'knobbed', modifier: 'back',    z: 53, colorMode: 'horn',    opacityMode: 'body' },
-  { filename: 'horns_bg_kn_back_o',     layerGroup: 'horns',     gene: 'horns',  variant: 'knobbed', modifier: 'back',    z: 54, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'horns_bg_kn_for_f',      layerGroup: 'horns',     gene: 'horns',  variant: 'knobbed', modifier: 'forward', z: 54, colorMode: 'horn',    opacityMode: 'body' },
+  { filename: 'horns_bg_kn_for_o',      layerGroup: 'horns',     gene: 'horns',  variant: 'knobbed', modifier: 'forward', z: 55, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'horns_bg_kn_up_f',       layerGroup: 'horns',     gene: 'horns',  variant: 'knobbed', modifier: 'up',      z: 54, colorMode: 'horn',    opacityMode: 'body' },
+  { filename: 'horns_bg_kn_up_o',       layerGroup: 'horns',     gene: 'horns',  variant: 'knobbed', modifier: 'up',      z: 55, colorMode: 'darken',  opacityMode: 'opaque' },
+  { filename: 'horns_bg_kn_back_f',     layerGroup: 'horns',     gene: 'horns',  variant: 'knobbed', modifier: 'back',    z: 54, colorMode: 'horn',    opacityMode: 'body' },
+  { filename: 'horns_bg_kn_back_o',     layerGroup: 'horns',     gene: 'horns',  variant: 'knobbed', modifier: 'back',    z: 55, colorMode: 'darken',  opacityMode: 'opaque' },
 
   // ──── HEAD SPINES (on top of head — anchored relative to head_o like horns) ────
   // Spike (single layer — outline only)

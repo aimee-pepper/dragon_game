@@ -2,8 +2,10 @@
 import { GENE_DEFS, TRIANGLE_DEFS, DARK_ENERGY_PHENOTYPE } from './gene-config.js';
 import { renderDragonSprite as renderLegacySprite } from './ui-dragon-sprite.js';
 import { renderDragon, startShimmerAnimation } from './sprite-renderer.js';
-import { QUEST_SPARKLE_EFFECT } from './sprite-config.js';
+import { QUEST_SPARKLE_EFFECT, SPRITE_WIDTH, SPRITE_HEIGHT } from './sprite-config.js';
 import { getSetting } from './settings.js';
+
+const UI_ASSET_PATH = 'assets/ui/ui-assets/';
 
 // Create a DOM element helper
 function el(tag, className, text) {
@@ -11,6 +13,31 @@ function el(tag, className, text) {
   if (className) e.className = className;
   if (text !== undefined) e.textContent = text;
   return e;
+}
+
+// Create a tinted UI asset: uses CSS mask so the image shape is filled with the given color
+function tintedIcon(assetFile, color, className) {
+  const d = el('span', className || 'ui-icon');
+  d.style.display = 'inline-block';
+  d.style.backgroundColor = color;
+  d.style.webkitMaskImage = `url('${UI_ASSET_PATH}${assetFile}')`;
+  d.style.maskImage = `url('${UI_ASSET_PATH}${assetFile}')`;
+  d.style.webkitMaskSize = 'contain';
+  d.style.maskSize = 'contain';
+  d.style.webkitMaskRepeat = 'no-repeat';
+  d.style.maskRepeat = 'no-repeat';
+  d.style.webkitMaskPosition = 'center';
+  d.style.maskPosition = 'center';
+  return d;
+}
+
+// Create a UI asset image element (no tint — used for pre-colored assets)
+function uiImg(assetFile, className) {
+  const img = document.createElement('img');
+  img.src = `${UI_ASSET_PATH}${assetFile}`;
+  img.className = className || 'ui-img';
+  img.draggable = false;
+  return img;
 }
 
 // Render a dragon as a card DOM element
@@ -26,30 +53,69 @@ export function renderDragonCard(dragon, options = {}) {
 
   const card = el('div', `dragon-card${compact ? ' compact' : ''}`);
 
-  // --- Header: name, sex, ID ---
-  const header = el('div', 'card-header');
-  const nameEl = el('span', 'dragon-name', dragon.name);
-  const sexEl = el('span', 'dragon-sex', dragon.sex === 'female' ? 'F' : 'M');
-  const idEl = el('span', 'dragon-id', `#${dragon.id}`);
-  header.appendChild(nameEl);
-  const rightHeader = el('span');
-  rightHeader.style.display = 'flex';
-  rightHeader.style.alignItems = 'center';
-  rightHeader.style.gap = '8px';
-  rightHeader.appendChild(idEl);
-  const genBadge = el('span', 'dragon-gen', `Gen ${dragon.generation}`);
-  rightHeader.appendChild(genBadge);
-  rightHeader.appendChild(sexEl);
-  header.appendChild(rightHeader);
-  card.appendChild(header);
+  // --- Header: banner name + info ---
+  if (!compact) {
+    const header = el('div', 'card-header');
 
-  // --- Dragon sprite + color/finish info ---
-  const visual = el('div', 'card-visual');
+    // Banner wraps only the name portion
+    const banner = el('div', 'card-banner');
+    // Background layers: fill (light beige) + outline (darker gold)
+    const bgFill = tintedIcon('banner_f.png', '#d4c4a0', 'banner-bg-fill');
+    const bgOutline = tintedIcon('banner_o.png', '#a08450', 'banner-bg-outline');
+    const bgTailFill = tintedIcon('bannertail_f.png', '#d4c4a0', 'banner-bg-tail-fill');
+    const bgTailOutline = tintedIcon('bannertail_o.png', '#a08450', 'banner-bg-tail-outline');
+    banner.appendChild(bgFill);
+    banner.appendChild(bgOutline);
+    banner.appendChild(bgTailFill);
+    banner.appendChild(bgTailOutline);
+    // Foreground: name label + text
+    const nameLabel = tintedIcon('t_name.png', '#7a6840', 'banner-name-label');
+    const nameText = el('span', 'dragon-name-text', dragon.name);
+    banner.appendChild(nameLabel);
+    banner.appendChild(nameText);
+
+    header.appendChild(banner);
+
+    // Right side: ID, gen, sex (outside banner)
+    const rightInfo = el('span', 'header-right');
+    rightInfo.appendChild(el('span', 'dragon-id', `#${dragon.id}`));
+    rightInfo.appendChild(el('span', 'dragon-gen', `Gen ${dragon.generation}`));
+    rightInfo.appendChild(el('span', 'dragon-sex', dragon.sex === 'female' ? 'F' : 'M'));
+    header.appendChild(rightInfo);
+
+    card.appendChild(header);
+  } else {
+    // Compact: simple header (no banner assets)
+    const header = el('div', 'card-header');
+    const nameEl = el('span', 'dragon-name');
+    const nameText = el('span', 'dragon-name-text', dragon.name);
+    nameEl.appendChild(nameText);
+    const sexEl = el('span', 'dragon-sex', dragon.sex === 'female' ? 'F' : 'M');
+    const idEl = el('span', 'dragon-id', `#${dragon.id}`);
+    header.appendChild(nameEl);
+    const rightHeader = el('span');
+    rightHeader.style.display = 'flex';
+    rightHeader.style.alignItems = 'center';
+    rightHeader.style.gap = '8px';
+    rightHeader.appendChild(idEl);
+    const genBadge = el('span', 'dragon-gen', `Gen ${dragon.generation}`);
+    rightHeader.appendChild(genBadge);
+    rightHeader.appendChild(sexEl);
+    header.appendChild(rightHeader);
+    card.appendChild(header);
+  }
+
+  // For compact: preserve the old .card-visual flex row (sprite + info side-by-side)
+  const compactVisual = compact ? el('div', 'card-visual') : null;
+  const spriteTarget = compactVisual || card;
 
   if (!hideSprite) {
+    // Fixed-size sprite container — all dragons render in a standardized box
+    const spriteBox = el('div', compact ? 'sprite-box compact' : 'sprite-box');
+
     // Show legacy pixel-art sprite immediately (no async delay)
     const legacySprite = renderLegacySprite(p, compact);
-    visual.appendChild(legacySprite);
+    spriteBox.appendChild(legacySprite);
 
     // Attempt async PNG-based render — if PNGs exist, swap in the canvas sprite
     // Skip if user prefers pixel art
@@ -65,9 +131,19 @@ export function renderDragonCard(dragon, options = {}) {
         if (hasPixels) {
           // PNGs are available — replace legacy sprite with canvas sprite
           canvas.className = 'dragon-sprite-canvas';
-          canvas.style.width = '100%';
-          canvas.style.maxWidth = compact ? '256px' : '512px';
-          canvas.style.height = 'auto';
+
+          // Proportional sizing: preserve relative dragon size by scaling
+          // the canvas display dimensions based on its crop vs the full
+          // sprite canvas. A wingless dragon's cropped canvas is smaller,
+          // so it displays smaller — keeping head sizes consistent.
+          // Height scaled by 15/13 to compensate for the tighter 20/13
+          // aspect-ratio box (vs the native 4/3 canvas ratio), so dragons
+          // stay the same absolute size while the empty sky above is clipped.
+          const wPct = (canvas.width / SPRITE_WIDTH) * 100;
+          const hPct = (canvas.height / SPRITE_HEIGHT) * 100 * (15 / 13);
+          canvas.style.width = wPct + '%';
+          canvas.style.height = hPct + '%';
+
           legacySprite.replaceWith(canvas);
 
           // Quest sparkle: if this card fully matches the pinned quest, add sparkle animation
@@ -78,62 +154,118 @@ export function renderDragonCard(dragon, options = {}) {
         // Otherwise keep legacy sprite — no visual change
       });
     }
+
+    spriteTarget.appendChild(spriteBox);
   }
 
-  const info = el('div', 'visual-info');
+  // Routing: compact puts visual-info in .card-visual, everything else on card
+  const infoTarget = compactVisual || card;
 
-  // Specialty combo overrides color display name
-  const colorLabel = p.color.specialtyName ||
-    (p.color.modifierPrefix ? `${p.color.modifierPrefix} ${p.color.displayName}` : p.color.displayName);
-  const colorNameEl = el('div', 'color-name', colorLabel);
-  if (p.color.specialtyName) {
-    const catBadge = el('span', 'specialty-badge', p.color.specialtyCategory || '');
-    colorNameEl.appendChild(catBadge);
+  // --- Hue + Finish (2-column row on non-compact) ---
+  if (!compact) {
+    // Separator line between sprite and hue/finish
+    card.appendChild(tintedIcon('line.png', 'var(--accent)', 'section-line'));
+
+    const hueFinishRow = el('div', 'hue-finish-row');
+
+    // Hue column
+    const hueCol = el('div', 'hue-col');
+    const hueLabel = tintedIcon('t_hue.png', 'var(--accent)', 'section-label-img hue-label');
+    hueCol.appendChild(hueLabel);
+
+    const colorLabel = p.color.specialtyName ||
+      (p.color.modifierPrefix ? `${p.color.modifierPrefix} ${p.color.displayName}` : p.color.displayName);
+    const colorNameEl = el('div', 'color-name');
+    const colorDot = tintedIcon('dot.png', p.color.hex || '#888', 'color-dot');
+    colorNameEl.appendChild(colorDot);
+    colorNameEl.appendChild(el('span', null, colorLabel));
+    if (p.color.specialtyName) {
+      colorNameEl.appendChild(el('span', 'specialty-badge', p.color.specialtyCategory || ''));
+    }
+    hueCol.appendChild(colorNameEl);
+
+    if (p.color.cmyBreakdown) {
+      const cmyRow = el('div', 'cmy-breakdown');
+      const { c, m, y } = p.color.cmyBreakdown;
+      cmyRow.appendChild(el('span', 'cmy-c', `C: ${c}`));
+      cmyRow.appendChild(document.createTextNode(' · '));
+      cmyRow.appendChild(el('span', 'cmy-m', `M: ${m}`));
+      cmyRow.appendChild(document.createTextNode(' · '));
+      cmyRow.appendChild(el('span', 'cmy-y', `Y: ${y}`));
+      hueCol.appendChild(cmyRow);
+    }
+
+    hueFinishRow.appendChild(hueCol);
+
+    // Finish column (mirrors Hue column structure)
+    const finishCol = el('div', 'finish-col');
+    const finishLabel = tintedIcon('t_finish.png', 'var(--accent)', 'section-label-img finish-label');
+    finishCol.appendChild(finishLabel);
+
+    const finishNameEl = el('div', 'finish-name');
+    const finishStar = tintedIcon('star.png', 'var(--accent)', 'finish-star');
+    finishNameEl.appendChild(finishStar);
+    finishNameEl.appendChild(el('span', null, p.finish.displayName || p.finish.name));
+    finishCol.appendChild(finishNameEl);
+
+    if (p.finish.finishBreakdown) {
+      const finishRow = el('div', 'finish-breakdown');
+      const { o, sh, sc } = p.finish.finishBreakdown;
+      finishRow.appendChild(el('span', 'finish-o', `O: ${o}`));
+      finishRow.appendChild(document.createTextNode(' · '));
+      finishRow.appendChild(el('span', 'finish-s', `Sh: ${sh}`));
+      finishRow.appendChild(document.createTextNode(' · '));
+      finishRow.appendChild(el('span', 'finish-sc', `Sc: ${sc}`));
+      finishCol.appendChild(finishRow);
+    }
+
+    hueFinishRow.appendChild(finishCol);
+    card.appendChild(hueFinishRow);
+
+    // Separator line between hue/finish and breath
+    card.appendChild(tintedIcon('line.png', 'var(--accent)', 'section-line'));
+  } else {
+    // Compact: simple inline info
+    const info = el('div', 'visual-info');
+    const colorLabel = p.color.specialtyName ||
+      (p.color.modifierPrefix ? `${p.color.modifierPrefix} ${p.color.displayName}` : p.color.displayName);
+    const colorNameEl = el('div', 'color-name');
+    colorNameEl.appendChild(el('span', null, colorLabel));
+    if (p.color.specialtyName) {
+      colorNameEl.appendChild(el('span', 'specialty-badge', p.color.specialtyCategory || ''));
+    }
+    info.appendChild(colorNameEl);
+    const finishBadge = el('span', 'finish-badge', p.finish.displayName || p.finish.name);
+    info.appendChild(finishBadge);
+    infoTarget.appendChild(info);
   }
-  info.appendChild(colorNameEl);
 
-  // CMY blend breakdown: "C: High · M: None · Y: Mid"
-  if (p.color.cmyBreakdown && !compact) {
-    const cmyRow = el('div', 'cmy-breakdown');
-    const { c, m, y } = p.color.cmyBreakdown;
-    const cSpan = el('span', 'cmy-c', `C: ${c}`);
-    const mSpan = el('span', 'cmy-m', `M: ${m}`);
-    const ySpan = el('span', 'cmy-y', `Y: ${y}`);
-    cmyRow.appendChild(cSpan);
-    cmyRow.appendChild(document.createTextNode(' · '));
-    cmyRow.appendChild(mSpan);
-    cmyRow.appendChild(document.createTextNode(' · '));
-    cmyRow.appendChild(ySpan);
-    info.appendChild(cmyRow);
+  // Append compact visual wrapper to card (if used)
+  if (compactVisual) {
+    card.appendChild(compactVisual);
   }
 
-  const finishBadge = el('span', 'finish-badge', p.finish.displayName || p.finish.name);
-  info.appendChild(finishBadge);
-
-  // Finish axis breakdown: "O: High · Sh: None · Sc: Mid"
-  if (p.finish.finishBreakdown && !compact) {
-    const finishRow = el('div', 'finish-breakdown');
-    const { o, sh, sc } = p.finish.finishBreakdown;
-    finishRow.appendChild(el('span', 'finish-o', `O: ${o}`));
-    finishRow.appendChild(document.createTextNode(' · '));
-    finishRow.appendChild(el('span', 'finish-s', `Sh: ${sh}`));
-    finishRow.appendChild(document.createTextNode(' · '));
-    finishRow.appendChild(el('span', 'finish-sc', `Sc: ${sc}`));
-    info.appendChild(finishRow);
-  }
-
-  visual.appendChild(info);
-  card.appendChild(visual);
-
-  // --- Breath element row ---
+  // --- Breath element section ---
   const breathRow = el('div', 'breath-row');
-  const breathDot = el('div', 'breath-dot');
-  breathDot.style.backgroundColor = p.breathElement.isDarkEnergy
+  const elementColor = p.breathElement.isDarkEnergy
     ? DARK_ENERGY_PHENOTYPE.displayColor
     : (p.breathElement.displayColor || '#666');
-  breathRow.appendChild(breathDot);
 
-  const breathInfo = el('div');
+  if (!compact) {
+    // Element icon: fill (darker) + outline (lighter) layered
+    const iconWrap = el('div', 'element-icon-wrap');
+    const iconFill = tintedIcon('elementicon_f.png', elementColor, 'element-icon-fill');
+    const iconOutline = tintedIcon('elementicon_o.png', elementColor, 'element-icon-outline');
+    iconWrap.appendChild(iconFill);
+    iconWrap.appendChild(iconOutline);
+    breathRow.appendChild(iconWrap);
+  } else {
+    const breathDot = el('div', 'breath-dot');
+    breathDot.style.backgroundColor = elementColor;
+    breathRow.appendChild(breathDot);
+  }
+
+  const breathInfo = el('div', 'breath-info');
   const breathLabel = el('span', 'breath-label', p.breathElement.displayName || p.breathElement.name);
   breathInfo.appendChild(breathLabel);
 
@@ -143,7 +275,7 @@ export function renderDragonCard(dragon, options = {}) {
     const detail = el('span', 'breath-detail', ` \u2014 ${shapeVal}, ${rangeVal} range`);
     breathInfo.appendChild(detail);
 
-    // Breath axis breakdown: "F: High · I: None · L: Low"
+    // Breath axis breakdown
     if (p.breathElement.breathBreakdown) {
       const breakdownRow = el('div', 'breath-breakdown');
       const { f, i, l } = p.breathElement.breathBreakdown;
@@ -163,9 +295,16 @@ export function renderDragonCard(dragon, options = {}) {
   }
 
   breathRow.appendChild(breathInfo);
-  card.appendChild(breathRow);
+  infoTarget.appendChild(breathRow);
 
   if (!compact) {
+    // Separator line between breath and traits
+    card.appendChild(tintedIcon('line.png', 'var(--accent)', 'section-line'));
+
+    // Traits label asset
+    const traitsLabel = tintedIcon('t_traits.png', 'var(--accent)', 'section-label-img');
+    card.appendChild(traitsLabel);
+
     // --- Body traits ---
     const bodySection = renderTraitSection('Body', [
       { label: 'Size', value: p.traits.body_size?.name },
@@ -282,12 +421,21 @@ export function renderGenotypeSection(dragon, parentNames, highlightGenes, desir
   const wrapper = el('div', 'genotype-toggle');
 
   const toggleBtn = el('button', 'genotype-toggle-btn', 'Show Genotype');
-  const content = el('div', 'genotype-content');
+  const content = buildGenotypeContent(dragon, parentNames, highlightGenes, desiredAlleles);
 
   toggleBtn.addEventListener('click', () => {
     const isOpen = content.classList.toggle('open');
     toggleBtn.textContent = isOpen ? 'Hide Genotype' : 'Show Genotype';
   });
+
+  wrapper.appendChild(toggleBtn);
+  wrapper.appendChild(content);
+  return wrapper;
+}
+
+// Build genotype content (shared by inline toggle and overlay modes)
+function buildGenotypeContent(dragon, parentNames, highlightGenes, desiredAlleles) {
+  const content = el('div', 'genotype-content');
 
   // If this dragon has allele origins and parent names, show the legend
   const hasOrigins = dragon.alleleOrigins && parentNames;
@@ -319,9 +467,16 @@ export function renderGenotypeSection(dragon, parentNames, highlightGenes, desir
     { label: 'Tail', genes: ['tail_shape', 'tail_length'] },
   ];
 
+  // Wrap groups in a columns container for 2-column layout on desktop
+  const columnsWrap = el('div', 'genotype-columns');
+
   for (const group of geneGroups) {
     const groupEl = el('div', 'genotype-group');
     const groupLabel = el('div', 'genotype-group-label', group.label);
+    // Make group labels clickable to collapse/expand
+    groupLabel.addEventListener('click', () => {
+      groupEl.classList.toggle('collapsed');
+    });
     groupEl.appendChild(groupLabel);
 
   for (const geneName of group.genes) {
@@ -428,12 +583,11 @@ export function renderGenotypeSection(dragon, parentNames, highlightGenes, desir
     groupEl.appendChild(row);
   } // end gene loop
 
-    content.appendChild(groupEl);
+    columnsWrap.appendChild(groupEl);
   } // end group loop
 
-  wrapper.appendChild(toggleBtn);
-  wrapper.appendChild(content);
-  return wrapper;
+  content.appendChild(columnsWrap);
+  return content;
 }
 
 // Render a compact picker item for the dragon selection modal

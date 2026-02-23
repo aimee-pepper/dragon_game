@@ -565,6 +565,8 @@ export function submitDragonToQuest(dragon, questId) {
     return {
       success: true,
       message: `Quest complete! ${dragon.name} meets all requirements.${genMsg}`,
+      difficulty: quest.difficulty,
+      generation: dragon.generation,
     };
   }
 

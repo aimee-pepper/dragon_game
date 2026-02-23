@@ -22,6 +22,7 @@
   --spacing: 16px;
   --spacing-sm: 8px;
   --spacing-xs: 4px;
+  --bg-breakdown: var(--bg-card-alt);
 }
 
 /* Light mode — Sunlit Parchment */
@@ -40,6 +41,7 @@ body.light-mode {
   --btn-secondary-bg: #d9cfbf;
   --success: #4a7d3e;
   --mutation: #b08828;
+  --bg-breakdown: #b0a48c;
 }
 
 * {
@@ -267,33 +269,280 @@ header h1 {
   padding: 12px;
 }
 
+/* ---- Card Header ---- */
+
 .card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
+  gap: 8px;
 }
 
-.dragon-name {
+/* Non-compact: header floats over the top of the sprite area */
+.dragon-card:not(.compact) > .card-header {
+  margin-bottom: -20px;
+  position: relative;
+  z-index: 2;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* ---- Banner (inline, name only) ---- */
+
+.card-banner {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 14px 2px 10px;
+  margin-right: 50px; /* room for tail endcap */
+  margin-top: 14px;   /* space for banner overshoot above */
+  margin-bottom: 14px; /* space for banner overshoot below */
+  min-width: 0;
+}
+
+/* Background layers: large negative inset so the banner graphic extends well above/below name.
+   mask-size: auto 100% scales height to fill, width keeps natural aspect ratio (crops, no distortion). */
+.banner-bg-fill,
+.banner-bg-outline {
+  position: absolute;
+  -webkit-mask-size: auto 100% !important;
+  mask-size: auto 100% !important;
+  -webkit-mask-position: left center !important;
+  mask-position: left center !important;
+}
+
+.banner-bg-fill {
+  inset: -9px 0 -19px 0;
+}
+
+.banner-bg-outline {
+  inset: -16px -2px;
+}
+
+/* Tail pieces: height matches main banner, width derived from aspect-ratio so nothing clips */
+.banner-bg-tail-fill,
+.banner-bg-tail-outline {
+  position: absolute;
+  right: 0;
+  width: auto;
+  -webkit-mask-size: 100% 100% !important;
+  mask-size: 100% 100% !important;
+}
+
+.banner-bg-tail-fill {
+  top: -9px;
+  bottom: -19px;
+  aspect-ratio: 155 / 136;
+  transform: translateX(98%) translateY(5px);
+}
+
+.banner-bg-tail-outline {
+  top: -16px;
+  bottom: -16px;
+  aspect-ratio: 173 / 140;
+  transform: translateX(98%) translateY(8px);
+}
+
+/* Name label + text sit above banner bg */
+.banner-name-label {
+  width: 74px;           /* t_name.png 209×51 at 18px height: 209/51*18 ≈ 74 */
+  height: 18px;          /* 25% larger than 14px section labels */
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.dragon-name-text {
+  font-family: 'MedievalSharp', cursive;
   font-size: 18px;
+  font-weight: 400;
+  color: #2a2015; /* dark text on light beige banner */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  position: relative;
+  z-index: 1;
+}
+
+/* Compact: no banner, plain text */
+.dragon-name {
+  font-size: 15px;
   font-weight: 700;
   color: var(--text-bright);
 }
 
-.compact .dragon-name {
-  font-size: 15px;
+.compact .dragon-name-text {
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 700;
 }
 
 .dragon-sex {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--text-muted);
   font-weight: 500;
 }
 
 .dragon-id {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-muted);
   opacity: 0.6;
+}
+
+/* ---- Hue + Finish 2-Column Row ---- */
+
+.hue-finish-row {
+  display: flex;
+  gap: var(--spacing);
+  padding: 0 var(--spacing);
+}
+
+.hue-col, .finish-col {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---- Section Label Assets ---- */
+
+/* Section labels use mask-image so we need explicit dimensions.
+   t_hue ~138x43, t_finish ~197x43, t_traits ~215x41 => height 14px, widths proportional */
+.section-label-img {
+  display: block;
+  height: 14px;
+  margin: 8px 0 3px 0;
+}
+
+/* Hue label: t_hue 138/43 * 14 ≈ 45px */
+.hue-label {
+  width: 45px;
+}
+
+/* Finish label: t_finish 197/43 * 14 ≈ 64px */
+.finish-label {
+  width: 64px;
+}
+
+/* Compact cards still use .visual-info wrappers */
+.visual-info .section-label-img:first-child {
+  width: 45px;
+}
+.visual-info .section-label-img:not(:first-child) {
+  width: 64px;
+}
+
+/* t_traits label (direct child of card) */
+.dragon-card > .section-label-img {
+  /* t_traits: 215/41 * 14 ≈ 73px */
+  width: 73px;
+}
+
+/* ---- Color Dot ---- */
+
+.color-dot {
+  display: inline-block;
+  width: 14px;
+  height: 12px;
+  vertical-align: middle;
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+
+/* ---- Section Line Separator ---- */
+
+.section-line {
+  display: block;
+  width: 100%;
+  height: 6px;           /* cropped slice of line.png (1346×89, content at bottom) */
+  margin: 10px 0;
+  opacity: 0.5;
+  /* Override tintedIcon's contain — stretch width, keep natural height, show bottom where content is */
+  -webkit-mask-size: 100% auto !important;
+  mask-size: 100% auto !important;
+  -webkit-mask-position: left bottom !important;
+  mask-position: left bottom !important;
+}
+
+/* ---- Finish Name (mirrors .color-name) ---- */
+
+.finish-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-bright);
+  margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+}
+
+.finish-star {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  vertical-align: middle;
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+
+/* ---- Element Icon (layered fill + outline) ---- */
+
+.element-icon-wrap {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.element-icon-fill {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.5;
+}
+
+.element-icon-outline {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.9;
+}
+
+/* ---- Sprite Display Box ---- */
+
+.sprite-box {
+  width: 100%;
+  aspect-ratio: 20 / 13;  /* ~15% less height than 4/3, clips empty sky above dragons */
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;  /* feet on the ground */
+  justify-content: center;
+}
+
+.sprite-box .dragon-sprite-canvas,
+.sprite-box canvas {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* Legacy pixel sprite inside the box */
+.sprite-box .legacy-sprite,
+.sprite-box table {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.sprite-box.compact {
+  aspect-ratio: auto;
+  width: auto;
+  max-width: 100%;
 }
 
 /* ---- Color & Finish Row ---- */
@@ -328,6 +577,8 @@ header h1 {
   font-weight: 600;
   color: var(--text-bright);
   margin-bottom: 2px;
+  display: flex;
+  align-items: center;
 }
 
 .specialty-badge {
@@ -361,12 +612,16 @@ header h1 {
 
 .breath-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   padding: 8px 10px;
   background: var(--bg-card-alt);
   border-radius: var(--radius-sm);
+}
+
+.compact .breath-row {
+  align-items: center;
 }
 
 .breath-dot {
@@ -391,28 +646,32 @@ header h1 {
 /* ---- Trait Sections ---- */
 
 .trait-section {
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .trait-section-label {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1px;
   color: var(--text-muted);
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
-.trait-row {
+.trait-section .trait-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 6px;
+  gap: 4px;
+  margin-bottom: 2px;
+  background: none;
+  border: none;
+  padding: 0;
+  border-radius: 0;
 }
 
 .trait-tag {
-  font-size: 13px;
-  padding: 3px 8px;
+  font-size: 12px;
+  padding: 2px 6px;
   background: var(--bg-card-alt);
   border-radius: 4px;
   color: var(--text);
@@ -420,7 +679,7 @@ header h1 {
 
 .trait-tag .trait-label {
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 10px;
 }
 
 /* ---- Genotype Toggle ---- */
@@ -432,8 +691,8 @@ header h1 {
 }
 
 .genotype-toggle-btn {
-  background: var(--accent-secondary);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-card-alt);
+  border: 1px solid var(--border);
   color: var(--text);
   font-size: 12px;
   font-weight: 600;
@@ -447,8 +706,8 @@ header h1 {
 }
 
 .genotype-toggle-btn:hover {
-  background: var(--accent-secondary);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: var(--bg-card-alt);
+  border-color: var(--accent);
 }
 
 .genotype-content {
@@ -906,21 +1165,29 @@ header h1 {
 .cmy-breakdown {
   font-size: 11px;
   color: var(--text-muted);
-  margin-top: 2px;
+  margin-top: 4px;
   letter-spacing: 0.3px;
+  background: var(--bg-breakdown);
+  padding: 3px 8px;
+  border-radius: 4px;
+  display: inline-block;
 }
 
 .cmy-c { color: #66dddd; }
 .cmy-m { color: #dd66cc; }
 .cmy-y { color: #ddcc66; }
 
-/* ---- Breath Element Breakdown Display ---- */
+/* ---- Finish Breakdown Display ---- */
 
 .finish-breakdown {
   font-size: 11px;
   color: var(--text-muted);
-  margin-top: 2px;
+  margin-top: 4px;
   letter-spacing: 0.3px;
+  background: var(--bg-breakdown);
+  padding: 3px 8px;
+  border-radius: 4px;
+  display: inline-block;
 }
 
 .breath-breakdown {
@@ -928,6 +1195,10 @@ header h1 {
   color: var(--text-muted);
   margin-top: 2px;
   letter-spacing: 0.3px;
+  background: var(--bg-breakdown);
+  padding: 3px 8px;
+  border-radius: 4px;
+  display: inline-block;
 }
 .breath-f { color: #ff6644; }
 .breath-i { color: #66aaff; }
@@ -967,6 +1238,7 @@ header h1 {
 
 .den-slots {
   display: flex;
+  justify-content: center;
   gap: 8px;
   overflow-x: auto;
   padding-bottom: 4px;
@@ -1190,6 +1462,35 @@ header h1 {
 .quests-hint {
   font-size: 12px;
   color: var(--text-muted);
+}
+
+.currency-bar {
+  display: flex;
+  gap: 12px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  background: var(--bg-card-alt);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.currency {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.currency-gold { color: #f0c040; }
+.currency-exp  { color: #80d0ff; }
+.currency-rep  { color: #c0a0ff; }
+
+.quest-reward-preview {
+  display: flex;
+  gap: 10px;
+  padding: 6px 0;
+  margin-top: 4px;
+  font-size: 12px;
+  opacity: 0.8;
 }
 
 .quests-empty {
@@ -1537,7 +1838,7 @@ header h1 {
 /* ---- Family Tree Popup ---- */
 
 .family-tree-overlay {
-  z-index: 200;
+  z-index: 10000;
 }
 
 .family-tree-panel {
@@ -1653,7 +1954,7 @@ header h1 {
 
 /* Ancestor detail popup — stacks above family tree */
 .ancestor-detail-overlay {
-  z-index: 250;
+  z-index: 10001;
 }
 
 .ancestor-detail-panel {
@@ -2757,6 +3058,70 @@ header h1 {
 }
 
 /* ============================================
+   GENOTYPE LAYOUT HELPERS
+   ============================================ */
+
+/* Genotype columns wrapper — single column by default */
+.genotype-columns {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+/* Collapsible genotype groups */
+.genotype-group-label {
+  cursor: pointer;
+  user-select: none;
+}
+.genotype-group-label::before {
+  content: '\25BE '; /* ▾ down triangle */
+  font-size: 10px;
+}
+.genotype-group.collapsed .genotype-group-label::before {
+  content: '\25B8 '; /* ▸ right triangle */
+}
+.genotype-group.collapsed .genotype-row {
+  display: none;
+}
+
+/* ============================================
+   DESKTOP: 3-UP CARD GRID
+   ============================================ */
+
+@media (min-width: 768px) {
+  /* Dragon list containers: 3 cards per row */
+  .dragon-list,
+  .clutch-results {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--spacing);
+  }
+
+  /* Grid handles spacing, remove card margin */
+  .dragon-list .dragon-card,
+  .clutch-results .dragon-card {
+    margin-bottom: 0;
+  }
+
+  /* Clutch header spans full width */
+  .clutch-header {
+    grid-column: 1 / -1;
+  }
+
+  /* Mutation notes span full width */
+  .mutation-note {
+    grid-column: 1 / -1;
+  }
+
+  /* 2-column genotype grid inside cards */
+  .genotype-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 12px;
+  }
+}
+
+/* ============================================
    MOBILE RESPONSIVE LAYOUT
    ============================================ */
 
@@ -2984,6 +3349,10 @@ header h1 {
   }
 
   .dragon-name {
+    font-size: 14px;
+  }
+
+  .dragon-name-text {
     font-size: 16px;
   }
 

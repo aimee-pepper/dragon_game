@@ -475,15 +475,18 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
   // markers). Color blending happens once per compositing group (base, fade,
   // injected outlines, final outline) after extraction/separation.
 
-  // For spine z-level split: find the tail attachment x threshold.
-  // Spines to the right of this point are "tail" spines (z:47),
-  // spines to the left are "body" spines (z:22).
+  // For spine z-level split: use the rightmost pixel of the body as the threshold.
+  // Spines to the right of this point are "tail" spines (z:50, in front of tail),
+  // spines to the left are "body" spines (z:22, behind front wing).
   let tailSplitX = Infinity;
   for (const asset of matchedAssets) {
-    if (asset.gene === 'tail') {
-      const tailAnchor = getAnchor(asset.filename, { bodyType: bodyVariant });
-      tailSplitX = Math.min(tailSplitX, tailAnchor.x);
-      break; // only need the first tail asset's anchor
+    if (asset.gene === 'body') {
+      const bodyAnchor = getAnchor(asset.filename, { bodyType: bodyVariant });
+      const bodyImg = assetMap.get(asset.filename + '.png');
+      if (bodyImg) {
+        tailSplitX = Math.min(tailSplitX, bodyAnchor.x + bodyImg.width);
+      }
+      break; // only need the first body asset
     }
   }
 
@@ -521,21 +524,25 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     }
     if (asset.gene === 'spines' && asset._spinePlacements) {
       const isBodyZ = asset.z === 22;
-      const isTailZ = asset.z === 47;
+      const isTailZ = asset.z === 50;
       for (const placement of asset._spinePlacements) {
         // Z-level split: body spines (z:22) get positions left of tail,
-        // tail spines (z:47) get positions at/right of tail
+        // tail spines (z:50) get positions at/right of tail
         const isInTailZone = placement.x >= tailSplitX;
         if ((isBodyZ && isInTailZone) || (isTailZ && !isInTailZone)) continue;
+
+        // Skip spines scaled to effectively zero by the envelope
+        const spineScale = placement.scale ?? 1.0;
+        if (Math.abs(spineScale) < 0.01) continue;
 
         processedLayers.push({
           asset,
           offscreen,
           anchorX: placement.x,
           anchorY: placement.y,
-          rotation: placement.rot || 0,
+          rotation: placement.rot ?? 0,
           isFixedDetail: false,
-          _spineScale: placement.scale || 1.0,
+          _spineScale: spineScale,
           _spineWid: placement.wid ?? 1.0,
         });
       }

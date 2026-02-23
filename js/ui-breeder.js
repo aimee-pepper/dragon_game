@@ -256,7 +256,7 @@ function doBreed() {
 
     // Show mutation count if any
     if (child.mutations.length > 0) {
-      const mutNote = el('div', '');
+      const mutNote = el('div', 'mutation-note');
       mutNote.style.cssText = 'font-size:12px;color:var(--mutation);text-align:center;margin-bottom:8px;';
       mutNote.textContent = `${child.mutations.length} mutation${child.mutations.length > 1 ? 's' : ''}!`;
       clutchContainer.appendChild(mutNote);

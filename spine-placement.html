@@ -1219,6 +1219,8 @@ function restorePath(seedFrom) {
     globalRotation = seedFrom.globalRotation || 0;
     perSpineOverrides = JSON.parse(JSON.stringify(seedFrom.perSpineOverrides));
     heightControlPoints = JSON.parse(JSON.stringify(seedFrom.heightControlPoints || [{ t: 0, mul: 1.0, rot: 0, wid: 1.0, spc: 1.0 }, { t: 1, mul: 1.0, rot: 0, wid: 1.0, spc: 1.0 }]));
+    // Reset width to default — different spine types need their own width tuning
+    for (const cp of heightControlPoints) cp.wid = 1.0;
   } else {
     // No saved path, no seed — blank
     controlPoints = [];
