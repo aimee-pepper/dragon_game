@@ -300,7 +300,8 @@ header h1 {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 2px 14px 2px 10px;
+  padding: 2px 14px 2px calc(var(--spacing) + 15px + 10px);
+  margin-left: calc(-1 * var(--spacing) - 15px); /* 15px past card edge, cropped by overflow:hidden */
   margin-right: 50px; /* room for tail endcap */
   margin-top: 14px;   /* space for banner overshoot above */
   margin-bottom: 14px; /* space for banner overshoot below */
@@ -319,11 +320,11 @@ header h1 {
 }
 
 .banner-bg-fill {
-  inset: -11px 0 -21px 0;
+  inset: -13px 0 -19px -15px;
 }
 
 .banner-bg-outline {
-  inset: -16px 0 -16px 0;
+  inset: -16px 0 -16px -15px;
 }
 
 /* Tail pieces: height matches main banner, width derived from aspect-ratio */
@@ -337,8 +338,8 @@ header h1 {
 }
 
 .banner-bg-tail-fill {
-  top: -14px;
-  bottom: -24px;
+  top: -16px;
+  bottom: -22px;
   aspect-ratio: 155 / 136;
   transform: translateX(calc(98% - 1px)) translateY(8px);
 }
