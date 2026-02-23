@@ -326,7 +326,7 @@ header h1 {
   inset: -16px 0 -16px 0;
 }
 
-/* Tail pieces: height matches main banner, width derived from aspect-ratio so nothing clips */
+/* Tail pieces: height matches main banner, width derived from aspect-ratio */
 .banner-bg-tail-fill,
 .banner-bg-tail-outline {
   position: absolute;
@@ -337,17 +337,17 @@ header h1 {
 }
 
 .banner-bg-tail-fill {
-  top: -11px;
-  bottom: -21px;
+  top: -14px;
+  bottom: -24px;
   aspect-ratio: 155 / 136;
-  transform: translateX(98%) translateY(5px);
+  transform: translateX(calc(98% - 1px)) translateY(8px);
 }
 
 .banner-bg-tail-outline {
-  top: -16px;
-  bottom: -16px;
+  top: -19px;
+  bottom: -19px;
   aspect-ratio: 173 / 140;
-  transform: translateX(98%) translateY(8px);
+  transform: translateX(calc(98% - 1px)) translateY(8px);
 }
 
 /* Name label + text sit above banner bg */

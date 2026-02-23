@@ -64,6 +64,11 @@ export function renderDragonCard(dragon, options = {}) {
     const bgOutline = tintedIcon('banner_o.png', '#a08450', 'banner-bg-outline');
     const bgTailFill = tintedIcon('bannertail_f.png', '#d4c4a0', 'banner-bg-tail-fill');
     const bgTailOutline = tintedIcon('bannertail_o.png', '#a08450', 'banner-bg-tail-outline');
+    // Override tintedIcon's inline maskSize:'contain' so CSS rules can control sizing
+    for (const piece of [bgTailFill, bgTailOutline]) {
+      piece.style.maskSize = '';
+      piece.style.webkitMaskSize = '';
+    }
     banner.appendChild(bgFill);
     banner.appendChild(bgOutline);
     banner.appendChild(bgTailFill);
