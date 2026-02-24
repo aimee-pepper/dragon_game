@@ -1,11 +1,12 @@
 // Dragon Import/Export — PNG with embedded metadata
 //
 // Exports a dragon as a PNG sprite image with the dragon's data
-// stored in a custom tEXt chunk. The PNG is a normal viewable image
-// AND contains all the data needed to reconstruct the dragon.
+// (including full lineage) stored in a custom tEXt chunk. The PNG
+// is a normal viewable image AND contains all the data needed to
+// reconstruct the dragon and its entire family tree.
 //
-// Import reads the tEXt chunk back out and creates a fresh dragon
-// (new ID, no lineage) via Dragon.fromSaveData().
+// Import reads the tEXt chunk back out, remaps all IDs to avoid
+// collisions, and recreates the dragon + ancestors via Dragon.fromSaveData().
 
 import { Dragon } from './dragon.js';
 import { renderDragon } from './sprite-renderer.js';
@@ -130,14 +131,46 @@ function extractPNGText(pngBuf, keyword) {
   return null;
 }
 
+// ─── Lineage Collection ──────────────────────────────────────
+
+/**
+ * Walk a dragon's parentIds to collect the full ancestor tree.
+ * Returns a Map of id → dragon for the subject + all ancestors.
+ */
+function collectLineage(dragon, registry) {
+  const collected = new Map();
+  const queue = [dragon];
+
+  while (queue.length > 0) {
+    const d = queue.shift();
+    if (collected.has(d.id)) continue;
+    collected.set(d.id, d);
+
+    if (d.parentIds) {
+      for (const pid of d.parentIds) {
+        if (!collected.has(pid)) {
+          const parent = registry.get(pid);
+          if (parent) queue.push(parent);
+        }
+      }
+    }
+  }
+
+  return collected;
+}
+
 // ─── Export ──────────────────────────────────────────────────
 
 /**
  * Export a dragon as a PNG with embedded metadata.
+ * Includes the full lineage (all ancestors) in the export data.
  * Renders the sprite, injects dragon data as a tEXt chunk,
  * and triggers a file download.
+ *
+ * @param {Dragon} dragon - The dragon to export
+ * @param {Object} registry - The dragon registry (for ancestor lookup)
  */
-export async function exportDragonPNG(dragon) {
+export async function exportDragonPNG(dragon, registry) {
   // 1. Render sprite to canvas (full size)
   const canvas = await renderDragon(dragon.phenotype, {
     compact: false,
@@ -157,16 +190,25 @@ export async function exportDragonPNG(dragon) {
   });
   const buf = await blob.arrayBuffer();
 
-  // 3. Build export data (strip lineage)
-  const saveData = dragon.toSaveData();
-  delete saveData.parentIds;
-  delete saveData.alleleOrigins;
-  const json = JSON.stringify(saveData);
+  // 3. Collect the subject + all ancestors
+  const lineage = collectLineage(dragon, registry);
+  const dragons = {};
+  for (const [id, d] of lineage) {
+    dragons[id] = d.toSaveData();
+  }
 
-  // 4. Inject tEXt chunk
+  // 4. Build export payload
+  const payload = {
+    v: 1,                   // export format version
+    subjectId: dragon.id,   // which dragon is the "main" one
+    dragons,                // all dragons keyed by original ID
+  };
+  const json = JSON.stringify(payload);
+
+  // 5. Inject tEXt chunk
   const pngWithMeta = injectPNGText(buf, TEXT_CHUNK_KEY, json);
 
-  // 5. Download
+  // 6. Download
   const dlBlob = new Blob([pngWithMeta], { type: 'image/png' });
   const url = URL.createObjectURL(dlBlob);
   const a = document.createElement('a');
@@ -181,8 +223,9 @@ export async function exportDragonPNG(dragon) {
 // ─── Import ──────────────────────────────────────────────────
 
 /**
- * Import a dragon from a PNG file with embedded metadata.
- * Returns a new Dragon instance (fresh ID, no lineage).
+ * Import a dragon (and its lineage) from a PNG file with embedded metadata.
+ * All dragons get fresh IDs to avoid collisions. parentIds are remapped.
+ * Returns { subject: Dragon, ancestors: Dragon[] }.
  * Throws if the image has no dragon data or it's invalid.
  */
 export async function importDragonPNG(file) {
@@ -202,17 +245,84 @@ export async function importDragonPNG(file) {
     throw new Error('No dragon data found in this image');
   }
 
-  // 4. Parse and create dragon (fresh ID, no lineage)
-  let data;
+  // 4. Parse payload
+  let payload;
   try {
-    data = JSON.parse(json);
+    payload = JSON.parse(json);
   } catch {
     throw new Error('Invalid dragon data in image');
   }
 
-  data.id = undefined;       // assign new ID on construction
-  data.parentIds = null;     // strip lineage
-  data.alleleOrigins = null; // strip parent tracking
+  // 5. Handle both formats: new (v1 with lineage) and legacy (single dragon)
+  if (payload.v === 1 && payload.dragons) {
+    return importWithLineage(payload);
+  } else {
+    // Legacy format: single dragon object (no lineage wrapper)
+    return importSingleDragon(payload);
+  }
+}
 
-  return Dragon.fromSaveData(data);
+/**
+ * Import a full lineage export (v1 format).
+ * Remaps all IDs so nothing collides with existing dragons.
+ */
+function importWithLineage(payload) {
+  const { subjectId, dragons } = payload;
+
+  // Build ID remap: old ID → new Dragon instance
+  // We create dragons in dependency order (parents before children)
+  // so parentIds can be remapped correctly.
+
+  // First pass: sort by generation (lowest first = oldest ancestors first)
+  const entries = Object.entries(dragons).map(([id, data]) => ({
+    oldId: Number(id),
+    data,
+  }));
+  entries.sort((a, b) => (a.data.generation ?? 0) - (b.data.generation ?? 0));
+
+  // Second pass: create dragons with remapped IDs
+  const idMap = new Map(); // old ID → new Dragon
+  const allDragons = [];
+
+  for (const { oldId, data } of entries) {
+    // Remap parentIds to new IDs
+    if (data.parentIds) {
+      data.parentIds = data.parentIds.map(pid => {
+        const remapped = idMap.get(pid);
+        return remapped ? remapped.id : null;
+      });
+      // If both parents couldn't be found, clear parentIds
+      if (data.parentIds.every(p => p === null)) {
+        data.parentIds = null;
+      }
+    }
+
+    // Remap alleleOrigins is not needed — it's just 'A'/'B' labels
+
+    // Create with fresh ID
+    data.id = undefined;
+    const dragon = Dragon.fromSaveData(data);
+    idMap.set(oldId, dragon);
+    allDragons.push(dragon);
+  }
+
+  // Find the subject dragon
+  const subject = idMap.get(Number(subjectId));
+  if (!subject) {
+    throw new Error('Could not find subject dragon in export data');
+  }
+
+  const ancestors = allDragons.filter(d => d !== subject);
+  return { subject, ancestors };
+}
+
+/**
+ * Import a legacy single-dragon export (no lineage).
+ */
+function importSingleDragon(data) {
+  data.id = undefined;
+  data.parentIds = null;
+  data.alleleOrigins = null;
+  const dragon = Dragon.fromSaveData(data);
+  return { subject: dragon, ancestors: [] };
 }

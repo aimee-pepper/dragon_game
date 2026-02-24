@@ -165,7 +165,7 @@ function openExportPicker() {
     const item = renderPickerItem(dragon, async (selected) => {
       overlay.remove();
       try {
-        await exportDragonPNG(selected);
+        await exportDragonPNG(selected, _registry);
         showToast(`Exported ${selected.name}!`, 'success');
       } catch (err) {
         showToast(`Export failed: ${err.message}`, 'error');
@@ -204,14 +204,23 @@ async function handleImportFile(file) {
   if (!file) return;
 
   try {
-    const dragon = await importDragonPNG(file);
+    const { subject, ancestors } = await importDragonPNG(file);
 
-    // Add to registry and stables
-    if (_registry) _registry.add(dragon);
-    addToStables(dragon);
+    // Add all ancestors to registry first (parents before children)
+    if (_registry) {
+      for (const ancestor of ancestors) {
+        _registry.add(ancestor);
+      }
+      _registry.add(subject);
+    }
+
+    // Only the subject goes to stables
+    addToStables(subject);
     triggerSave();
 
-    showToast(`Imported ${dragon.name}!`, 'success');
+    const count = ancestors.length;
+    const lineageNote = count > 0 ? ` (with ${count} ancestor${count > 1 ? 's' : ''})` : '';
+    showToast(`Imported ${subject.name}!${lineageNote}`, 'success');
   } catch (err) {
     showToast(err.message, 'error');
   }
