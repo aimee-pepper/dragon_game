@@ -2937,6 +2937,63 @@ header {
   transform: translateX(18px);
 }
 
+/* ---- Dragon Import/Export ---- */
+
+.options-btn-row {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+}
+
+.options-btn-row .btn {
+  flex: 1;
+}
+
+.picker-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  margin-top: -12px;
+  margin-bottom: var(--spacing);
+}
+
+/* Toast notification for import/export feedback */
+.io-toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  padding: 10px 20px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-bright);
+  background: var(--bg-card-alt);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  z-index: 20000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  font-family: 'AimeeHandwriting', serif;
+  text-transform: uppercase;
+}
+
+.io-toast-show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.io-toast-success {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.io-toast-error {
+  border-color: var(--accent-secondary);
+  color: var(--accent-secondary);
+}
+
 /* ---- Secret Dev Console ---- */
 .dev-console {
   display: flex;

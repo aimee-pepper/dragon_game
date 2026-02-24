@@ -145,7 +145,7 @@ function init() {
   initStablesTab(document.getElementById('tab-stables'), registry);
   initQuestsTab(document.getElementById('tab-quests'), registry);
   initAlmanacTab(document.getElementById('tab-almanac'), registry);
-  initOptionsTab(document.getElementById('tab-options'));
+  initOptionsTab(document.getElementById('tab-options'), registry);
   initPlaceholderTabs();
   initQuestWidget();
 
