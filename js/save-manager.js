@@ -3,7 +3,13 @@
 // Exception: isDarkEnergy persisted (random 5% chance, not reproducible)
 
 import { Dragon, getNextDragonId, setNextDragonId } from './dragon.js';
-import { getStabledDragons, restoreStabledDragons, getDenDragonIds, getDenSlotCount, restoreDen } from './ui-stables.js';
+import {
+  getStabledDragons, restoreStabledDragons,
+  getDenDragonIds, getDenSlotCount, restoreDen,
+  getNestSlotCount, restoreNestSlotCount,
+  getEggRackSlotCount, restoreEggRackSlotCount,
+} from './ui-stables.js';
+import { getEggRackSaveData, restoreEggRack } from './egg-system.js';
 import {
   getAllQuests,
   restoreQuestState,
@@ -12,7 +18,70 @@ import {
 } from './quest-engine.js';
 
 const SAVE_KEY = 'dragon-keeper-save';
-const SAVE_VERSION = 1;
+const SAVE_VERSION = 2;
+
+// ── Rolling backups ─────────────────────────────────────────
+// Keep the last 3 good saves so players can recover from data loss.
+// Backups rotate on a throttled interval (at most every 60 seconds).
+
+const BACKUP_KEY_PREFIX = 'dragon-keeper-backup-';
+const MAX_BACKUPS = 3;
+let _lastBackupTime = 0;
+const BACKUP_INTERVAL_MS = 60_000; // one backup per minute max
+
+function rotateBackup(currentSaveJSON) {
+  const now = Date.now();
+  if (now - _lastBackupTime < BACKUP_INTERVAL_MS) return;
+  _lastBackupTime = now;
+
+  try {
+    // Shift backups: 2→3, 1→2, current→1
+    for (let i = MAX_BACKUPS; i > 1; i--) {
+      const prev = localStorage.getItem(`${BACKUP_KEY_PREFIX}${i - 1}`);
+      if (prev) {
+        localStorage.setItem(`${BACKUP_KEY_PREFIX}${i}`, prev);
+      }
+    }
+    // Slot 1 gets the current (pre-overwrite) save
+    localStorage.setItem(`${BACKUP_KEY_PREFIX}1`, currentSaveJSON);
+  } catch (e) {
+    console.warn('Backup rotation failed:', e);
+  }
+}
+
+/** List available backups (newest first). Returns [{ slot, savedAt, dragonCount }] */
+export function listBackups() {
+  const results = [];
+  for (let i = 1; i <= MAX_BACKUPS; i++) {
+    try {
+      const raw = localStorage.getItem(`${BACKUP_KEY_PREFIX}${i}`);
+      if (!raw) continue;
+      const data = JSON.parse(raw);
+      results.push({
+        slot: i,
+        savedAt: data.savedAt || 0,
+        dragonCount: Object.keys(data.dragons || {}).length,
+        questCount: (data.quests || []).length,
+        stats: data.stats || {},
+      });
+    } catch {
+      // corrupt backup, skip
+    }
+  }
+  return results;
+}
+
+/** Restore from a backup slot. Copies backup → main save key, then reloads the page. */
+export function restoreFromBackup(slot) {
+  const raw = localStorage.getItem(`${BACKUP_KEY_PREFIX}${slot}`);
+  if (!raw) throw new Error(`No backup in slot ${slot}`);
+  // Validate it parses
+  JSON.parse(raw);
+  // Overwrite main save
+  localStorage.setItem(SAVE_KEY, raw);
+  // Force full reload to pick up restored data
+  window.location.reload();
+}
 
 // ── Achievement hooks (set by app.js to avoid circular dependency) ──
 
@@ -22,6 +91,26 @@ let _restoreAchievements = () => {};
 export function registerAchievementHooks(getSaveData, restore) {
   _getAchievementSaveData = getSaveData;
   _restoreAchievements = restore;
+}
+
+// ── Shop hooks (set by app.js to avoid circular dependency: save-manager <-> shop-engine) ──
+
+let _getShopSaveData = () => ({});
+let _restoreShopState = () => {};
+
+export function registerShopHooks(getSaveData, restore) {
+  _getShopSaveData = getSaveData;
+  _restoreShopState = restore;
+}
+
+// ── Skill hooks (set by app.js to avoid circular dependency: save-manager <-> skill-engine) ──
+
+let _getSkillSaveData = () => ({});
+let _restoreSkillState = () => {};
+
+export function registerSkillHooks(getSaveData, restore) {
+  _getSkillSaveData = getSaveData;
+  _restoreSkillState = restore;
 }
 
 // ── Breed parent hooks (set by app.js) ──
@@ -77,6 +166,7 @@ export function applyPendingCapturedRestore(registry) {
 const stats = {
   totalGenerated: 0,
   totalBred: 0,
+  totalMutants: 0,
   totalQuestsCompleted: 0,
   totalStabled: 0,
   totalReleased: 0,
@@ -140,6 +230,14 @@ export function saveGame(registry) {
   }
   if (!_registry) return;
 
+  // Safety: don't overwrite existing save data with empty state.
+  // If loadGame failed (e.g. due to module errors), the first saveGame()
+  // call from init() would destroy the player's save. Guard against this.
+  if (_loadFailed && _registry.count === 0) {
+    console.warn('Save skipped: load failed and registry is empty (would destroy existing save)');
+    return;
+  }
+
   try {
     // Collect all dragons that need persisting:
     // stabled + quest-completed + all ancestors
@@ -153,20 +251,33 @@ export function saveGame(registry) {
       stabledDragonIds: getStabledDragons().map(d => d.id),
       denDragonIds: getDenDragonIds(),
       denSlotCount: getDenSlotCount(),
+      nestSlotCount: getNestSlotCount(),
+      eggRackSlotCount: getEggRackSlotCount(),
       breedParentAId: _getBreedParentAId(),
       breedParentBId: _getBreedParentBId(),
       capturedDragonIds: _getCapturedDragonIds(),
+      eggRack: getEggRackSaveData(),
       dragons: {},
       quests: getAllQuests(),
       stats: { ...stats },
       achievements: _getAchievementSaveData(),
+      shop: _getShopSaveData(),
+      skills: _getSkillSaveData(),
     };
 
     for (const dragon of dragonsToSave) {
       saveData.dragons[dragon.id] = dragon.toSaveData();
     }
 
-    localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
+    const json = JSON.stringify(saveData);
+
+    // Rotate the previous save into backup before overwriting
+    const existingSave = localStorage.getItem(SAVE_KEY);
+    if (existingSave) {
+      rotateBackup(existingSave);
+    }
+
+    localStorage.setItem(SAVE_KEY, json);
   } catch (e) {
     console.warn('Save failed:', e);
   }
@@ -191,6 +302,15 @@ function collectReachableDragons() {
   }
   for (const did of getDenDragonIds()) {
     seedIds.add(did);
+  }
+  // Egg rack dragons: add their parent IDs to seed set
+  // (egg rack dragon data is saved inline, but their ancestors need persisting)
+  for (const egg of getEggRackSaveData()) {
+    if (egg.dragonSaveData && egg.dragonSaveData.parentIds) {
+      for (const pid of egg.dragonSaveData.parentIds) {
+        seedIds.add(pid);
+      }
+    }
   }
 
   // BFS walk parentIds to collect all ancestors
@@ -221,16 +341,31 @@ function collectReachableDragons() {
 // ── Load ────────────────────────────────────────────────────
 
 let _registry = null;
+let _loadFailed = false; // set true when loadGame catches an error
 
 export function loadGame(registry) {
   _registry = registry;
+  _loadFailed = false;
 
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return false;
 
     const saveData = JSON.parse(raw);
-    if (!saveData || saveData.version !== SAVE_VERSION) return false;
+    if (!saveData) return false;
+
+    // ── Save migration ──
+    if (saveData.version === 1) {
+      // v1 → v2: Add revealedGenes to all dragons, add skills object
+      for (const data of Object.values(saveData.dragons || {})) {
+        if (!data.revealedGenes) data.revealedGenes = {};
+      }
+      if (!saveData.skills) saveData.skills = {};
+      saveData.version = 2;
+      console.log('Migrated save from v1 → v2');
+    }
+
+    if (saveData.version !== SAVE_VERSION) return false;
 
     // Restore ID counters (must happen before creating dragons)
     if (saveData.nextDragonId) setNextDragonId(saveData.nextDragonId);
@@ -260,6 +395,10 @@ export function loadGame(registry) {
       restoreDen(denDragons, saveData.denSlotCount);
     }
 
+    // Restore nest/egg rack slot counts
+    if (saveData.nestSlotCount) restoreNestSlotCount(saveData.nestSlotCount);
+    if (saveData.eggRackSlotCount) restoreEggRackSlotCount(saveData.eggRackSlotCount);
+
     // Restore quests
     if (saveData.quests && saveData.quests.length > 0) {
       restoreQuestState(saveData.quests);
@@ -274,9 +413,24 @@ export function loadGame(registry) {
       }
     }
 
+    // Restore egg rack
+    if (saveData.eggRack) {
+      restoreEggRack(saveData.eggRack, (data) => Dragon.fromSaveData(data));
+    }
+
     // Restore achievements
     if (saveData.achievements) {
       _restoreAchievements(saveData.achievements);
+    }
+
+    // Restore shop state
+    if (saveData.shop) {
+      _restoreShopState(saveData.shop);
+    }
+
+    // Restore skill state
+    if (saveData.skills) {
+      _restoreSkillState(saveData.skills);
     }
 
     // Deferred restore: breed parents (applied after initBreedTab)
@@ -289,7 +443,9 @@ export function loadGame(registry) {
     console.log(`Game loaded: ${Object.keys(saveData.dragons).length} dragons, ${saveData.quests.length} quests`);
     return true;
   } catch (e) {
-    console.warn('Load failed:', e);
+    console.error('Load failed:', e);
+    console.error('Stack:', e.stack);
+    _loadFailed = true;
     return false;
   }
 }

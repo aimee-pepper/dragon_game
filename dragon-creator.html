@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dragon Keeper — Dragon Creator</title>
+  <link rel="stylesheet" href="css/tools.css">
+</head>
+<body>
+  <header>
+    <h1>Dragon Creator</h1>
+    <nav id="tools-nav">
+      <button class="tool-tab" id="theme-toggle">☀ Light</button>
+    </nav>
+  </header>
+  <main id="creator-app"></main>
+  <script type="module">
+    import { initDragonCreator } from './js/tool-dragon-creator.js';
+
+    // Theme toggle
+    const btn = document.getElementById('theme-toggle');
+    if (btn) {
+      btn.addEventListener('click', () => {
+        const isLight = document.body.classList.toggle('light-mode');
+        btn.textContent = isLight ? '☾ Dark' : '☀ Light';
+      });
+    }
+
+    // Init creator
+    initDragonCreator(document.getElementById('creator-app'));
+  </script>
+</body>
+</html>

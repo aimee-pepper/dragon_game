@@ -5,7 +5,7 @@ import { renderDragon, startShimmerAnimation } from './sprite-renderer.js';
 import { QUEST_SPARKLE_EFFECT, SPRITE_WIDTH, SPRITE_HEIGHT } from './sprite-config.js';
 import { getSetting } from './settings.js';
 
-const UI_ASSET_PATH = 'assets/ui/ui-assets/';
+export const UI_ASSET_PATH = 'assets/ui/ui-assets/';
 
 // Create a DOM element helper
 function el(tag, className, text) {
@@ -16,7 +16,7 @@ function el(tag, className, text) {
 }
 
 // Create a tinted UI asset: uses CSS mask so the image shape is filled with the given color
-function tintedIcon(assetFile, color, className) {
+export function tintedIcon(assetFile, color, className) {
   const d = el('span', className || 'ui-icon');
   d.style.display = 'inline-block';
   d.style.backgroundColor = color;
@@ -32,7 +32,7 @@ function tintedIcon(assetFile, color, className) {
 }
 
 // Create a UI asset image element (no tint — used for pre-colored assets)
-function uiImg(assetFile, className) {
+export function uiImg(assetFile, className) {
   const img = document.createElement('img');
   img.src = `${UI_ASSET_PATH}${assetFile}`;
   img.className = className || 'ui-img';
@@ -50,6 +50,24 @@ function uiImg(assetFile, className) {
 export function renderDragonCard(dragon, options = {}) {
   const { compact = false, showGenotype = true, onUseAsParentA, onUseAsParentB, parentNames, onSaveToStables, onViewLineage, highlightGenes, desiredAlleles, hideSprite } = options;
   const p = dragon.phenotype;
+  const debugRevealAll = getSetting('debug-show-genotype');
+  const dragonReveals = dragon.revealedGenes || {};
+
+  // Per-gene reveal check: returns true if the gene's value should be shown
+  // Debug toggle overrides everything; otherwise check per-dragon reveals
+  function isRevealed(geneName) {
+    if (debugRevealAll) return true;
+    return !!dragonReveals[geneName];
+  }
+
+  // Check if ALL genes in a list are revealed (for tri-point breakdowns)
+  function allRevealed(geneNames) {
+    if (debugRevealAll) return true;
+    return geneNames.every(g => !!dragonReveals[g]);
+  }
+
+  // Backward compat alias — used where code previously checked the global toggle
+  const genotypeRevealed = debugRevealAll;
 
   const card = el('div', `dragon-card${compact ? ' compact' : ''}`);
 
@@ -189,15 +207,26 @@ export function renderDragonCard(dragon, options = {}) {
     }
     hueCol.appendChild(colorNameEl);
 
-    if (p.color.cmyBreakdown) {
-      const cmyRow = el('div', 'cmy-breakdown');
-      const { c, m, y } = p.color.cmyBreakdown;
-      cmyRow.appendChild(el('span', 'cmy-c', `C: ${c}`));
-      cmyRow.appendChild(document.createTextNode(' · '));
-      cmyRow.appendChild(el('span', 'cmy-m', `M: ${m}`));
-      cmyRow.appendChild(document.createTextNode(' · '));
-      cmyRow.appendChild(el('span', 'cmy-y', `Y: ${y}`));
-      hueCol.appendChild(cmyRow);
+    {
+      const cmyVisible = allRevealed(['color_cyan', 'color_magenta', 'color_yellow']);
+      if (cmyVisible && p.color.cmyBreakdown) {
+        const cmyRow = el('div', 'cmy-breakdown');
+        const { c, m, y } = p.color.cmyBreakdown;
+        cmyRow.appendChild(el('span', 'cmy-c', `C: ${c}`));
+        cmyRow.appendChild(document.createTextNode(' · '));
+        cmyRow.appendChild(el('span', 'cmy-m', `M: ${m}`));
+        cmyRow.appendChild(document.createTextNode(' · '));
+        cmyRow.appendChild(el('span', 'cmy-y', `Y: ${y}`));
+        hueCol.appendChild(cmyRow);
+      } else if (!cmyVisible) {
+        const cmyRow = el('div', 'cmy-breakdown');
+        cmyRow.appendChild(el('span', 'cmy-c', 'C: ???'));
+        cmyRow.appendChild(document.createTextNode(' · '));
+        cmyRow.appendChild(el('span', 'cmy-m', 'M: ???'));
+        cmyRow.appendChild(document.createTextNode(' · '));
+        cmyRow.appendChild(el('span', 'cmy-y', 'Y: ???'));
+        hueCol.appendChild(cmyRow);
+      }
     }
 
     hueFinishRow.appendChild(hueCol);
@@ -213,15 +242,26 @@ export function renderDragonCard(dragon, options = {}) {
     finishNameEl.appendChild(el('span', null, p.finish.displayName || p.finish.name));
     finishCol.appendChild(finishNameEl);
 
-    if (p.finish.finishBreakdown) {
-      const finishRow = el('div', 'finish-breakdown');
-      const { o, sh, sc } = p.finish.finishBreakdown;
-      finishRow.appendChild(el('span', 'finish-o', `O: ${o}`));
-      finishRow.appendChild(document.createTextNode(' · '));
-      finishRow.appendChild(el('span', 'finish-s', `Sh: ${sh}`));
-      finishRow.appendChild(document.createTextNode(' · '));
-      finishRow.appendChild(el('span', 'finish-sc', `Sc: ${sc}`));
-      finishCol.appendChild(finishRow);
+    {
+      const finishVisible = allRevealed(['finish_opacity', 'finish_shine', 'finish_schiller']);
+      if (finishVisible && p.finish.finishBreakdown) {
+        const finishRow = el('div', 'finish-breakdown');
+        const { o, sh, sc } = p.finish.finishBreakdown;
+        finishRow.appendChild(el('span', 'finish-o', `O: ${o}`));
+        finishRow.appendChild(document.createTextNode(' · '));
+        finishRow.appendChild(el('span', 'finish-s', `Sh: ${sh}`));
+        finishRow.appendChild(document.createTextNode(' · '));
+        finishRow.appendChild(el('span', 'finish-sc', `Sc: ${sc}`));
+        finishCol.appendChild(finishRow);
+      } else if (!finishVisible) {
+        const finishRow = el('div', 'finish-breakdown');
+        finishRow.appendChild(el('span', 'finish-o', 'O: ???'));
+        finishRow.appendChild(document.createTextNode(' · '));
+        finishRow.appendChild(el('span', 'finish-s', 'Sh: ???'));
+        finishRow.appendChild(document.createTextNode(' · '));
+        finishRow.appendChild(el('span', 'finish-sc', 'Sc: ???'));
+        finishCol.appendChild(finishRow);
+      }
     }
 
     hueFinishRow.appendChild(finishCol);
@@ -275,13 +315,20 @@ export function renderDragonCard(dragon, options = {}) {
   breathInfo.appendChild(breathLabel);
 
   if (!compact) {
-    const shapeVal = p.traits.breath_shape?.name || '';
-    const rangeVal = p.traits.breath_range?.name || '';
-    const detail = el('span', 'breath-detail', ` \u2014 ${shapeVal}, ${rangeVal} range`);
-    breathInfo.appendChild(detail);
+    const breathShapeVisible = isRevealed('breath_shape') && isRevealed('breath_range');
+    const breathAxisVisible = allRevealed(['breath_fire', 'breath_ice', 'breath_lightning']);
 
-    // Breath axis breakdown
-    if (p.breathElement.breathBreakdown) {
+    if (breathShapeVisible) {
+      const shapeVal = p.traits.breath_shape?.name || '';
+      const rangeVal = p.traits.breath_range?.name || '';
+      const detail = el('span', 'breath-detail', ` \u2014 ${shapeVal}, ${rangeVal} range`);
+      breathInfo.appendChild(detail);
+    } else {
+      const detail = el('span', 'breath-detail', ' \u2014 ???, ??? range');
+      breathInfo.appendChild(detail);
+    }
+
+    if (breathAxisVisible && p.breathElement.breathBreakdown) {
       const breakdownRow = el('div', 'breath-breakdown');
       const { f, i, l } = p.breathElement.breathBreakdown;
       breakdownRow.appendChild(el('span', 'breath-f', `F: ${f}`));
@@ -290,10 +337,18 @@ export function renderDragonCard(dragon, options = {}) {
       breakdownRow.appendChild(document.createTextNode(' · '));
       breakdownRow.appendChild(el('span', 'breath-l', `L: ${l}`));
       breathInfo.appendChild(breakdownRow);
+    } else if (!breathAxisVisible) {
+      const breakdownRow = el('div', 'breath-breakdown');
+      breakdownRow.appendChild(el('span', 'breath-f', 'F: ???'));
+      breakdownRow.appendChild(document.createTextNode(' · '));
+      breakdownRow.appendChild(el('span', 'breath-i', 'I: ???'));
+      breakdownRow.appendChild(document.createTextNode(' · '));
+      breakdownRow.appendChild(el('span', 'breath-l', 'L: ???'));
+      breathInfo.appendChild(breakdownRow);
     }
 
-    // Prose description
-    if (p.breathElement.desc) {
+    // Prose description — only if all breath axes are revealed
+    if (breathAxisVisible && p.breathElement.desc) {
       const descEl = el('div', 'breath-desc', p.breathElement.desc);
       breathInfo.appendChild(descEl);
     }
@@ -312,25 +367,30 @@ export function renderDragonCard(dragon, options = {}) {
 
     // --- Body traits ---
     const bodySection = renderTraitSection('Body', [
-      { label: 'Size', value: p.traits.body_size?.name },
-      { label: 'Type', value: p.traits.body_type?.name },
-      { label: 'Scales', value: p.traits.body_scales?.name },
+      { label: 'Size', value: isRevealed('body_size') ? p.traits.body_size?.name : '???' },
+      { label: 'Type', value: isRevealed('body_type') ? p.traits.body_type?.name : '???' },
+      { label: 'Scales', value: isRevealed('body_scales') ? p.traits.body_scales?.name : '???' },
     ]);
     card.appendChild(bodySection);
 
     // --- Frame traits ---
     const frameSection = renderTraitSection('Frame', [
-      { label: 'Wings', value: p.traits.frame_wings?.name },
-      { label: 'Limbs', value: p.traits.frame_limbs?.name },
-      { label: 'Bones', value: p.traits.frame_bones?.name },
+      { label: 'Wings', value: isRevealed('frame_wings') ? p.traits.frame_wings?.name : '???' },
+      { label: 'Limbs', value: isRevealed('frame_limbs') ? p.traits.frame_limbs?.name : '???' },
+      { label: 'Bones', value: isRevealed('frame_bones') ? p.traits.frame_bones?.name : '???' },
     ]);
     card.appendChild(frameSection);
 
     // --- Sub traits ---
+    // Horns: both categorical (always visible)
+    // Spines: style is categorical (visible), height is linear (hidden unless revealed)
+    // Tail: both linear (hidden unless revealed)
+    const spineHeightRevealed = isRevealed('spine_height');
+    const tailRevealed = isRevealed('tail_shape') && isRevealed('tail_length');
     const subSection = renderTraitSection('Features', [
       { label: 'Horns', value: formatHorns(p.traits) },
-      { label: 'Spines', value: formatSpines(p.traits) },
-      { label: 'Tail', value: formatTail(p.traits) },
+      { label: 'Spines', value: spineHeightRevealed ? formatSpines(p.traits) : formatSpinesHidden(p.traits) },
+      { label: 'Tail', value: tailRevealed ? formatTail(p.traits) : '???' },
     ]);
     card.appendChild(subSection);
   }
@@ -341,7 +401,17 @@ export function renderDragonCard(dragon, options = {}) {
     if (onSaveToStables) {
       const saveBtn = el('button', 'btn btn-stable btn-small', '★ Stable');
       saveBtn.addEventListener('click', () => {
-        onSaveToStables(dragon);
+        const result = onSaveToStables(dragon);
+        if (result === false) {
+          // Nests full — show temporary feedback
+          saveBtn.textContent = 'Nests full!';
+          saveBtn.classList.add('btn-nests-full');
+          setTimeout(() => {
+            saveBtn.textContent = '★ Stable';
+            saveBtn.classList.remove('btn-nests-full');
+          }, 1500);
+          return;
+        }
         saveBtn.textContent = '✓ Stabled';
         saveBtn.disabled = true;
         saveBtn.classList.add('btn-stabled');
@@ -416,6 +486,12 @@ function formatSpines(traits) {
   return `${style}, ${height}`;
 }
 
+function formatSpinesHidden(traits) {
+  const style = traits.spine_style?.name || 'None';
+  if (style === 'None') return 'None';
+  return `${style}, ???`;
+}
+
 function formatTail(traits) {
   const shape = traits.tail_shape?.name || 'Normal';
   const length = traits.tail_length?.name || 'Medium';
@@ -441,10 +517,24 @@ export function renderGenotypeSection(dragon, parentNames, highlightGenes, desir
 // Build genotype content (shared by inline toggle and overlay modes)
 function buildGenotypeContent(dragon, parentNames, highlightGenes, desiredAlleles) {
   const content = el('div', 'genotype-content');
+  const debugRevealAll = getSetting('debug-show-genotype');
+  const dragonReveals = dragon.revealedGenes || {};
+
+  function isGeneRevealed(geneName) {
+    if (debugRevealAll) return true;
+    return !!dragonReveals[geneName]; // 'peek' or 'full'
+  }
+
+  /** Returns 'peek', 'full', or null */
+  function getRevealLevel(geneName) {
+    if (debugRevealAll) return 'full';
+    return dragonReveals[geneName] || null;
+  }
 
   // If this dragon has allele origins and parent names, show the legend
   const hasOrigins = dragon.alleleOrigins && parentNames;
-  if (hasOrigins) {
+  const hasAnyRevealed = debugRevealAll || Object.values(dragonReveals).some(v => v === 'full' || v === 'peek');
+  if (hasOrigins && hasAnyRevealed) {
     const legend = el('div', 'genotype-legend');
     const legendA = el('span', 'legend-parent-a', `● ${parentNames.A || 'Parent A'}`);
     const legendB = el('span', 'legend-parent-b', `● ${parentNames.B || 'Parent B'}`);
@@ -487,6 +577,13 @@ function buildGenotypeContent(dragon, parentNames, highlightGenes, desiredAllele
   for (const geneName of group.genes) {
     const alleles = dragon.genotype[geneName];
     if (!alleles) continue;
+    const def = GENE_DEFS[geneName];
+    const label = def?.label || geneName;
+
+    // Categorical genes (horn_style, horn_direction, spine_style) are always visible
+    const isCategorical = def?.inheritanceType === 'categorical';
+    const geneVisible = isGeneRevealed(geneName) || isCategorical;
+
     const row = el('div', 'genotype-row');
     const isMutated = dragon.mutations.includes(geneName);
     if (isMutated) row.classList.add('mutated');
@@ -495,27 +592,26 @@ function buildGenotypeContent(dragon, parentNames, highlightGenes, desiredAllele
     else if (geneName === 'color_magenta') row.classList.add('genotype-cmy-m');
     else if (geneName === 'color_yellow') row.classList.add('genotype-cmy-y');
 
-    // Quest genotype highlighting
-    if (highlightGenes && highlightGenes.has(geneName) && getSetting('quest-genotype-highlight')) {
+    // Quest genotype highlighting (only when genotype is revealed)
+    if (geneVisible && highlightGenes && highlightGenes.has(geneName) && getSetting('quest-genotype-highlight')) {
       row.classList.add('genotype-quest-highlight');
     }
 
-    const def = GENE_DEFS[geneName];
-    const label = def?.label || geneName;
-
     // Resolve the trait name for display
-    let resolvedText = '';
-    if (def?.phenotypeMap) {
-      const resolved = def.inheritanceType === 'categorical'
-        ? Math.max(alleles[0], alleles[1])
-        : Math.round((alleles[0] + alleles[1]) / 2);
-      resolvedText = def.phenotypeMap[resolved] || String(resolved);
-    } else if (triangleAxes.has(geneName)) {
-      const avg = ((alleles[0] + alleles[1]) / 2).toFixed(1);
-      resolvedText = `avg ${avg}`;
+    let resolvedText = '???';
+    if (geneVisible) {
+      if (def?.phenotypeMap) {
+        const resolved = isCategorical
+          ? Math.max(alleles[0], alleles[1])
+          : Math.round((alleles[0] + alleles[1]) / 2);
+        resolvedText = def.phenotypeMap[resolved] || String(resolved);
+      } else if (triangleAxes.has(geneName)) {
+        const avg = ((alleles[0] + alleles[1]) / 2).toFixed(1);
+        resolvedText = `avg ${avg}`;
+      }
     }
 
-    // Gene label + resolved trait name: "Body Size: Large"
+    // Gene label + resolved trait name: "Body Size: Large" or "Body Size: ???"
     const geneEl = el('span', 'genotype-gene');
     geneEl.appendChild(document.createTextNode(label + ': '));
     const traitEl = el('span', 'genotype-trait-name', resolvedText);
@@ -526,59 +622,71 @@ function buildGenotypeContent(dragon, parentNames, highlightGenes, desiredAllele
       geneEl.appendChild(badge);
     }
 
-    // Resolve individual allele labels for display
-    // For genes with phenotypeMaps: show the trait name each allele codes for
-    // For triangle axes: show level names (None/Low/Mid/High)
-    const TRIANGLE_ALLELE_NAMES = { 0: 'None', 1: 'Low', 2: 'Mid', 3: 'High' };
-    function getAlleleLabel(val) {
-      if (def?.phenotypeMap) {
-        return def.phenotypeMap[val] || String(val);
-      } else if (triangleAxes.has(geneName)) {
-        return TRIANGLE_ALLELE_NAMES[val] || String(val);
-      }
-      return String(val);
-    }
-
-    // Check if this gene has desired allele targets from the quest
-    const desiredSet = desiredAlleles && desiredAlleles.get(geneName);
-    const highlightEnabled = desiredSet && getSetting('quest-genotype-highlight');
-
-    // Alleles with labels: "(Knobbed, None)"
+    // Alleles display
     const allelesEl = el('span', 'genotype-alleles');
 
-    if (hasOrigins) {
-      // Color-coded alleles: each allele colored by which parent it came from
-      const origins = dragon.alleleOrigins[geneName];
-      allelesEl.textContent = '(';
-
-      const labelA = getAlleleLabel(alleles[0]);
-      const alleleA = el('span', origins[0] === 'A' ? 'allele-from-a' : 'allele-from-b');
-      alleleA.textContent = labelA;
-      if (highlightEnabled && desiredSet.has(labelA)) alleleA.classList.add('allele-quest-match');
-      allelesEl.appendChild(alleleA);
-
-      allelesEl.appendChild(document.createTextNode(', '));
-
-      const labelB = getAlleleLabel(alleles[1]);
-      const alleleB = el('span', origins[1] === 'A' ? 'allele-from-a' : 'allele-from-b');
-      alleleB.textContent = labelB;
-      if (highlightEnabled && desiredSet.has(labelB)) alleleB.classList.add('allele-quest-match');
-      allelesEl.appendChild(alleleB);
-
-      allelesEl.appendChild(document.createTextNode(')'));
+    if (!geneVisible) {
+      // Hidden — show ??? for alleles
+      allelesEl.textContent = '(???, ???)';
     } else {
-      const labelA = getAlleleLabel(alleles[0]);
-      const labelB = getAlleleLabel(alleles[1]);
-      if (highlightEnabled && (desiredSet.has(labelA) || desiredSet.has(labelB))) {
+      // Resolve individual allele labels for display
+      const TRIANGLE_ALLELE_NAMES = { 0: 'None', 1: 'Low', 2: 'Mid', 3: 'High' };
+      function getAlleleLabel(val) {
+        if (def?.phenotypeMap) {
+          return def.phenotypeMap[val] || String(val);
+        } else if (triangleAxes.has(geneName)) {
+          return TRIANGLE_ALLELE_NAMES[val] || String(val);
+        }
+        return String(val);
+      }
+
+      // Check if this gene has desired allele targets from the quest
+      const desiredSet = desiredAlleles && desiredAlleles.get(geneName);
+      const highlightEnabled = desiredSet && getSetting('quest-genotype-highlight');
+
+      // Peek reveal: show the higher allele (the extreme one) and ??? for the other
+      const revealLevel = getRevealLevel(geneName);
+      const isPeek = revealLevel === 'peek';
+
+      if (isPeek) {
+        // For peek, reveal the extreme allele (max of the two) and hide the other
+        const maxVal = Math.max(alleles[0], alleles[1]);
+        const maxLabel = getAlleleLabel(maxVal);
+        allelesEl.textContent = `(${maxLabel}, ???)`;
+      } else if (hasOrigins) {
+        // Color-coded alleles: each allele colored by which parent it came from
+        const origins = dragon.alleleOrigins[geneName];
         allelesEl.textContent = '(';
-        const spanA = el('span', desiredSet.has(labelA) ? 'allele-quest-match' : '', labelA);
-        allelesEl.appendChild(spanA);
+
+        const labelA = getAlleleLabel(alleles[0]);
+        const alleleA = el('span', origins[0] === 'A' ? 'allele-from-a' : 'allele-from-b');
+        alleleA.textContent = labelA;
+        if (highlightEnabled && desiredSet.has(labelA)) alleleA.classList.add('allele-quest-match');
+        allelesEl.appendChild(alleleA);
+
         allelesEl.appendChild(document.createTextNode(', '));
-        const spanB = el('span', desiredSet.has(labelB) ? 'allele-quest-match' : '', labelB);
-        allelesEl.appendChild(spanB);
+
+        const labelB = getAlleleLabel(alleles[1]);
+        const alleleB = el('span', origins[1] === 'A' ? 'allele-from-a' : 'allele-from-b');
+        alleleB.textContent = labelB;
+        if (highlightEnabled && desiredSet.has(labelB)) alleleB.classList.add('allele-quest-match');
+        allelesEl.appendChild(alleleB);
+
         allelesEl.appendChild(document.createTextNode(')'));
       } else {
-        allelesEl.textContent = `(${labelA}, ${labelB})`;
+        const labelA = getAlleleLabel(alleles[0]);
+        const labelB = getAlleleLabel(alleles[1]);
+        if (highlightEnabled && (desiredSet.has(labelA) || desiredSet.has(labelB))) {
+          allelesEl.textContent = '(';
+          const spanA = el('span', desiredSet.has(labelA) ? 'allele-quest-match' : '', labelA);
+          allelesEl.appendChild(spanA);
+          allelesEl.appendChild(document.createTextNode(', '));
+          const spanB = el('span', desiredSet.has(labelB) ? 'allele-quest-match' : '', labelB);
+          allelesEl.appendChild(spanB);
+          allelesEl.appendChild(document.createTextNode(')'));
+        } else {
+          allelesEl.textContent = `(${labelA}, ${labelB})`;
+        }
       }
     }
 

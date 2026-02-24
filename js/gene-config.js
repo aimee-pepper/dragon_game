@@ -671,8 +671,9 @@ export const HIGH_ALLELE_WEIGHTS = [0.02, 0.06, 0.22, 0.70];   // ~98% chance pa
 // ============================================================
 
 export const MUTATION_RATE = 0.005; // 0.5% per allele per breeding event
-export const CLUTCH_SIZE_MIN = 2;
+export const CLUTCH_SIZE_MIN = 4;
 export const CLUTCH_SIZE_MAX = 4;
+// Base is exactly 4 eggs per clutch. Clutch Size skills add more.
 
 // ============================================================
 // RECESSIVE EXTREMES — makes all-high/all-low triangle outcomes

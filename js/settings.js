@@ -10,6 +10,17 @@ const DEFAULTS = {
   'pinned-quest-widget': true,
   'active-tab': 'generate',
   'pinned-quest-id': null,
+
+  // Debug/Testing toggles — visibility
+  'debug-show-genotype': false,      // bypass hidden genotype, show all alleles
+  'debug-reveal-almanac': false,     // show all almanac entries regardless of progression
+  'debug-quest-highlight': false,    // highlight quest-relevant traits (will become skill-based)
+
+  // Debug/Testing toggles — limit bypasses
+  'debug-unlimited-hatch': false,    // bypass hatch limits
+  'debug-unlimited-stables': false,  // bypass nest and den slot limits
+  'debug-free-reroll': false,        // reroll quest trait requirements freely
+  'debug-no-cooldown': false,        // remove breeding cooldown (if/when cooldowns exist)
 };
 
 let settings = { ...DEFAULTS };

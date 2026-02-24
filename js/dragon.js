@@ -1,6 +1,7 @@
 // Dragon class: wraps genotype + phenotype + metadata
 import { createRandomGenotype, breedDragons, determineSex } from './genetics-engine.js';
 import { resolveFullPhenotype } from './phenotype-resolver.js';
+import { GENE_DEFS } from './gene-config.js';
 
 let nextId = 1;
 
@@ -30,7 +31,7 @@ function generateName() {
 }
 
 export class Dragon {
-  constructor({ genotype, sex, name, parentIds, mutations, alleleOrigins, generation, id, isDarkEnergy }) {
+  constructor({ genotype, sex, name, parentIds, mutations, alleleOrigins, generation, id, isDarkEnergy, revealedGenes }) {
     // If an explicit id is provided (from save data), use it without incrementing
     this.id = id != null ? id : nextId++;
     this.genotype = genotype || createRandomGenotype();
@@ -40,7 +41,14 @@ export class Dragon {
     this.mutations = mutations || [];
     this.alleleOrigins = alleleOrigins || null; // { geneName: ['A', 'B'] } — null for wild/random dragons
     this.generation = generation ?? 0; // 0 for wild/random, increments with breeding
+    this.revealedGenes = revealedGenes || {}; // { geneName: 'peek' | 'full' }
     this.phenotype = resolveFullPhenotype(this.genotype);
+
+    // Auto-reveal genes at extreme phenotype values.
+    // For linear genes: if the phenotype equals the gene's min or max, both alleles
+    // MUST be at that extreme (no blend of two different alleles can produce the
+    // min or max after averaging + rounding). So the genotype is unambiguous.
+    this._autoRevealExtremes();
 
     // Override Dark Energy if explicitly set (from save data)
     // Dark Energy is a random 5% roll — not deterministic from genotype — so we must persist it
@@ -64,6 +72,7 @@ export class Dragon {
       alleleOrigins: this.alleleOrigins,
       generation: this.generation,
       isDarkEnergy: this.isDarkEnergy,
+      revealedGenes: this.revealedGenes,
     };
   }
 
@@ -79,6 +88,7 @@ export class Dragon {
       alleleOrigins: data.alleleOrigins || null,
       generation: data.generation ?? 0,
       isDarkEnergy: data.isDarkEnergy || false,
+      revealedGenes: data.revealedGenes || {},
     });
   }
 
@@ -88,6 +98,66 @@ export class Dragon {
       genotype: createRandomGenotype(),
       sex: determineSex(),
     });
+  }
+
+  // ── Gene reveal helpers ──────────────────────────────────
+
+  /** Reveal a gene at a given level ('peek' = one allele, 'full' = both) */
+  revealGene(geneName, level) {
+    const current = this.revealedGenes[geneName];
+    // Only upgrade: peek → full, never downgrade
+    if (current === 'full') return;
+    if (level === 'peek' && current === 'peek') return;
+    this.revealedGenes[geneName] = level;
+  }
+
+  /** Check if a gene is revealed. Returns 'peek' | 'full' | null */
+  isGeneRevealed(geneName) {
+    return this.revealedGenes[geneName] || null;
+  }
+
+  /** Count of revealed genes */
+  getRevealedCount() {
+    return Object.keys(this.revealedGenes).length;
+  }
+
+  /**
+   * Auto-reveal genes whose displayed phenotype can only result from one
+   * specific allele combination — making the genotype unambiguously deducible.
+   *
+   * For linear genes (phenotype = Math.round((a+b)/2)):
+   *
+   * MIN extreme: phenotype = min requires (a+b)/2 < min+0.5, i.e. a+b < 2*min+1.
+   *   Since a >= min and b >= min, the only solution is a = b = min.
+   *   → Seeing "Bird" (body_size min=1) guarantees both alleles are 1.
+   *   → Reveal level: 'full' (both alleles known to be min).
+   *
+   * MAX extreme: phenotype = max when (a+b)/2 >= max-0.5, i.e. a+b >= 2*max-1.
+   *   Both [max,max] AND [max-1,max] satisfy this. We KNOW at least one allele
+   *   is max (because [max-1,max-1] averages to max-1, not max), but the second
+   *   allele is ambiguous.
+   *   → Seeing "Mega" means at least one allele is 6, but could be [5,6] or [6,6].
+   *   → Reveal level: 'peek' (one allele known to be max, other unknown).
+   */
+  _autoRevealExtremes() {
+    for (const [geneName, def] of Object.entries(GENE_DEFS)) {
+      if (def.inheritanceType !== 'linear') continue;
+      if (this.revealedGenes[geneName] === 'full') continue;
+
+      const pair = this.genotype[geneName];
+      if (!pair) continue;
+
+      // MIN extreme: both alleles must be min → fully revealed
+      if (pair[0] === def.min && pair[1] === def.min) {
+        this.revealedGenes[geneName] = 'full';
+      }
+      // MAX extreme: at least one allele must be max → peek revealed
+      else if (this.revealedGenes[geneName] !== 'peek' &&
+               (pair[0] === def.max || pair[1] === def.max) &&
+               Math.round((pair[0] + pair[1]) / 2) === def.max) {
+        this.revealedGenes[geneName] = 'peek';
+      }
+    }
   }
 
   // Breed two dragons, returning an array of offspring Dragon instances

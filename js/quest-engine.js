@@ -329,19 +329,37 @@ function makeSpineReq() {
   };
 }
 
-// All requirement generators
-const REQ_MAKERS = [
-  makeColorReq, makeElementReq, makeFinishReq,
+// ── Trait weight system ──────────────────────────────────────
+// Each requirement has a "trait weight" reflecting how many underlying traits
+// it actually constrains:
+//   Single traits (size, wings, horns, etc.) = 1
+//   Tri-point traits (color, finish, element) = 3
+//   Combo tri-point (specialty = color+finish, modifier = finish+element) = 6
+//
+// Quest difficulty is defined by total trait weight budget:
+//   Easy:       2 traits   (singles only — never tri-point)
+//   Medium:     3-5 traits (tri-point + singles, or just singles)
+//   Hard:       6-9 traits (combos, tri-points, and singles)
+//   Extra Hard: 9-12 traits (combo-tri + solo-tri + singles)
+
+// Single-trait makers (weight 1 each)
+const SINGLE_MAKERS = [
   makeSizeReq, makeWingReq, makeScaleReq,
   makeBodyTypeReq, makeLimbReq, makeHornReq, makeSpineReq,
 ];
 
-// Extra makers available for harder quests (specialty combos are rarer)
-const ADVANCED_REQ_MAKERS = [
-  ...REQ_MAKERS,
-  makeSpecialtyReq, makeModifierReq,
-];
+// Tri-point makers (weight 3 each)
+const TRI_MAKERS = [makeColorReq, makeElementReq, makeFinishReq];
 
+// Combo-tri makers (weight 6 each)
+const COMBO_MAKERS = [makeSpecialtyReq, makeModifierReq];
+
+// Weight of each maker
+const MAKER_WEIGHT = new Map([
+  ...SINGLE_MAKERS.map(m => [m, 1]),
+  ...TRI_MAKERS.map(m => [m, 3]),
+  ...COMBO_MAKERS.map(m => [m, 6]),
+]);
 
 // Conflict pairs: if one is picked, the other must be excluded.
 // Each entry is [makerA, makerB] meaning they can't coexist.
@@ -353,22 +371,6 @@ const CONFLICT_PAIRS = [
   [makeModifierReq, makeElementReq],   // modifier locks element
 ];
 
-// Pick N unique, non-conflicting requirement makers from a pool.
-// Each time a maker is picked, any makers it conflicts with (in either direction)
-// are removed from the remaining pool before the next pick.
-function pickCompatibleMakers(pool, count) {
-  let available = [...pool];
-  const picked = [];
-  for (let i = 0; i < count && available.length > 0; i++) {
-    const idx = Math.floor(Math.random() * available.length);
-    const maker = available.splice(idx, 1)[0];
-    picked.push(maker);
-    // Remove anything that conflicts with this pick (bidirectional)
-    available = removeConflicts(available, maker);
-  }
-  return picked;
-}
-
 // Remove makers from a pool that would conflict with the given maker
 function removeConflicts(pool, maker) {
   const blocked = new Set();
@@ -379,82 +381,104 @@ function removeConflicts(pool, maker) {
   return pool.filter(m => !blocked.has(m));
 }
 
-// Easy quest templates: 1 requirement
+/**
+ * Fill a trait weight budget by picking makers from the given pool.
+ * Returns an array of maker functions whose total weight is within [minWeight, maxWeight].
+ * Picks one at a time, removing conflicts after each pick, until budget is filled.
+ */
+function fillBudget(pool, minWeight, maxWeight) {
+  let available = [...pool];
+  const picked = [];
+  let totalWeight = 0;
+
+  // Shuffle available pool for variety
+  for (let i = available.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [available[i], available[j]] = [available[j], available[i]];
+  }
+
+  for (let attempt = 0; attempt < 50 && available.length > 0; attempt++) {
+    // Filter to makers that still fit within budget
+    const remaining = maxWeight - totalWeight;
+    const fits = available.filter(m => MAKER_WEIGHT.get(m) <= remaining);
+    if (fits.length === 0) break;
+
+    // If we've met the minimum, sometimes stop (30% chance per extra pick)
+    if (totalWeight >= minWeight && Math.random() < 0.3) break;
+
+    const idx = Math.floor(Math.random() * fits.length);
+    const maker = fits[idx];
+    picked.push(maker);
+    totalWeight += MAKER_WEIGHT.get(maker);
+
+    // Remove chosen maker and its conflicts from pool
+    available = available.filter(m => m !== maker);
+    available = removeConflicts(available, maker);
+  }
+
+  return picked;
+}
+
+// ── Quest builders ──────────────────────────────────────────
+
+function buildQuest(reqs, difficulty, patronVerb) {
+  const labels = reqs.map(r => r.label);
+  const patron = pick(PATRONS);
+  const titleTraits = labels.length === 1
+    ? labels[0]
+    : labels.length === 2
+      ? labels.join(' and ')
+      : `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`;
+
+  return {
+    id: nextQuestId++,
+    title: `Breed a dragon with ${titleTraits}`,
+    description: `${patron} ${patronVerb} a dragon with ${labels.join(', ')}.`,
+    requirements: reqs,
+    difficulty,
+    status: 'active',
+    completedBy: null,
+  };
+}
+
+// Easy: 2 traits — singles only (never tri-point)
 function generateEasyQuest() {
-  const basicMakers = [makeColorReq, makeElementReq, makeFinishReq, makeSizeReq, makeWingReq, makeScaleReq];
-  const req = pick(basicMakers)();
-  const patron = pick(PATRONS);
-  return {
-    id: nextQuestId++,
-    title: `Breed a dragon with ${req.label}`,
-    description: `${patron} seeks a dragon with ${req.label}.`,
-    requirements: [req],
-    difficulty: 'easy',
-    status: 'active',
-    completedBy: null,
-  };
+  const makers = fillBudget(SINGLE_MAKERS, 2, 2);
+  const reqs = makers.map(m => m());
+  return buildQuest(reqs, 'easy', 'seeks');
 }
 
-// Medium quest templates: 2 requirements
+// Medium: 3-5 traits — any mix of singles and tri-points (no combos)
 function generateMediumQuest() {
-  const makers = pickCompatibleMakers(REQ_MAKERS, 2);
+  const pool = [...SINGLE_MAKERS, ...TRI_MAKERS];
+  const makers = fillBudget(pool, 3, 5);
   const reqs = makers.map(m => m());
-  const labels = reqs.map(r => r.label);
-  const patron = pick(PATRONS);
-
-  return {
-    id: nextQuestId++,
-    title: `Breed a dragon with ${labels.join(' and ')}`,
-    description: `${patron} requires a dragon with ${labels.join(' and ')}.`,
-    requirements: reqs,
-    difficulty: 'medium',
-    status: 'active',
-    completedBy: null,
-  };
+  return buildQuest(reqs, 'medium', 'requires');
 }
 
-// Hard quest templates: 3 requirements
+// Hard: 6-9 traits — can include combos, tri-points, singles
 function generateHardQuest() {
-  const makers = pickCompatibleMakers(ADVANCED_REQ_MAKERS, 3);
+  const pool = [...SINGLE_MAKERS, ...TRI_MAKERS, ...COMBO_MAKERS];
+  const makers = fillBudget(pool, 6, 9);
   const reqs = makers.map(m => m());
-  const labels = reqs.map(r => r.label);
-  const patron = pick(PATRONS);
-
-  return {
-    id: nextQuestId++,
-    title: `Breed a dragon with ${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`,
-    description: `${patron} demands a remarkable dragon with ${labels.join(', ')}.`,
-    requirements: reqs,
-    difficulty: 'hard',
-    status: 'active',
-    completedBy: null,
-  };
+  return buildQuest(reqs, 'hard', 'demands a remarkable');
 }
 
-// Extra Hard quest templates: 4 requirements (always includes specialty or modifier)
+// Extra Hard: 9-12 traits — always includes at least one combo-tri
 function generateExtraHardQuest() {
-  // Ensure at least one specialty or modifier requirement
-  const guaranteedMaker = pick([makeSpecialtyReq, makeModifierReq]);
-  const guaranteedReq = guaranteedMaker();
+  // Guarantee at least one combo-tri requirement
+  const guaranteedMaker = pick(COMBO_MAKERS);
+  const guaranteedWeight = MAKER_WEIGHT.get(guaranteedMaker);
 
-  // Filter the standard pool to remove makers that conflict with the guaranteed req
-  const safePool = removeConflicts(REQ_MAKERS, guaranteedMaker);
-  const otherMakers = pickCompatibleMakers(safePool, 3);
-  const otherReqs = otherMakers.map(m => m());
+  // Build remaining pool excluding conflicts
+  let remaining = [...SINGLE_MAKERS, ...TRI_MAKERS, ...COMBO_MAKERS];
+  remaining = remaining.filter(m => m !== guaranteedMaker);
+  remaining = removeConflicts(remaining, guaranteedMaker);
 
-  const reqs = [guaranteedReq, ...otherReqs];
-  const labels = reqs.map(r => r.label);
-  const patron = pick(PATRONS);
-
-  return {
-    id: nextQuestId++,
-    title: `Breed a dragon with ${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`,
-    description: `${patron} demands a truly exceptional dragon with ${labels.join(', ')}.`,
-    requirements: reqs,
-    difficulty: 'extra-hard',
-    status: 'active',
-    completedBy: null,
-  };
+  const otherMakers = fillBudget(remaining, 9 - guaranteedWeight, 12 - guaranteedWeight);
+  const allMakers = [guaranteedMaker, ...otherMakers];
+  const reqs = allMakers.map(m => m());
+  return buildQuest(reqs, 'extra-hard', 'demands a truly exceptional');
 }
 
 // ── Public API ──────────────────────────────────────────────

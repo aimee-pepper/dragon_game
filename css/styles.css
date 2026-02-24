@@ -178,6 +178,40 @@ header {
   padding-bottom: calc(var(--spacing-xs) + env(safe-area-inset-bottom, 0px));
 }
 
+/* Footer currency tab — floats above the footer */
+#footer-currency {
+  position: absolute;
+  top: 0;
+  left: 8px;
+  transform: translateY(-100%);
+  display: flex;
+  gap: 12px;
+  padding: 4px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.footer-cur {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.footer-cur-gold { color: #f0c040; }
+.footer-cur-exp  { color: #80d0ff; }
+.footer-cur-rep  { color: #c0a0ff; }
+
+.footer-cur .currency-icon {
+  width: 14px;
+  height: 14px;
+}
+
 #footer-nav {
   display: flex;
   gap: var(--spacing-xs);
@@ -1001,6 +1035,9 @@ header {
 
 .clutch-results {
   margin-top: var(--spacing);
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-sm);
 }
 
 .clutch-header {
@@ -1009,6 +1046,189 @@ header {
   color: var(--text-muted);
   margin-bottom: var(--spacing-sm);
   text-align: center;
+  grid-column: 1 / -1;
+}
+
+.clutch-results .mutation-note {
+  grid-column: 1 / -1;
+}
+
+/* ---- Clutch Budget Bar ---- */
+.clutch-budget {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: var(--spacing);
+  grid-column: 1 / -1;
+}
+
+.budget-tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 12px;
+  letter-spacing: 0.3px;
+}
+
+.budget-instant {
+  background: rgba(80, 200, 120, 0.15);
+  color: #50c878;
+  border: 1px solid rgba(80, 200, 120, 0.3);
+}
+
+.budget-timed {
+  background: rgba(255, 193, 7, 0.15);
+  color: #ffc107;
+  border: 1px solid rgba(255, 193, 7, 0.3);
+}
+
+.light-mode .budget-instant {
+  background: rgba(40, 140, 70, 0.1);
+  color: #288c46;
+  border-color: rgba(40, 140, 70, 0.25);
+}
+
+.light-mode .budget-timed {
+  background: rgba(200, 150, 0, 0.1);
+  color: #9a7600;
+  border-color: rgba(200, 150, 0, 0.25);
+}
+
+/* ---- Egg Cards ---- */
+.egg-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  margin-bottom: var(--spacing-sm);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.egg-card-done {
+  opacity: 0.5;
+}
+
+.egg-visual {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.egg-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.egg-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-bright);
+  white-space: nowrap;
+}
+
+.egg-status-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ── Egg/Nest Canvas Art ── */
+.egg-art-wrap {
+  flex-shrink: 0;
+}
+
+.egg-canvas {
+  display: block;
+}
+
+/* Compact wrapper (racked/gone eggs in breed tab) */
+.egg-art-compact .egg-canvas {
+  /* Canvas sets its own CSS size via JS */
+}
+
+/* Egg rack inline wrapper */
+.egg-art-rack {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* Greyed-out state for sold/discarded eggs */
+.egg-art-gone {
+  filter: grayscale(1) opacity(0.5);
+}
+
+/* Fallback if canvas fails */
+.egg-art-fallback {
+  width: 36px;
+  height: 48px;
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  opacity: 0.6;
+}
+
+/* ── Hidden Trait Hints ── */
+.egg-traits {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.egg-trait-row {
+  display: flex;
+  gap: 4px;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.egg-trait-label {
+  color: var(--text-dim, #666);
+}
+
+.egg-trait-value {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.egg-trait-value.revealed {
+  color: var(--text-bright);
+  font-style: normal;
+}
+
+.egg-trait-mut {
+  margin-top: 2px;
+}
+
+.egg-mut-hint {
+  color: var(--mutation);
+  font-size: 11px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.egg-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  width: 100%;
+}
+
+/* ── Currency Icons ── */
+.currency-icon {
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  margin-right: 2px;
 }
 
 .offspring-actions {
@@ -1385,6 +1605,158 @@ header {
   background: rgba(255, 82, 82, 0.12);
 }
 
+/* Den toggle button */
+.den-toggle {
+  margin-left: auto;
+  font-size: 14px;
+  padding: 2px 8px;
+  min-height: 0;
+  line-height: 1.2;
+}
+
+/* Expanded den — full card grid */
+.den-expanded {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-sm);
+}
+
+.den-expanded-empty {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 12px;
+}
+
+/* ---- Egg Rack Section ---- */
+
+.egg-rack-section {
+  margin-bottom: var(--spacing);
+  border-top: 1px solid var(--border);
+  padding-top: var(--spacing-sm);
+}
+
+.egg-rack-slots {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-sm);
+}
+
+.egg-rack-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 12px;
+  background: var(--bg-card);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  grid-column: 1 / -1;
+}
+
+.egg-rack-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  text-align: center;
+}
+
+.egg-rack-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.egg-rack-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-bright);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+}
+
+.egg-rack-timer {
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  letter-spacing: 0.5px;
+}
+
+.egg-rack-timer-ready {
+  color: #50c878;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.egg-rack-bar-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+
+.egg-rack-bar {
+  width: 100%;
+  height: 4px;
+  background: var(--bg-card-alt);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.egg-rack-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 1s linear;
+}
+
+.egg-rack-time-label {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* Egg rack incubation glow */
+.egg-rack-glow {
+  border-radius: 50%;
+  animation: egg-incubate 2.4s ease-in-out infinite;
+  --egg-glow-color: #c4a265; /* fallback warm gold, overridden inline */
+}
+
+@keyframes egg-incubate {
+  0%, 100% {
+    filter: drop-shadow(0 0 3px color-mix(in srgb, var(--egg-glow-color) 40%, transparent));
+  }
+  50% {
+    filter: drop-shadow(0 0 8px color-mix(in srgb, var(--egg-glow-color) 80%, transparent))
+            drop-shadow(0 0 14px color-mix(in srgb, var(--egg-glow-color) 30%, transparent));
+  }
+}
+
+/* When egg is ready, glow brighter and faster */
+.egg-rack-glow-ready {
+  animation: egg-ready-pulse 1s ease-in-out infinite;
+}
+
+@keyframes egg-ready-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 4px var(--egg-glow-color))
+            drop-shadow(0 0 10px color-mix(in srgb, var(--egg-glow-color) 50%, transparent));
+  }
+  50% {
+    filter: drop-shadow(0 0 10px var(--egg-glow-color))
+            drop-shadow(0 0 20px color-mix(in srgb, var(--egg-glow-color) 60%, transparent));
+  }
+}
+
 /* ---- Nests Section Label ---- */
 
 .nests-section {
@@ -1467,6 +1839,17 @@ header {
   color: var(--text-muted) !important;
   cursor: default;
   opacity: 0.6;
+}
+
+.btn-nests-full {
+  background: #5a2020 !important;
+  border-color: #7a3030 !important;
+  color: #ff8888 !important;
+}
+.light-mode .btn-nests-full {
+  background: #ffe0e0 !important;
+  border-color: #d4a0a0 !important;
+  color: #a03030 !important;
 }
 
 .btn-parent-set {
@@ -1898,6 +2281,27 @@ header {
   max-height: 85vh;
   display: flex;
   flex-direction: column;
+  transition: max-height 0.3s ease;
+}
+
+.family-tree-panel.family-tree-fullscreen {
+  max-height: calc(100vh - env(safe-area-inset-top, 0px));
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.family-tree-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.family-tree-expand {
+  font-size: 14px;
+  padding: 4px 10px;
+  min-height: 0;
+  line-height: 1.2;
+  flex-shrink: 0;
 }
 
 .family-tree-gen-info {
@@ -2949,6 +3353,73 @@ header {
   flex: 1;
 }
 
+/* NFC Dragon Claim input row */
+.claim-row {
+  flex-wrap: nowrap;
+}
+
+.claim-input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.claim-input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+.claim-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.claim-row .btn {
+  flex: none;
+  padding: 8px 16px;
+}
+
+/* Save backup list */
+.backup-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.backup-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.backup-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.backup-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.backup-detail {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
 .picker-subtitle {
   font-size: 12px;
   color: var(--text-muted);
@@ -2992,6 +3463,82 @@ header {
 .io-toast-error {
   border-color: var(--accent-secondary);
   color: var(--accent-secondary);
+}
+
+/* Toast notification for NFC dragon claim */
+.claim-toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  padding: 12px 24px;
+  background: var(--bg-card);
+  border: 2px solid var(--success);
+  border-radius: var(--radius);
+  color: var(--success);
+  font-family: 'AimeeHandwriting', serif;
+  font-size: 15px;
+  text-align: center;
+  z-index: 10000;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  pointer-events: none;
+  max-width: 90vw;
+}
+
+.claim-toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.claim-toast-error {
+  border-color: var(--accent-secondary);
+  color: var(--accent-secondary);
+}
+
+/* ---- Debug/Testing Section ---- */
+.debug-section-header {
+  margin-top: calc(var(--spacing) * 2);
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+}
+
+.options-subsection-header {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-muted);
+  margin-top: var(--spacing);
+  margin-bottom: var(--spacing-xs);
+  opacity: 0.7;
+}
+
+.debug-btn-row {
+  flex-wrap: wrap;
+}
+
+.btn-danger {
+  background: #5a2020;
+  color: #ff8888;
+  border: 1px solid #7a3030;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+.btn-danger:hover {
+  background: #7a3030;
+}
+.light-mode .btn-danger {
+  background: #ffe0e0;
+  color: #a03030;
+  border-color: #d4a0a0;
+}
+.light-mode .btn-danger:hover {
+  background: #ffd0d0;
 }
 
 /* ---- Secret Dev Console ---- */
@@ -3252,18 +3799,9 @@ header {
 
   /* Grid handles spacing, remove card margin */
   .dragon-list .dragon-card,
-  .clutch-results .dragon-card {
+  .clutch-results .dragon-card,
+  .clutch-results .egg-card {
     margin-bottom: 0;
-  }
-
-  /* Clutch header spans full width */
-  .clutch-header {
-    grid-column: 1 / -1;
-  }
-
-  /* Mutation notes span full width */
-  .mutation-note {
-    grid-column: 1 / -1;
   }
 
   /* 2-column genotype grid inside cards */
@@ -3432,8 +3970,12 @@ header {
 
   /* ---- Family tree pedigree: compact for mobile ---- */
   .family-tree-panel {
-    max-height: 92vh;
+    max-height: 60vh;
     padding: var(--spacing-sm);
+  }
+
+  .family-tree-panel.family-tree-fullscreen {
+    max-height: calc(100vh - env(safe-area-inset-top, 0px));
   }
 
   .family-tree-container {
@@ -3600,3 +4142,353 @@ header {
   color: var(--accent);
   letter-spacing: 2px;
 }
+
+/* ── Shop Tab ───────────────────────────────────────────────── */
+
+.shop-currency-bar {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  padding: 10px 12px;
+  background: var(--bg-card);
+  border-radius: var(--radius-sm);
+  margin-bottom: 12px;
+}
+
+.shop-currency {
+  font-size: 16px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.shop-gold { color: #d4a832; }
+.shop-rep { color: var(--accent); }
+
+.shop-tab-bar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.shop-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 6px;
+  background: var(--bg-card);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.shop-tab:hover { border-color: var(--accent); }
+
+.shop-tab-active {
+  border-color: var(--accent);
+  background: var(--bg-card-alt);
+}
+
+.shop-tab-locked {
+  opacity: 0.5;
+}
+
+.shop-tab-icon { font-size: 20px; }
+.shop-tab-name { font-size: 11px; text-align: center; }
+
+/* Locked shop */
+.shop-locked-card {
+  text-align: center;
+  padding: 32px 16px;
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.shop-locked-icon { font-size: 48px; margin-bottom: 12px; }
+.shop-locked-title { font-size: 18px; font-weight: 600; color: var(--text-bright); margin-bottom: 4px; }
+.shop-locked-desc { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; }
+
+.shop-rep-bar {
+  height: 8px;
+  background: var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.shop-rep-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 4px;
+  transition: width 0.3s;
+}
+
+.shop-rep-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.shop-ach-gate {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: var(--bg-card-alt);
+  border-radius: var(--radius-sm);
+  display: inline-block;
+}
+.shop-ach-unmet { color: #b07040; }
+
+/* Unlocked shop */
+.shop-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: var(--bg-card);
+  border-radius: var(--radius-sm);
+  margin-bottom: 10px;
+}
+
+.shop-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.shop-header-icon { font-size: 20px; }
+.shop-header-name { font-size: 15px; font-weight: 600; color: var(--text-bright); }
+
+.shop-header-right {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.shop-tier-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  background: var(--accent);
+  color: var(--btn-text);
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.shop-discount-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  background: var(--success);
+  color: #fff;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.shop-empty {
+  text-align: center;
+  padding: 24px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* Tier sections */
+.shop-tier-section {
+  margin-bottom: 12px;
+}
+
+.shop-tier-header {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  padding: 4px 8px;
+  margin-bottom: 6px;
+}
+
+/* Item rows */
+.shop-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: var(--bg-card);
+  border-radius: var(--radius-sm);
+  margin-bottom: 6px;
+  border: 1px solid var(--border);
+}
+
+.shop-item-info { flex: 1; min-width: 0; }
+
+.shop-item-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-bright);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.shop-item-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.shop-item-ach {
+  font-size: 10px;
+  color: #b07040;
+  margin-top: 2px;
+}
+
+.shop-item-limit {
+  font-size: 9px;
+  padding: 1px 5px;
+  background: var(--accent-secondary);
+  color: var(--text);
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.shop-item-owned {
+  font-size: 10px;
+  color: var(--success);
+  font-weight: 600;
+}
+
+.shop-item-buy {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.shop-item-price {
+  font-size: 13px;
+  font-weight: 600;
+  color: #d4a832;
+  white-space: nowrap;
+}
+
+.shop-item-purchased {
+  color: var(--success);
+  font-size: 11px;
+}
+
+.btn-shop {
+  background: var(--accent);
+  color: var(--btn-text);
+  border: none;
+  padding: 5px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-shop:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.btn-shop.btn-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-shop.btn-purchased {
+  background: var(--success);
+  color: #fff;
+}
+
+.btn-shop.btn-error {
+  background: #b04040;
+  color: #fff;
+  font-size: 10px;
+}
+
+/* Inventory section */
+.shop-inventory-section {
+  margin-top: 16px;
+  padding: 10px 12px;
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.shop-inventory-header {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.shop-inventory-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  font-size: 12px;
+  color: var(--text);
+  text-transform: capitalize;
+}
+
+.shop-inv-count {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ── Light mode overrides for shop ──────────────────────────── */
+.light-mode .shop-gold { color: #a07020; }
+.light-mode .shop-rep { color: #7a6530; }
+.light-mode .btn-shop.btn-error { background: #c05050; }
+.light-mode .shop-ach-unmet { color: #905030; }
+.light-mode .shop-item-purchased { color: #4a8f3a; }
+
+/* ── Almanac Discovery Hiding ────────────────────────────────── */
+
+.almanac-hidden {
+  opacity: 0.35;
+  font-style: italic;
+  color: var(--text-muted) !important;
+}
+
+.almanac-grid-cell.almanac-hidden {
+  background: var(--bg-card);
+  color: var(--text-muted);
+}
+
+.almanac-discovery-count {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 4px 0 8px;
+}
+
+.almanac-discovery-count span {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.almanac-hidden-recipe {
+  opacity: 0.4;
+  font-style: italic;
+}
+
+.trait-chip-hidden {
+  opacity: 0.35;
+  font-style: italic;
+  background: var(--bg-card) !important;
+  color: var(--text-muted) !important;
+}
+
+.light-mode .almanac-hidden { opacity: 0.3; }
+.light-mode .trait-chip-hidden { opacity: 0.3; }

@@ -38,6 +38,7 @@ function initExternalLinks() {
     'open-sprite-placement': 'sprite-placement.html',
     'open-spine-placement':  'spine-placement.html',
     'open-breath-elements':  'breath-elements.html',
+    'open-dragon-creator':   'dragon-creator.html',
   };
   for (const [id, url] of Object.entries(openers)) {
     const btn = document.getElementById(id);

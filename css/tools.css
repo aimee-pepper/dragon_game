@@ -320,3 +320,282 @@ body.light-mode .checker-bg {
   accent-color: var(--accent);
   margin-right: 2px;
 }
+
+/* ── Dragon Creator ── */
+
+.dragon-creator {
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+.creator-title {
+  color: var(--accent);
+  font-size: 20px;
+  margin-bottom: 4px;
+}
+
+.creator-subtitle {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-bottom: var(--spacing);
+}
+
+.creator-controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing);
+  align-items: flex-end;
+  margin-bottom: var(--spacing);
+}
+
+.creator-name-group {
+  flex: 1;
+  min-width: 180px;
+}
+
+.creator-label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.creator-input,
+.creator-select {
+  width: 100%;
+  background: var(--bg-card);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.creator-sex-group {
+  min-width: 100px;
+}
+
+.creator-de-group {
+  display: flex;
+  align-items: center;
+}
+
+.creator-de-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+  margin-bottom: 0;
+}
+
+.creator-de-label input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+
+.creator-de-label input:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.creator-btn-row {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing);
+}
+
+.creator-btn {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 18px;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.creator-btn-primary {
+  background: var(--btn-bg);
+  color: var(--btn-text);
+}
+
+.creator-btn-secondary {
+  background: var(--btn-secondary-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+/* URL output box */
+.creator-url-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--spacing);
+  margin-bottom: var(--spacing);
+}
+
+.creator-url-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.creator-url-row {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.creator-url-input {
+  flex: 1;
+  background: var(--bg);
+  color: var(--accent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+}
+
+.creator-char-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  text-align: right;
+}
+
+/* Live preview */
+.creator-preview {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--spacing);
+  margin-bottom: var(--spacing);
+}
+
+.creator-preview-title {
+  font-size: 14px;
+  color: var(--accent);
+  margin-bottom: var(--spacing-sm);
+}
+
+.creator-preview-layout {
+  display: flex;
+  gap: var(--spacing);
+  align-items: flex-start;
+}
+
+.creator-preview-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.creator-sprite-wrap {
+  flex-shrink: 0;
+  width: 420px;
+}
+
+.creator-sprite-canvas {
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+@media (max-width: 600px) {
+  .creator-preview-layout {
+    flex-direction: column-reverse;
+  }
+  .creator-sprite-wrap {
+    width: 100%;
+    max-width: 360px;
+    align-self: center;
+  }
+}
+
+.creator-preview-line {
+  font-size: 13px;
+  margin-bottom: 3px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.creator-preview-label {
+  color: var(--text-muted);
+}
+
+.creator-preview-value {
+  color: var(--text-bright);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.creator-preview-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+/* Gene sections */
+.creator-genes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing);
+}
+
+.creator-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--spacing);
+}
+
+.creator-section-header {
+  font-size: 14px;
+  color: var(--accent);
+  font-weight: bold;
+  margin-bottom: var(--spacing-sm);
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.creator-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing);
+  margin-bottom: var(--spacing-sm);
+}
+
+.creator-row:last-child {
+  margin-bottom: 0;
+}
+
+.creator-gene-label {
+  font-size: 13px;
+  color: var(--text);
+  min-width: 100px;
+  flex-shrink: 0;
+}
+
+.creator-allele-pair {
+  display: flex;
+  gap: var(--spacing-sm);
+  flex: 1;
+}
+
+.creator-allele-select {
+  flex: 1;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: 12px;
+}

@@ -580,7 +580,19 @@ export function openFamilyTree(dragon, registry) {
   const overlay = el('div', 'picker-overlay family-tree-overlay');
   const panel = el('div', 'picker-panel family-tree-panel');
 
-  panel.appendChild(el('div', 'picker-title', `${dragon.name}'s Lineage`));
+  // Title row with expand toggle
+  const titleRow = el('div', 'family-tree-title-row');
+  titleRow.appendChild(el('div', 'picker-title', `${dragon.name}'s Lineage`));
+
+  const expandBtn = el('button', 'btn btn-secondary family-tree-expand', '⬆');
+  expandBtn.title = 'Expand to full screen';
+  expandBtn.addEventListener('click', () => {
+    const isExpanded = panel.classList.toggle('family-tree-fullscreen');
+    expandBtn.textContent = isExpanded ? '⬇' : '⬆';
+    expandBtn.title = isExpanded ? 'Collapse' : 'Expand to full screen';
+  });
+  titleRow.appendChild(expandBtn);
+  panel.appendChild(titleRow);
 
   const genText = dragon.generation === 0
     ? 'Generation 0 (Wild)'

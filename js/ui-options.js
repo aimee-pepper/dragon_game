@@ -1,9 +1,11 @@
-// Options tab UI — settings toggles + dragon import/export
+// Options tab UI — settings toggles + dragon import/export + NFC claim + debug toggles
 import { getSetting, setSetting } from './settings.js';
 import { exportDragonPNG, importDragonPNG } from './dragon-io.js';
 import { getStabledDragons, addToStables } from './ui-stables.js';
 import { renderPickerItem } from './ui-card.js';
-import { triggerSave } from './save-manager.js';
+import { triggerSave, addToStat, getStats, listBackups, restoreFromBackup } from './save-manager.js';
+import { decodeDragonParams } from './dragon-url.js';
+import { Dragon } from './dragon.js';
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -84,6 +86,201 @@ export function initOptionsTab(container, registry) {
   ioDesc.textContent = 'Export a dragon as a shareable PNG image. Import a dragon from a previously exported PNG.';
   ioDesc.style.marginBottom = '12px';
   wrapper.appendChild(ioDesc);
+
+  // --- Save Backups ---
+  wrapper.appendChild(el('div', 'options-section-header', 'Save Backups'));
+
+  const backupDesc = el('div', 'options-toggle-desc');
+  backupDesc.textContent = 'The game keeps rolling backups of your save data. If something goes wrong, you can restore from a previous save.';
+  backupDesc.style.marginBottom = '8px';
+  wrapper.appendChild(backupDesc);
+
+  const backupContainer = el('div', 'backup-list');
+  wrapper.appendChild(backupContainer);
+
+  const refreshBackupList = () => {
+    backupContainer.innerHTML = '';
+    const backups = listBackups();
+    if (backups.length === 0) {
+      const empty = el('div', 'options-toggle-desc');
+      empty.textContent = 'No backups available yet. Backups are created automatically as you play.';
+      empty.style.fontStyle = 'italic';
+      backupContainer.appendChild(empty);
+      return;
+    }
+    for (const backup of backups) {
+      const row = el('div', 'backup-row');
+
+      const info = el('div', 'backup-info');
+      const age = formatTimeAgo(backup.savedAt);
+      info.appendChild(el('div', 'backup-label', `Backup #${backup.slot}`));
+      info.appendChild(el('div', 'backup-detail', `${age} — ${backup.dragonCount} dragon${backup.dragonCount !== 1 ? 's' : ''}, ${backup.questCount} quest${backup.questCount !== 1 ? 's' : ''}`));
+      row.appendChild(info);
+
+      const restoreBtn = el('button', 'btn btn-secondary btn-small', 'Restore');
+      restoreBtn.addEventListener('click', () => {
+        if (!confirm(`Restore from Backup #${backup.slot}? (${age}, ${backup.dragonCount} dragons)\n\nThis will replace your current save and reload the game.`)) return;
+        if (!confirm('Are you sure? Your current save will be overwritten.')) return;
+        try {
+          restoreFromBackup(backup.slot);
+        } catch (err) {
+          showToast(`Restore failed: ${err.message}`, 'error');
+        }
+      });
+      row.appendChild(restoreBtn);
+
+      backupContainer.appendChild(row);
+    }
+  };
+
+  refreshBackupList();
+
+  // --- NFC Dragon Claim ---
+  wrapper.appendChild(el('div', 'options-section-header', 'Claim Dragon'));
+
+  const claimDesc = el('div', 'options-toggle-desc');
+  claimDesc.textContent = 'Paste a dragon claim link or code from an NFC tag to add the dragon to your stables.';
+  claimDesc.style.marginBottom = '8px';
+  wrapper.appendChild(claimDesc);
+
+  const claimRow = el('div', 'options-btn-row claim-row');
+
+  const claimInput = el('input', 'claim-input');
+  claimInput.type = 'text';
+  claimInput.placeholder = 'Paste claim link or code...';
+  claimInput.spellcheck = false;
+  claimInput.autocomplete = 'off';
+  claimRow.appendChild(claimInput);
+
+  const claimBtn = el('button', 'btn btn-primary btn-small', 'Claim');
+  claimBtn.addEventListener('click', () => {
+    handleClaimInput(claimInput.value.trim(), registry);
+    claimInput.value = '';
+  });
+  claimRow.appendChild(claimBtn);
+
+  // Also allow Enter key to claim
+  claimInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      handleClaimInput(claimInput.value.trim(), registry);
+      claimInput.value = '';
+    }
+  });
+
+  wrapper.appendChild(claimRow);
+
+  // --- Debug/Testing Toggles ---
+  wrapper.appendChild(el('div', 'options-section-header debug-section-header', 'Debug / Testing'));
+
+  const debugNote = el('div', 'options-toggle-desc');
+  debugNote.textContent = 'Developer tools for testing. These bypass normal game progression.';
+  debugNote.style.marginBottom = '8px';
+  debugNote.style.fontStyle = 'italic';
+  wrapper.appendChild(debugNote);
+
+  // Visibility toggles
+  wrapper.appendChild(el('div', 'options-subsection-header', 'Visibility'));
+
+  wrapper.appendChild(
+    makeBoolToggle('Show Full Genotype', 'Bypass hidden genotype — show all alleles on all dragons', 'debug-show-genotype')
+  );
+  wrapper.appendChild(
+    makeBoolToggle('Reveal Full Almanac', 'Show all almanac entries regardless of progression', 'debug-reveal-almanac')
+  );
+  wrapper.appendChild(
+    makeBoolToggle('Quest Item Highlighting', 'Highlight quest-relevant traits (will become skill-based)', 'debug-quest-highlight')
+  );
+
+  // Limit bypasses
+  wrapper.appendChild(el('div', 'options-subsection-header', 'Limit Bypasses'));
+
+  wrapper.appendChild(
+    makeBoolToggle('Unlimited Hatch Capacity', 'Bypass egg hatch limits — hatch all eggs instantly', 'debug-unlimited-hatch')
+  );
+  wrapper.appendChild(
+    makeBoolToggle('Unlimited Stable Slots', 'Bypass nest and den slot limits', 'debug-unlimited-stables')
+  );
+  wrapper.appendChild(
+    makeBoolToggle('Free Quest Reroll', 'Reroll quest trait requirements for free', 'debug-free-reroll')
+  );
+  wrapper.appendChild(
+    makeBoolToggle('No Breeding Cooldown', 'Remove breeding cooldown (if applicable)', 'debug-no-cooldown')
+  );
+
+  // Currency/Reset tools
+  wrapper.appendChild(el('div', 'options-subsection-header', 'Currency Tools'));
+
+  const currencyBtns = el('div', 'options-btn-row debug-btn-row');
+
+  const addGoldBtn = el('button', 'btn btn-secondary btn-small', '+100 Gold');
+  addGoldBtn.addEventListener('click', () => {
+    addToStat('gold', 100);
+    showToast('+100 gold', 'success');
+  });
+  currencyBtns.appendChild(addGoldBtn);
+
+  const addExpBtn = el('button', 'btn btn-secondary btn-small', '+100 XP');
+  addExpBtn.addEventListener('click', () => {
+    addToStat('exp', 100);
+    showToast('+100 XP', 'success');
+  });
+  currencyBtns.appendChild(addExpBtn);
+
+  const addRepBtn = el('button', 'btn btn-secondary btn-small', '+100 Rep');
+  addRepBtn.addEventListener('click', () => {
+    addToStat('rep', 100);
+    showToast('+100 rep', 'success');
+  });
+  currencyBtns.appendChild(addRepBtn);
+
+  wrapper.appendChild(currencyBtns);
+
+  // Reset tools
+  wrapper.appendChild(el('div', 'options-subsection-header', 'Resets'));
+
+  const resetBtns = el('div', 'options-btn-row debug-btn-row');
+
+  const resetRepBtn = el('button', 'btn btn-danger btn-small', 'Reset Rep');
+  resetRepBtn.addEventListener('click', () => {
+    if (!confirm('Reset reputation to 0?')) return;
+    const s = getStats();
+    addToStat('rep', -s.rep);
+    showToast('Reputation reset', 'info');
+  });
+  resetBtns.appendChild(resetRepBtn);
+
+  const resetExpBtn = el('button', 'btn btn-danger btn-small', 'Reset XP');
+  resetExpBtn.addEventListener('click', () => {
+    if (!confirm('Reset XP to 0?')) return;
+    const s = getStats();
+    addToStat('exp', -s.exp);
+    showToast('XP reset', 'info');
+  });
+  resetBtns.appendChild(resetExpBtn);
+
+  const resetGoldBtn = el('button', 'btn btn-danger btn-small', 'Reset Gold');
+  resetGoldBtn.addEventListener('click', () => {
+    if (!confirm('Reset gold to 0?')) return;
+    const s = getStats();
+    addToStat('gold', -s.gold);
+    showToast('Gold reset', 'info');
+  });
+  resetBtns.appendChild(resetGoldBtn);
+
+  wrapper.appendChild(resetBtns);
+
+  const resetAllBtn = el('button', 'btn btn-danger', 'Reset All Progress');
+  resetAllBtn.style.marginTop = '8px';
+  resetAllBtn.addEventListener('click', () => {
+    if (!confirm('This will reset ALL currencies, achievements, and shop unlocks. Are you sure?')) return;
+    if (!confirm('This cannot be undone. Really reset everything?')) return;
+    const s = getStats();
+    addToStat('gold', -s.gold);
+    addToStat('exp', -s.exp);
+    addToStat('rep', -s.rep);
+    showToast('All progress reset', 'info');
+  });
+  wrapper.appendChild(resetAllBtn);
 
   // --- Secret Console (type "Furburt" anywhere on the options tab) ---
   const consoleLine = el('div', 'dev-console');
@@ -214,8 +411,8 @@ async function handleImportFile(file) {
       _registry.add(subject);
     }
 
-    // Only the subject goes to stables
-    addToStables(subject);
+    // Only the subject goes to stables (force=true: imports bypass slot limits)
+    addToStables(subject, true);
     triggerSave();
 
     const count = ancestors.length;
@@ -243,6 +440,64 @@ function showToast(message, type = 'info') {
     toast.classList.remove('io-toast-show');
     setTimeout(() => toast.remove(), 300);
   }, 2500);
+}
+
+// ─── NFC Dragon Claim ────────────────────────────────────
+
+function handleClaimInput(raw, registry) {
+  if (!raw) {
+    showToast('Paste a claim link or code first', 'error');
+    return;
+  }
+
+  try {
+    // Accept either a full URL (?d=... ) or just the query string (d=...)
+    let urlParams;
+    if (raw.includes('?')) {
+      // Full URL — extract query string
+      const url = new URL(raw);
+      urlParams = url.searchParams;
+    } else if (raw.includes('d=')) {
+      // Bare query string (e.g. "d=ABC&s=f")
+      urlParams = new URLSearchParams(raw);
+    } else {
+      // Try as raw base64 genotype code (just the d= value)
+      urlParams = new URLSearchParams(`d=${raw}`);
+    }
+
+    const { genotype, sex, name, isDarkEnergy } = decodeDragonParams(urlParams);
+
+    const dragon = new Dragon({
+      genotype,
+      sex,
+      name,
+      generation: 0,
+      isDarkEnergy,
+    });
+
+    registry.add(dragon);
+    addToStables(dragon, true); // force=true: NFC claims bypass slot limits
+    triggerSave();
+
+    showToast(`You found ${dragon.name}! Added to your stables.`, 'success');
+  } catch (e) {
+    console.warn('Invalid dragon claim:', e);
+    showToast('Invalid claim link or code', 'error');
+  }
+}
+
+// ─── Time Formatting ─────────────────────────────────────────
+
+function formatTimeAgo(timestamp) {
+  if (!timestamp) return 'Unknown time';
+  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+  if (seconds < 60) return 'Just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
 }
 
 // ─── Toggle Helpers ──────────────────────────────────────────

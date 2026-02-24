@@ -23,6 +23,8 @@ import { getCompletedQuests } from './quest-engine.js';
 import { renderDragonCard } from './ui-card.js';
 import { openFamilyTree } from './ui-family-tree.js';
 import { getStats } from './save-manager.js';
+import { getStabledDragons } from './ui-stables.js';
+import { getSetting } from './settings.js';
 import {
   getAchievements,
   isUnlocked,
@@ -66,6 +68,79 @@ const ELEMENT_AXES = [
 
 const LEVEL_LABELS = ['None', 'Low', 'Med', 'High'];
 
+// ── Discovery state ────────────────────────────────────────
+// Built from stabled dragons each time the almanac renders.
+// Stores the display names of all traits the player has discovered.
+
+let discoveredColors = new Set();
+let discoveredFinishes = new Set();
+let discoveredElements = new Set();
+let discoveredCombos = new Set();   // specialty combo names
+let discoveredModifiers = new Set(); // element modifier prefixes
+let discoveredTraits = new Map();    // geneName → Set of phenotype names
+
+function rebuildDiscovery() {
+  discoveredColors = new Set();
+  discoveredFinishes = new Set();
+  discoveredElements = new Set();
+  discoveredCombos = new Set();
+  discoveredModifiers = new Set();
+  discoveredTraits = new Map();
+
+  const stabled = getStabledDragons();
+  for (const dragon of stabled) {
+    const p = dragon.phenotype;
+    if (!p) continue;
+
+    // Color (64-entry name table)
+    if (p.color?.displayName) discoveredColors.add(p.color.displayName);
+
+    // Finish (64-entry name table)
+    if (p.finish?.displayName) discoveredFinishes.add(p.finish.displayName);
+
+    // Element (64-entry name table)
+    if (p.breathElement?.displayName) discoveredElements.add(p.breathElement.displayName);
+
+    // Specialty combo name
+    if (p.color?.specialtyName) discoveredCombos.add(p.color.specialtyName);
+
+    // Element modifier prefix
+    if (p.color?.modifierPrefix) discoveredModifiers.add(p.color.modifierPrefix);
+
+    // Dark Energy
+    if (dragon.isDarkEnergy) discoveredElements.add('Dark Energy');
+
+    // Categorical traits (body, frame, breath, horns, spines, tail)
+    if (p.traits) {
+      for (const [geneName, traitData] of Object.entries(p.traits)) {
+        if (traitData?.name) {
+          if (!discoveredTraits.has(geneName)) discoveredTraits.set(geneName, new Set());
+          discoveredTraits.get(geneName).add(traitData.name);
+        }
+      }
+    }
+  }
+}
+
+function isDiscovered(type, name) {
+  if (getSetting('debug-reveal-almanac')) return true;
+  switch (type) {
+    case 'color': return discoveredColors.has(name);
+    case 'finish': return discoveredFinishes.has(name);
+    case 'element': return discoveredElements.has(name);
+    case 'combo': return discoveredCombos.has(name);
+    case 'modifier': return discoveredModifiers.has(name);
+    case 'trait': return false; // handled separately
+    default: return false;
+  }
+}
+
+function isTraitDiscovered(geneName, traitName) {
+  if (getSetting('debug-reveal-almanac')) return true;
+  const discovered = discoveredTraits.get(geneName);
+  return discovered ? discovered.has(traitName) : false;
+}
+
 export function initAlmanacTab(container, registry) {
   dragonRegistry = registry || null;
   containerEl = el('div', 'almanac-wrapper');
@@ -80,6 +155,9 @@ export function refreshAlmanac() {
 
 function render() {
   containerEl.innerHTML = '';
+
+  // Rebuild discovery sets from stabled dragons
+  rebuildDiscovery();
 
   // ── Top-level navigation: Encyclopedia / Achievements ──
   const topNav = el('div', 'almanac-top-nav');
@@ -324,9 +402,13 @@ function renderStatsPanel(wrapper) {
   const statEntries = [
     { label: 'Dragons Captured', value: stats.totalGenerated, icon: '🐉' },
     { label: 'Dragons Bred', value: stats.totalBred, icon: '🥚' },
+    { label: 'Mutants Bred', value: stats.totalMutants || 0, icon: '⚡' },
     { label: 'Quests Completed', value: stats.totalQuestsCompleted, icon: '✓' },
     { label: 'Dragons Stabled', value: stats.totalStabled, icon: '🏠' },
     { label: 'Dragons Released', value: stats.totalReleased, icon: '🌿' },
+    { label: 'Gold', value: stats.gold, icon: '🪙' },
+    { label: 'Experience', value: stats.exp, icon: '📘' },
+    { label: 'Reputation', value: stats.rep, icon: '⭐' },
   ];
 
   for (const stat of statEntries) {
@@ -453,7 +535,8 @@ function renderTraitsPane() {
       const sortedKeys = Object.keys(def.phenotypeMap).sort((a, b) => Number(a) - Number(b));
       for (const key of sortedKeys) {
         const name = def.phenotypeMap[key];
-        const chip = el('span', 'trait-chip', name);
+        const discovered = isTraitDiscovered(geneName, name);
+        const chip = el('span', 'trait-chip' + (!discovered ? ' trait-chip-hidden' : ''), discovered ? name : '???');
         valuesRow.appendChild(chip);
       }
       row.appendChild(valuesRow);
@@ -476,7 +559,7 @@ function renderTraitsPane() {
 // ══════════════════════════════════════════════════════
 
 // ---- Shared Grid Renderer ----
-function renderGrid(outerLevel, namesTable, specialNames, rowAxis, colAxis, keyBuilder, makeSwatchFn) {
+function renderGrid(outerLevel, namesTable, specialNames, rowAxis, colAxis, keyBuilder, makeSwatchFn, discoveryType) {
   const grid = el('div', 'almanac-grid');
 
   grid.appendChild(el('div', 'almanac-grid-corner'));
@@ -497,14 +580,19 @@ function renderGrid(outerLevel, namesTable, specialNames, rowAxis, colAxis, keyB
       const key = keyBuilder(outerLevel, r, c);
       const name = namesTable[key] || '???';
       const isSpecial = specialNames.has(name);
-      const cell = el('div', 'almanac-grid-cell' + (isSpecial ? ' almanac-grid-special' : ''));
+      const discovered = discoveryType ? isDiscovered(discoveryType, name) : true;
+      const cell = el('div', 'almanac-grid-cell' + (isSpecial ? ' almanac-grid-special' : '') + (!discovered ? ' almanac-hidden' : ''));
 
-      if (makeSwatchFn) {
-        const swatch = makeSwatchFn(key);
-        if (swatch) cell.appendChild(swatch);
+      if (discovered) {
+        if (makeSwatchFn) {
+          const swatch = makeSwatchFn(key);
+          if (swatch) cell.appendChild(swatch);
+        }
+        cell.appendChild(document.createTextNode(name));
+      } else {
+        cell.appendChild(document.createTextNode('???'));
       }
 
-      cell.appendChild(document.createTextNode(name));
       grid.appendChild(cell);
     }
   }
@@ -524,6 +612,11 @@ const YELLOW_TIER_LABELS = [
 function renderColorPane() {
   const pane = el('div', '');
   pane.appendChild(el('div', 'almanac-pane-header', 'Colors'));
+
+  const colorCount = el('div', 'almanac-discovery-count');
+  colorCount.innerHTML = `Discovered: <span>${discoveredColors.size}</span> / 64`;
+  pane.appendChild(colorCount);
+
   pane.appendChild(renderAxisLabels(COLOR_AXES));
 
   for (let y = 0; y < 4; y++) {
@@ -543,7 +636,8 @@ function renderColorPane() {
         const swatch = el('span', 'almanac-color-dot');
         swatch.style.backgroundColor = hex;
         return swatch;
-      }
+      },
+      'color'
     ));
   }
 
@@ -562,6 +656,11 @@ const OPACITY_TIER_LABELS = [
 function renderFinishPane() {
   const pane = el('div', '');
   pane.appendChild(el('div', 'almanac-pane-header', 'Finishes'));
+
+  const finishCount = el('div', 'almanac-discovery-count');
+  finishCount.innerHTML = `Discovered: <span>${discoveredFinishes.size}</span> / 64`;
+  pane.appendChild(finishCount);
+
   pane.appendChild(renderAxisLabels(FINISH_AXES));
 
   for (let o = 0; o < 4; o++) {
@@ -573,7 +672,8 @@ function renderFinishPane() {
       { short: 'Sh', cls: 'finish-s' },
       { short: 'Sc', cls: 'finish-sc' },
       (oTier, shTier, scTier) => `${oTier}-${shTier}-${scTier}`,
-      null
+      null,
+      'finish'
     ));
   }
 
@@ -592,6 +692,11 @@ const LIGHTNING_TIER_LABELS = [
 function renderElementPane() {
   const pane = el('div', '');
   pane.appendChild(el('div', 'almanac-pane-header', 'Breath Elements'));
+
+  const elemCount = el('div', 'almanac-discovery-count');
+  elemCount.innerHTML = `Discovered: <span>${discoveredElements.size}</span> / 64`;
+  pane.appendChild(elemCount);
+
   pane.appendChild(renderAxisLabels(ELEMENT_AXES));
 
   for (let l = 0; l < 4; l++) {
@@ -603,28 +708,38 @@ function renderElementPane() {
       { short: 'F', cls: 'breath-f' },
       { short: 'I', cls: 'breath-i' },
       (lTier, fTier, iTier) => `${fTier}-${iTier}-${lTier}`,
-      null
+      null,
+      'element'
     ));
   }
 
   // Rare variants section (Dark Energy)
   pane.appendChild(el('div', 'almanac-tier-label almanac-rare-label', 'Rare Variants'));
 
-  const rareEntry = el('div', 'almanac-entry');
+  const deDiscovered = isDiscovered('element', 'Dark Energy');
+  const rareEntry = el('div', 'almanac-entry' + (!deDiscovered ? ' almanac-hidden' : ''));
 
-  const visual = el('div', 'almanac-entry-visual');
-  const dot = el('div', 'almanac-dot');
-  dot.style.background = DARK_ENERGY_PHENOTYPE.displayColor;
-  visual.appendChild(dot);
-  rareEntry.appendChild(visual);
+  if (deDiscovered) {
+    const visual = el('div', 'almanac-entry-visual');
+    const dot = el('div', 'almanac-dot');
+    dot.style.background = DARK_ENERGY_PHENOTYPE.displayColor;
+    visual.appendChild(dot);
+    rareEntry.appendChild(visual);
 
-  const info = el('div', 'almanac-entry-info');
-  info.appendChild(el('div', 'almanac-entry-name', DARK_ENERGY_PHENOTYPE.name));
-  const formula = el('div', 'almanac-entry-formula');
-  formula.textContent = 'Void (F:None · I:None · L:None) — 5% chance';
-  info.appendChild(formula);
-  info.appendChild(el('div', 'almanac-entry-desc', DARK_ENERGY_PHENOTYPE.desc));
-  rareEntry.appendChild(info);
+    const info = el('div', 'almanac-entry-info');
+    info.appendChild(el('div', 'almanac-entry-name', DARK_ENERGY_PHENOTYPE.name));
+    const formula = el('div', 'almanac-entry-formula');
+    formula.textContent = 'Void (F:None · I:None · L:None) — 5% chance';
+    info.appendChild(formula);
+    info.appendChild(el('div', 'almanac-entry-desc', DARK_ENERGY_PHENOTYPE.desc));
+    rareEntry.appendChild(info);
+  } else {
+    rareEntry.appendChild(el('div', 'almanac-entry-info'));
+    const hiddenInfo = el('div', 'almanac-entry-info');
+    hiddenInfo.appendChild(el('div', 'almanac-entry-name', '???'));
+    hiddenInfo.appendChild(el('div', 'almanac-entry-formula', 'Undiscovered rare variant'));
+    rareEntry.appendChild(hiddenInfo);
+  }
 
   pane.appendChild(rareEntry);
 
@@ -678,6 +793,12 @@ function renderCombosPane() {
   const pane = el('div', '');
   pane.appendChild(el('div', 'almanac-pane-header', 'Specialty Combos'));
 
+  const totalCombos = Object.keys(SPECIALTY_COMBOS).length;
+  const totalModifiers = Object.keys(ELEMENT_MODIFIERS).length;
+  const comboCount = el('div', 'almanac-discovery-count');
+  comboCount.innerHTML = `Combos: <span>${discoveredCombos.size}</span> / ${totalCombos} · Modifiers: <span>${discoveredModifiers.size}</span> / ${totalModifiers}`;
+  pane.appendChild(comboCount);
+
   const intro = el('div', 'almanac-combo-intro');
   intro.textContent = 'Special names triggered when a dragon has a specific color + finish combination, or a finish + element combination.';
   pane.appendChild(intro);
@@ -696,38 +817,52 @@ function renderCombosPane() {
     const entries = grouped[cat];
     if (!entries || entries.length === 0) continue;
 
+    // Hide entire category until at least one combo within it is discovered
+    const catHasDiscovery = entries.some(e => isDiscovered('combo', e.name));
+    if (!catHasDiscovery) continue;
+
     pane.appendChild(el('div', 'almanac-tier-label', cat + 's'));
 
     const list = el('div', 'almanac-combo-list');
     for (const entry of entries) {
-      const row = el('div', 'almanac-combo-entry');
-      row.appendChild(el('div', 'almanac-combo-name', entry.name));
+      const discovered = isDiscovered('combo', entry.name);
+      const row = el('div', 'almanac-combo-entry' + (!discovered ? ' almanac-hidden' : ''));
 
-      const recipe = el('div', 'almanac-combo-recipe');
+      if (discovered) {
+        row.appendChild(el('div', 'almanac-combo-name', entry.name));
 
-      const colorPart = el('span', 'almanac-combo-part');
-      colorPart.appendChild(el('span', 'almanac-combo-part-name', entry.colorName));
-      const colorAxes = el('span', 'almanac-combo-axes');
-      renderTierAxes(colorAxes, entry.colorKey, COLOR_COMBO_AXES);
-      colorPart.appendChild(colorAxes);
-      recipe.appendChild(colorPart);
+        const recipe = el('div', 'almanac-combo-recipe');
 
-      recipe.appendChild(el('span', 'almanac-combo-plus', '+'));
+        const colorPart = el('span', 'almanac-combo-part');
+        colorPart.appendChild(el('span', 'almanac-combo-part-name', entry.colorName));
+        const colorAxes = el('span', 'almanac-combo-axes');
+        renderTierAxes(colorAxes, entry.colorKey, COLOR_COMBO_AXES);
+        colorPart.appendChild(colorAxes);
+        recipe.appendChild(colorPart);
 
-      const finishPart = el('span', 'almanac-combo-part');
-      finishPart.appendChild(el('span', 'almanac-combo-part-name', entry.finishName));
-      const finishAxes = el('span', 'almanac-combo-axes');
-      renderTierAxes(finishAxes, entry.finishKey, FINISH_COMBO_AXES);
-      finishPart.appendChild(finishAxes);
-      recipe.appendChild(finishPart);
+        recipe.appendChild(el('span', 'almanac-combo-plus', '+'));
 
-      row.appendChild(recipe);
+        const finishPart = el('span', 'almanac-combo-part');
+        finishPart.appendChild(el('span', 'almanac-combo-part-name', entry.finishName));
+        const finishAxes = el('span', 'almanac-combo-axes');
+        renderTierAxes(finishAxes, entry.finishKey, FINISH_COMBO_AXES);
+        finishPart.appendChild(finishAxes);
+        recipe.appendChild(finishPart);
+
+        row.appendChild(recipe);
+      } else {
+        row.appendChild(el('div', 'almanac-combo-name', '???'));
+        row.appendChild(el('div', 'almanac-combo-recipe almanac-hidden-recipe', '? + ?'));
+      }
+
       list.appendChild(row);
     }
     pane.appendChild(list);
   }
 
-  // Element Modifiers section
+  // Element Modifiers section — hide until at least one modifier is discovered
+  const anyModDiscovered = Object.values(ELEMENT_MODIFIERS).some(m => isDiscovered('modifier', m));
+  if (anyModDiscovered) {
   pane.appendChild(el('div', 'almanac-tier-label', 'Element Modifiers'));
 
   const modIntro = el('div', 'almanac-combo-intro');
@@ -740,31 +875,40 @@ function renderCombosPane() {
     const finishName = FINISH_NAMES[finishKey] || '???';
     const elementName = ELEMENT_HL_NAMES[elementKey] || '???';
 
-    const row = el('div', 'almanac-combo-entry');
-    row.appendChild(el('div', 'almanac-combo-name', modifier));
+    const discovered = isDiscovered('modifier', modifier);
+    const row = el('div', 'almanac-combo-entry' + (!discovered ? ' almanac-hidden' : ''));
 
-    const recipe = el('div', 'almanac-combo-recipe');
+    if (discovered) {
+      row.appendChild(el('div', 'almanac-combo-name', modifier));
 
-    const finishPart = el('span', 'almanac-combo-part');
-    finishPart.appendChild(el('span', 'almanac-combo-part-name', finishName));
-    const finishAxes = el('span', 'almanac-combo-axes');
-    renderTierAxes(finishAxes, finishKey, FINISH_COMBO_AXES);
-    finishPart.appendChild(finishAxes);
-    recipe.appendChild(finishPart);
+      const recipe = el('div', 'almanac-combo-recipe');
 
-    recipe.appendChild(el('span', 'almanac-combo-plus', '+'));
+      const finishPart = el('span', 'almanac-combo-part');
+      finishPart.appendChild(el('span', 'almanac-combo-part-name', finishName));
+      const finishAxes = el('span', 'almanac-combo-axes');
+      renderTierAxes(finishAxes, finishKey, FINISH_COMBO_AXES);
+      finishPart.appendChild(finishAxes);
+      recipe.appendChild(finishPart);
 
-    const elemPart = el('span', 'almanac-combo-part');
-    elemPart.appendChild(el('span', 'almanac-combo-part-name', elementName));
-    const elemAxes = el('span', 'almanac-combo-axes');
-    renderTierAxes(elemAxes, hlToTierKey(elementKey), ELEMENT_COMBO_AXES);
-    elemPart.appendChild(elemAxes);
-    recipe.appendChild(elemPart);
+      recipe.appendChild(el('span', 'almanac-combo-plus', '+'));
 
-    row.appendChild(recipe);
+      const elemPart = el('span', 'almanac-combo-part');
+      elemPart.appendChild(el('span', 'almanac-combo-part-name', elementName));
+      const elemAxes = el('span', 'almanac-combo-axes');
+      renderTierAxes(elemAxes, hlToTierKey(elementKey), ELEMENT_COMBO_AXES);
+      elemPart.appendChild(elemAxes);
+      recipe.appendChild(elemPart);
+
+      row.appendChild(recipe);
+    } else {
+      row.appendChild(el('div', 'almanac-combo-name', '???'));
+      row.appendChild(el('div', 'almanac-combo-recipe almanac-hidden-recipe', '? + ?'));
+    }
+
     modList.appendChild(row);
   }
   pane.appendChild(modList);
+  } // end anyModDiscovered
 
   return pane;
 }

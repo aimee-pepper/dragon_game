@@ -656,6 +656,84 @@ ACHIEVEMENTS.push({
   check: (ctx) => ctx.stabledDragons.some(d => d.phenotype?.color?.specialtyCategory === 'Opal'),
 });
 
+// ── Economy Gate Achievements ──
+// These IDs are referenced by economy-config.js for shop/tome unlock gates.
+// The IDs use hyphens (not underscores) to match the economy-config convention.
+
+const MAIN_COLORS = new Set(['White', 'Cyan', 'Magenta', 'Yellow', 'Blue', 'Green', 'Red', 'Black']);
+const MAIN_ELEMENTS = new Set(['Void', 'Ice', 'Fire', 'Lightning', 'Torrential Steam', 'Aurora', 'Helios', 'Plasma']);
+
+ACHIEVEMENTS.push({
+  id: 'breed-all-colors',
+  name: 'Prismatic Keeper',
+  desc: 'Stable all 8 main colors (corner colors of the CMY cube)',
+  icon: '🌈',
+  category: 'discovery',
+  rarity: 'rare',
+  check: (ctx) => {
+    let count = 0;
+    for (const c of MAIN_COLORS) { if (ctx.discoveredColors.has(c)) count++; }
+    return count >= 8;
+  },
+  progress: (ctx) => {
+    let count = 0;
+    for (const c of MAIN_COLORS) { if (ctx.discoveredColors.has(c)) count++; }
+    return { current: count, target: 8 };
+  },
+});
+
+ACHIEVEMENTS.push({
+  id: 'discover-10-gems',
+  name: 'Gem Hoarder',
+  desc: 'Discover 10 specialty gem finishes',
+  icon: '💎',
+  category: 'discovery',
+  rarity: 'rare',
+  check: (ctx) => ctx.discoveredSpecialties.size >= 10,
+  progress: (ctx) => ({ current: ctx.discoveredSpecialties.size, target: 10 }),
+});
+
+ACHIEVEMENTS.push({
+  id: 'discover-20-finishes',
+  name: 'Finish Artisan',
+  desc: 'Discover 20 unique finishes',
+  icon: '✨',
+  category: 'discovery',
+  rarity: 'rare',
+  check: (ctx) => ctx.discoveredFinishes.size >= 20,
+  progress: (ctx) => ({ current: ctx.discoveredFinishes.size, target: 20 }),
+});
+
+ACHIEVEMENTS.push({
+  id: 'breed-all-elements',
+  name: 'Elemental Mastery',
+  desc: 'Stable all 8 main breath elements',
+  icon: '🔥',
+  category: 'discovery',
+  rarity: 'rare',
+  check: (ctx) => {
+    let count = 0;
+    for (const e of MAIN_ELEMENTS) { if (ctx.discoveredElements.has(e)) count++; }
+    return count >= 8;
+  },
+  progress: (ctx) => {
+    let count = 0;
+    for (const e of MAIN_ELEMENTS) { if (ctx.discoveredElements.has(e)) count++; }
+    return { current: count, target: 8 };
+  },
+});
+
+ACHIEVEMENTS.push({
+  id: 'breed-100-mutants',
+  name: 'Mutation Master',
+  desc: 'Breed 100 dragons with mutations',
+  icon: '⚡',
+  category: 'breeding',
+  rarity: 'legendary',
+  check: (ctx) => (ctx.stats.totalMutants || 0) >= 100,
+  progress: (ctx) => ({ current: ctx.stats.totalMutants || 0, target: 100 }),
+});
+
 // ── State ──────────────────────────────────────────────────
 
 // Tracks which achievements are unlocked and when
