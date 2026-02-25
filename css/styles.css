@@ -3470,11 +3470,12 @@ header {
 }
 
 .showcase-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: #332d28;
+  border: 1px solid #4a4038;
   border-radius: var(--radius);
   padding: 10px;
   overflow: hidden;
+  color: #e8e0d6;
 }
 
 .showcase-card .card-header {
@@ -3483,6 +3484,21 @@ header {
 
 .showcase-card .sprite-box {
   margin-bottom: 0;
+}
+
+/* Radial glow behind dragon in showcase */
+.showcase-card .sprite-box::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 60% 70% at 50% 65%, rgba(90, 75, 55, 0.45) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Boost cave opacity in showcase */
+.showcase-card .sprite-box::before {
+  opacity: 0.55;
 }
 
 .showcase-color-row {
@@ -3545,6 +3561,25 @@ header {
 .showcase-trait-chip .trait-label {
   color: var(--text-muted);
   font-size: 12px;
+}
+
+/* Showcase dark mode text brightness boosts */
+.showcase-card .breath-label,
+.showcase-card .breath-detail,
+.showcase-card .showcase-breath-info {
+  color: #e8e0d6;
+}
+
+.showcase-card .trait-label {
+  color: #a89882;
+}
+
+.showcase-card .dragon-name-text {
+  color: #f0ebe4;
+}
+
+.showcase-card .header-right {
+  color: #c4bab0;
 }
 
 /* Light mode overrides */
