@@ -18,6 +18,7 @@ import { Dragon } from './dragon.js';
 import { initShopTab, refreshShop } from './ui-shop.js';
 import { getShopSaveData, restoreShopState } from './shop-engine.js';
 import { getSkillSaveData, restoreSkillState } from './skill-engine.js';
+import { initSkillsTab, refreshSkills } from './ui-skills.js';
 
 // Shared dragon registry — all dragons accessible across tabs
 class DragonRegistry {
@@ -105,7 +106,6 @@ function applyTheme(theme) {
 function initPlaceholderTabs() {
   const placeholders = [
     { id: 'tab-inventory', name: 'Inventory', icon: '🎒', desc: 'View your collected items and resources.' },
-    { id: 'tab-skills', name: 'Skills', icon: '⚡', desc: 'Train and improve your dragon-keeping abilities.' },
   ];
 
   for (const { id, name, icon, desc } of placeholders) {
@@ -221,6 +221,7 @@ function init() {
   initAlmanacTab(document.getElementById('tab-almanac'), registry);
   initOptionsTab(document.getElementById('tab-options'), registry);
   initShopTab(document.getElementById('tab-shop'));
+  initSkillsTab(document.getElementById('tab-skills'));
   initPlaceholderTabs();
   initQuestWidget();
 
@@ -237,6 +238,10 @@ function init() {
 
   // Refresh shop display whenever stats change (gold/rep updates)
   onStatChange(() => refreshShop());
+
+  // Refresh skills display when stats change (XP available updates)
+  // Note: onSkillChange is already registered internally by ui-skills.js
+  onStatChange(() => refreshSkills());
 
   // Footer currency strip — always visible
   refreshFooterCurrency();

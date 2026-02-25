@@ -2,7 +2,7 @@
 import { getSetting, setSetting } from './settings.js';
 import { exportDragonPNG, importDragonPNG } from './dragon-io.js';
 import { getStabledDragons, addToStables } from './ui-stables.js';
-import { renderPickerItem } from './ui-card.js';
+import { renderPickerItem, renderShowcaseCard } from './ui-card.js';
 import { triggerSave, addToStat, getStats, listBackups, restoreFromBackup } from './save-manager.js';
 import { decodeDragonParams } from './dragon-url.js';
 import { Dragon } from './dragon.js';
@@ -333,6 +333,43 @@ export function initOptionsTab(container, registry) {
       consoleLine.classList.remove('revealed');
       consoleInput.blur();
     }
+  });
+
+  // ── Dragon Showcase (screenshot-friendly card) ──────────────
+  wrapper.appendChild(el('div', 'options-section-header', 'Dragon Showcase'));
+  wrapper.appendChild(el('div', 'options-toggle-desc', 'Select a stabled dragon to view a compact card for screenshotting.'));
+
+  const showcaseSelect = el('select', 'showcase-picker');
+  const defaultOpt = el('option', null, '— Pick a dragon —');
+  defaultOpt.value = '';
+  showcaseSelect.appendChild(defaultOpt);
+  wrapper.appendChild(showcaseSelect);
+
+  const showcaseContainer = el('div', 'showcase-container');
+  wrapper.appendChild(showcaseContainer);
+
+  // Populate picker from stables
+  function refreshShowcasePicker() {
+    // Clear all options except default
+    while (showcaseSelect.options.length > 1) showcaseSelect.remove(1);
+    const dragons = getStabledDragons();
+    const sorted = [...dragons].sort((a, b) => a.name.localeCompare(b.name));
+    for (const d of sorted) {
+      const opt = el('option');
+      opt.value = d.id;
+      opt.textContent = `${d.name} (#${d.id})`;
+      showcaseSelect.appendChild(opt);
+    }
+  }
+  refreshShowcasePicker();
+
+  showcaseSelect.addEventListener('change', () => {
+    showcaseContainer.innerHTML = '';
+    const dragonId = showcaseSelect.value;
+    if (!dragonId) return;
+    const dragon = registry.get(Number(dragonId));
+    if (!dragon) return;
+    showcaseContainer.appendChild(renderShowcaseCard(dragon));
   });
 
   container.appendChild(wrapper);

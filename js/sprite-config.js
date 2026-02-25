@@ -514,15 +514,15 @@ export const LAYER2_OUTLINE_CORRECTION = {
 // ============================================================
 export const BODY_TRANSPARENCY = {
   0: 0.10,  // None (Phantom etc.) — nearly invisible, ghostly
-  1: 0.30,  // Low (Seaglass, Translucent etc.) — quite transparent
-  2: 0.60,  // Med (Cloudy, Frosted etc.) — semi-transparent
+  1: 0.20,  // Low (Seaglass, Translucent etc.) — quite transparent
+  2: 0.50,  // Med (Cloudy, Frosted etc.) — semi-transparent
   3: 1.00,  // High (Enamel, Velvet etc.) — fully opaque
 };
 
 export const WING_TRANSPARENCY = {
   0: 0.05,  // None — barely visible gossamer
-  1: 0.20,  // Low — delicate translucent membrane
-  2: 0.45,  // Med — semi-sheer
+  1: 0.10,  // Low — delicate translucent membrane
+  2: 0.35,  // Med — semi-sheer
   3: 0.75,  // High — mostly opaque but still slightly translucent
 };
 

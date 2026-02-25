@@ -315,16 +315,12 @@ export function renderDragonCard(dragon, options = {}) {
   breathInfo.appendChild(breathLabel);
 
   if (!compact) {
-    const breathShapeVisible = isRevealed('breath_shape') && isRevealed('breath_range');
     const breathAxisVisible = allRevealed(['breath_fire', 'breath_ice', 'breath_lightning']);
 
-    if (breathShapeVisible) {
+    {
       const shapeVal = p.traits.breath_shape?.name || '';
       const rangeVal = p.traits.breath_range?.name || '';
       const detail = el('span', 'breath-detail', ` \u2014 ${shapeVal}, ${rangeVal} range`);
-      breathInfo.appendChild(detail);
-    } else {
-      const detail = el('span', 'breath-detail', ' \u2014 ???, ??? range');
       breathInfo.appendChild(detail);
     }
 
@@ -367,30 +363,25 @@ export function renderDragonCard(dragon, options = {}) {
 
     // --- Body traits ---
     const bodySection = renderTraitSection('Body', [
-      { label: 'Size', value: isRevealed('body_size') ? p.traits.body_size?.name : '???' },
-      { label: 'Type', value: isRevealed('body_type') ? p.traits.body_type?.name : '???' },
-      { label: 'Scales', value: isRevealed('body_scales') ? p.traits.body_scales?.name : '???' },
+      { label: 'Size', value: p.traits.body_size?.name || '???' },
+      { label: 'Type', value: p.traits.body_type?.name || '???' },
+      { label: 'Scales', value: p.traits.body_scales?.name || '???' },
     ]);
     card.appendChild(bodySection);
 
     // --- Frame traits ---
     const frameSection = renderTraitSection('Frame', [
-      { label: 'Wings', value: isRevealed('frame_wings') ? p.traits.frame_wings?.name : '???' },
-      { label: 'Limbs', value: isRevealed('frame_limbs') ? p.traits.frame_limbs?.name : '???' },
-      { label: 'Bones', value: isRevealed('frame_bones') ? p.traits.frame_bones?.name : '???' },
+      { label: 'Wings', value: p.traits.frame_wings?.name || '???' },
+      { label: 'Limbs', value: p.traits.frame_limbs?.name || '???' },
+      { label: 'Bones', value: p.traits.frame_bones?.name || '???' },
     ]);
     card.appendChild(frameSection);
 
     // --- Sub traits ---
-    // Horns: both categorical (always visible)
-    // Spines: style is categorical (visible), height is linear (hidden unless revealed)
-    // Tail: both linear (hidden unless revealed)
-    const spineHeightRevealed = isRevealed('spine_height');
-    const tailRevealed = isRevealed('tail_shape') && isRevealed('tail_length');
     const subSection = renderTraitSection('Features', [
       { label: 'Horns', value: formatHorns(p.traits) },
-      { label: 'Spines', value: spineHeightRevealed ? formatSpines(p.traits) : formatSpinesHidden(p.traits) },
-      { label: 'Tail', value: tailRevealed ? formatTail(p.traits) : '???' },
+      { label: 'Spines', value: formatSpines(p.traits) },
+      { label: 'Tail', value: formatTail(p.traits) },
     ]);
     card.appendChild(subSection);
   }
@@ -496,6 +487,146 @@ function formatTail(traits) {
   const shape = traits.tail_shape?.name || 'Normal';
   const length = traits.tail_length?.name || 'Medium';
   return `${shape}, ${length}`;
+}
+
+// ── Showcase card — condensed single-screen view for screenshots ────────
+export function renderShowcaseCard(dragon) {
+  const p = dragon.phenotype;
+
+  const card = el('div', 'showcase-card');
+
+  // --- Header: name + sex + gen + ID ---
+  const header = el('div', 'showcase-header');
+  const banner = el('div', 'card-banner');
+  const bgFill = tintedIcon('banner_f.png', '#d4c4a0', 'banner-bg-fill');
+  const bgOutline = tintedIcon('banner_o.png', '#a08450', 'banner-bg-outline');
+  const bgTailFill = tintedIcon('bannertail_f.png', '#d4c4a0', 'banner-bg-tail-fill');
+  const bgTailOutline = tintedIcon('bannertail_o.png', '#a08450', 'banner-bg-tail-outline');
+  for (const piece of [bgTailFill, bgTailOutline]) {
+    piece.style.maskSize = '';
+    piece.style.webkitMaskSize = '';
+  }
+  banner.appendChild(bgFill);
+  banner.appendChild(bgOutline);
+  banner.appendChild(bgTailFill);
+  banner.appendChild(bgTailOutline);
+  const nameLabel = tintedIcon('t_name.png', '#7a6840', 'banner-name-label');
+  const nameText = el('span', 'dragon-name-text', dragon.name);
+  banner.appendChild(nameLabel);
+  banner.appendChild(nameText);
+  header.appendChild(banner);
+
+  const rightInfo = el('span', 'header-right');
+  rightInfo.appendChild(el('span', 'dragon-id', `#${dragon.id}`));
+  rightInfo.appendChild(el('span', 'dragon-gen', `Gen ${dragon.generation}`));
+  rightInfo.appendChild(el('span', 'dragon-sex', dragon.sex === 'female' ? 'F' : 'M'));
+  header.appendChild(rightInfo);
+  card.appendChild(header);
+
+  // --- Sprite ---
+  const spriteBox = el('div', 'sprite-box');
+  const legacySprite = renderLegacySprite(p, false);
+  spriteBox.appendChild(legacySprite);
+
+  if (getSetting('art-style') !== 'pixel') {
+    renderDragon(p, { compact: false, fallbackToTest: false }).then(canvas => {
+      const ctx = canvas.getContext('2d');
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      let hasPixels = false;
+      for (let i = 3; i < imageData.data.length; i += 4) {
+        if (imageData.data[i] > 0) { hasPixels = true; break; }
+      }
+      if (hasPixels) {
+        canvas.className = 'dragon-sprite-canvas';
+        const wPct = (canvas.width / SPRITE_WIDTH) * 100;
+        const hPct = (canvas.height / SPRITE_HEIGHT) * 100 * (15 / 13);
+        canvas.style.width = wPct + '%';
+        canvas.style.height = hPct + '%';
+        legacySprite.replaceWith(canvas);
+      }
+    });
+  }
+
+  card.appendChild(spriteBox);
+
+  // --- Color + Finish (single row) ---
+  card.appendChild(tintedIcon('line.png', 'var(--accent)', 'section-line'));
+
+  const colorFinishRow = el('div', 'showcase-color-row');
+  const colorLabel = p.color.specialtyName ||
+    (p.color.modifierPrefix ? `${p.color.modifierPrefix} ${p.color.displayName}` : p.color.displayName);
+  const colorPart = el('span', 'showcase-color');
+  colorPart.appendChild(tintedIcon('dot.png', p.color.hex || '#888', 'color-dot'));
+  colorPart.appendChild(el('span', null, ` ${colorLabel}`));
+  if (p.color.specialtyName) {
+    colorPart.appendChild(el('span', 'specialty-badge', p.color.specialtyCategory || ''));
+  }
+  colorFinishRow.appendChild(colorPart);
+
+  const divider = el('span', 'showcase-divider', '|');
+  colorFinishRow.appendChild(divider);
+
+  const finishPart = el('span', 'showcase-finish');
+  finishPart.appendChild(tintedIcon('star.png', 'var(--accent)', 'finish-star'));
+  finishPart.appendChild(el('span', null, ` ${p.finish.displayName || p.finish.name}`));
+  colorFinishRow.appendChild(finishPart);
+
+  card.appendChild(colorFinishRow);
+
+  // --- Breath (inline) ---
+  card.appendChild(tintedIcon('line.png', 'var(--accent)', 'section-line'));
+
+  const breathRow = el('div', 'showcase-breath-row');
+  const elementColor = p.breathElement.isDarkEnergy
+    ? DARK_ENERGY_PHENOTYPE.displayColor
+    : (p.breathElement.displayColor || '#666');
+
+  const iconWrap = el('div', 'element-icon-wrap showcase-element-icon');
+  iconWrap.appendChild(tintedIcon('elementicon_f.png', elementColor, 'element-icon-fill'));
+  iconWrap.appendChild(tintedIcon('elementicon_o.png', elementColor, 'element-icon-outline'));
+  breathRow.appendChild(iconWrap);
+
+  const breathInfo = el('span', 'showcase-breath-info');
+  breathInfo.appendChild(el('span', 'breath-label', p.breathElement.displayName || p.breathElement.name));
+  const shapeVal = p.traits.breath_shape?.name || '';
+  const rangeVal = p.traits.breath_range?.name || '';
+  breathInfo.appendChild(el('span', 'breath-detail', ` \u2014 ${shapeVal}, ${rangeVal} range`));
+  breathRow.appendChild(breathInfo);
+
+  card.appendChild(breathRow);
+
+  // --- Traits (compact chips) ---
+  card.appendChild(tintedIcon('line.png', 'var(--accent)', 'section-line'));
+  card.appendChild(tintedIcon('t_traits.png', 'var(--accent)', 'section-label-img'));
+
+  const traitsWrap = el('div', 'showcase-traits');
+
+  const bodyTraits = [
+    { label: 'Size', value: p.traits.body_size?.name || '???' },
+    { label: 'Type', value: p.traits.body_type?.name || '???' },
+    { label: 'Scales', value: p.traits.body_scales?.name || '???' },
+  ];
+  const frameTraits = [
+    { label: 'Wings', value: p.traits.frame_wings?.name || '???' },
+    { label: 'Limbs', value: p.traits.frame_limbs?.name || '???' },
+    { label: 'Bones', value: p.traits.frame_bones?.name || '???' },
+  ];
+  const featureTraits = [
+    { label: 'Horns', value: formatHorns(p.traits) },
+    { label: 'Spines', value: formatSpines(p.traits) },
+    { label: 'Tail', value: formatTail(p.traits) },
+  ];
+
+  for (const t of [...bodyTraits, ...frameTraits, ...featureTraits]) {
+    const chip = el('span', 'showcase-trait-chip');
+    chip.appendChild(el('span', 'trait-label', t.label + ': '));
+    chip.appendChild(document.createTextNode(t.value));
+    traitsWrap.appendChild(chip);
+  }
+
+  card.appendChild(traitsWrap);
+
+  return card;
 }
 
 export function renderGenotypeSection(dragon, parentNames, highlightGenes, desiredAlleles) {

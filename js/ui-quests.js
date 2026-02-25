@@ -12,6 +12,7 @@ import {
   refreshAllActiveQuests,
 } from './quest-engine.js';
 import { getHighlightedQuest, setHighlightedQuest } from './quest-highlight.js';
+import { uiImg } from './ui-card.js';
 import { incrementStat, addToStat, triggerSave, getStats } from './save-manager.js';
 import { calculateQuestReward } from './reward-engine.js';
 import { QUEST_REWARDS } from './reward-config.js';
@@ -24,6 +25,13 @@ function el(tag, className, text) {
   if (className) e.className = className;
   if (text !== undefined) e.textContent = text;
   return e;
+}
+
+function currencySpan(iconFile, value, colorClass) {
+  const span = el('span', `currency ${colorClass}`);
+  span.appendChild(uiImg(iconFile, 'currency-icon'));
+  span.appendChild(document.createTextNode(` ${value}`));
+  return span;
 }
 
 export function initQuestsTab(container, registry) {
@@ -69,9 +77,9 @@ function renderQuests() {
   // Currency bar
   const currStats = getStats();
   const currencyBar = el('div', 'currency-bar');
-  currencyBar.appendChild(el('span', 'currency currency-gold', `💰 ${currStats.gold.toLocaleString()}`));
-  currencyBar.appendChild(el('span', 'currency currency-exp', `⭐ ${currStats.exp.toLocaleString()} EXP`));
-  currencyBar.appendChild(el('span', 'currency currency-rep', `🏛 ${currStats.rep.toLocaleString()} Rep`));
+  currencyBar.appendChild(currencySpan('c_coin.png', currStats.gold.toLocaleString(), 'currency-gold'));
+  currencyBar.appendChild(currencySpan('c_exp.png', `${currStats.exp.toLocaleString()} EXP`, 'currency-exp'));
+  currencyBar.appendChild(currencySpan('c_rep.png', `${currStats.rep.toLocaleString()} Rep`, 'currency-rep'));
   questContainer.appendChild(currencyBar);
 
   // Active quests
@@ -224,9 +232,9 @@ function renderQuestCard(quest) {
   const baseReward = QUEST_REWARDS[quest.difficulty];
   if (baseReward) {
     const rewardRow = el('div', 'quest-reward-preview');
-    rewardRow.appendChild(el('span', 'currency currency-gold', `💰 ${baseReward.gold}`));
-    rewardRow.appendChild(el('span', 'currency currency-exp', `⭐ ${baseReward.exp}`));
-    rewardRow.appendChild(el('span', 'currency currency-rep', `🏛 ${baseReward.rep}`));
+    rewardRow.appendChild(currencySpan('c_coin.png', baseReward.gold, 'currency-gold'));
+    rewardRow.appendChild(currencySpan('c_exp.png', baseReward.exp, 'currency-exp'));
+    rewardRow.appendChild(currencySpan('c_rep.png', baseReward.rep, 'currency-rep'));
     card.appendChild(rewardRow);
   }
 
