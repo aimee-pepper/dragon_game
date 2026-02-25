@@ -3470,12 +3470,12 @@ header {
 }
 
 .showcase-card {
-  background: #332d28;
-  border: 1px solid #4a4038;
+  background: #2e2822;
+  border: 1px solid #5a4e42;
   border-radius: var(--radius);
   padding: 10px;
   overflow: hidden;
-  color: #e8e0d6;
+  color: #f0ebe4;
 }
 
 .showcase-card .card-header {
@@ -3490,15 +3490,15 @@ header {
 .showcase-card .sprite-box::after {
   content: '';
   position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse 60% 70% at 50% 65%, rgba(90, 75, 55, 0.45) 0%, transparent 70%);
+  inset: -10%;
+  background: radial-gradient(ellipse 55% 65% at 50% 60%, rgba(120, 95, 60, 0.6) 0%, rgba(80, 65, 40, 0.3) 40%, transparent 75%);
   pointer-events: none;
   z-index: 0;
 }
 
 /* Boost cave opacity in showcase */
 .showcase-card .sprite-box::before {
-  opacity: 0.55;
+  opacity: 0.65;
 }
 
 .showcase-color-row {
@@ -3517,8 +3517,8 @@ header {
 }
 
 .showcase-divider {
-  color: var(--text-muted);
-  opacity: 0.4;
+  color: #8a7e72;
+  opacity: 0.7;
 }
 
 .showcase-breath-row {
@@ -3540,10 +3540,13 @@ header {
 
 .showcase-card .section-line {
   margin: 4px 0;
+  background-color: #d4b878 !important;
+  opacity: 0.7;
 }
 
 .showcase-card .section-label-img {
   margin-bottom: 2px;
+  background-color: #d4b878 !important;
 }
 
 .showcase-traits {
@@ -3563,23 +3566,36 @@ header {
   font-size: 12px;
 }
 
-/* Showcase dark mode text brightness boosts */
+/* Showcase dark mode text — high contrast */
+.showcase-card,
 .showcase-card .breath-label,
-.showcase-card .breath-detail,
-.showcase-card .showcase-breath-info {
-  color: #e8e0d6;
+.showcase-card .showcase-breath-info,
+.showcase-card .showcase-color,
+.showcase-card .showcase-finish,
+.showcase-card .showcase-trait-chip {
+  color: #ffffff;
+}
+
+.showcase-card .breath-detail {
+  color: #c8c0b4;
 }
 
 .showcase-card .trait-label {
-  color: #a89882;
+  color: #b8a890 !important;
 }
 
 .showcase-card .dragon-name-text {
-  color: #f0ebe4;
+  color: #ffffff;
 }
 
 .showcase-card .header-right {
-  color: #c4bab0;
+  color: #d4ccc2;
+}
+
+.showcase-card .dragon-id,
+.showcase-card .dragon-gen,
+.showcase-card .dragon-sex {
+  color: #d4ccc2;
 }
 
 /* Light mode overrides */
