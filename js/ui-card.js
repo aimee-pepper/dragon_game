@@ -208,25 +208,14 @@ export function renderDragonCard(dragon, options = {}) {
     hueCol.appendChild(colorNameEl);
 
     {
-      const cmyVisible = allRevealed(['color_cyan', 'color_magenta', 'color_yellow']);
-      if (cmyVisible && p.color.cmyBreakdown) {
-        const cmyRow = el('div', 'cmy-breakdown');
-        const { c, m, y } = p.color.cmyBreakdown;
-        cmyRow.appendChild(el('span', 'cmy-c', `C: ${c}`));
-        cmyRow.appendChild(document.createTextNode(' · '));
-        cmyRow.appendChild(el('span', 'cmy-m', `M: ${m}`));
-        cmyRow.appendChild(document.createTextNode(' · '));
-        cmyRow.appendChild(el('span', 'cmy-y', `Y: ${y}`));
-        hueCol.appendChild(cmyRow);
-      } else if (!cmyVisible) {
-        const cmyRow = el('div', 'cmy-breakdown');
-        cmyRow.appendChild(el('span', 'cmy-c', 'C: ???'));
-        cmyRow.appendChild(document.createTextNode(' · '));
-        cmyRow.appendChild(el('span', 'cmy-m', 'M: ???'));
-        cmyRow.appendChild(document.createTextNode(' · '));
-        cmyRow.appendChild(el('span', 'cmy-y', 'Y: ???'));
-        hueCol.appendChild(cmyRow);
-      }
+      const bd = p.color.cmyBreakdown;
+      const cmyRow = el('div', 'cmy-breakdown');
+      cmyRow.appendChild(el('span', 'cmy-c', `C: ${isRevealed('color_cyan') && bd ? bd.c : '???'}`));
+      cmyRow.appendChild(document.createTextNode(' · '));
+      cmyRow.appendChild(el('span', 'cmy-m', `M: ${isRevealed('color_magenta') && bd ? bd.m : '???'}`));
+      cmyRow.appendChild(document.createTextNode(' · '));
+      cmyRow.appendChild(el('span', 'cmy-y', `Y: ${isRevealed('color_yellow') && bd ? bd.y : '???'}`));
+      hueCol.appendChild(cmyRow);
     }
 
     hueFinishRow.appendChild(hueCol);
@@ -243,25 +232,14 @@ export function renderDragonCard(dragon, options = {}) {
     finishCol.appendChild(finishNameEl);
 
     {
-      const finishVisible = allRevealed(['finish_opacity', 'finish_shine', 'finish_schiller']);
-      if (finishVisible && p.finish.finishBreakdown) {
-        const finishRow = el('div', 'finish-breakdown');
-        const { o, sh, sc } = p.finish.finishBreakdown;
-        finishRow.appendChild(el('span', 'finish-o', `O: ${o}`));
-        finishRow.appendChild(document.createTextNode(' · '));
-        finishRow.appendChild(el('span', 'finish-s', `Sh: ${sh}`));
-        finishRow.appendChild(document.createTextNode(' · '));
-        finishRow.appendChild(el('span', 'finish-sc', `Sc: ${sc}`));
-        finishCol.appendChild(finishRow);
-      } else if (!finishVisible) {
-        const finishRow = el('div', 'finish-breakdown');
-        finishRow.appendChild(el('span', 'finish-o', 'O: ???'));
-        finishRow.appendChild(document.createTextNode(' · '));
-        finishRow.appendChild(el('span', 'finish-s', 'Sh: ???'));
-        finishRow.appendChild(document.createTextNode(' · '));
-        finishRow.appendChild(el('span', 'finish-sc', 'Sc: ???'));
-        finishCol.appendChild(finishRow);
-      }
+      const fb = p.finish.finishBreakdown;
+      const finishRow = el('div', 'finish-breakdown');
+      finishRow.appendChild(el('span', 'finish-o', `O: ${isRevealed('finish_opacity') && fb ? fb.o : '???'}`));
+      finishRow.appendChild(document.createTextNode(' · '));
+      finishRow.appendChild(el('span', 'finish-s', `Sh: ${isRevealed('finish_shine') && fb ? fb.sh : '???'}`));
+      finishRow.appendChild(document.createTextNode(' · '));
+      finishRow.appendChild(el('span', 'finish-sc', `Sc: ${isRevealed('finish_schiller') && fb ? fb.sc : '???'}`));
+      finishCol.appendChild(finishRow);
     }
 
     hueFinishRow.appendChild(finishCol);
@@ -315,8 +293,6 @@ export function renderDragonCard(dragon, options = {}) {
   breathInfo.appendChild(breathLabel);
 
   if (!compact) {
-    const breathAxisVisible = allRevealed(['breath_fire', 'breath_ice', 'breath_lightning']);
-
     {
       const shapeVal = p.traits.breath_shape?.name || '';
       const rangeVal = p.traits.breath_range?.name || '';
@@ -324,27 +300,19 @@ export function renderDragonCard(dragon, options = {}) {
       breathInfo.appendChild(detail);
     }
 
-    if (breathAxisVisible && p.breathElement.breathBreakdown) {
+    {
+      const bb = p.breathElement.breathBreakdown;
       const breakdownRow = el('div', 'breath-breakdown');
-      const { f, i, l } = p.breathElement.breathBreakdown;
-      breakdownRow.appendChild(el('span', 'breath-f', `F: ${f}`));
+      breakdownRow.appendChild(el('span', 'breath-f', `F: ${isRevealed('breath_fire') && bb ? bb.f : '???'}`));
       breakdownRow.appendChild(document.createTextNode(' · '));
-      breakdownRow.appendChild(el('span', 'breath-i', `I: ${i}`));
+      breakdownRow.appendChild(el('span', 'breath-i', `I: ${isRevealed('breath_ice') && bb ? bb.i : '???'}`));
       breakdownRow.appendChild(document.createTextNode(' · '));
-      breakdownRow.appendChild(el('span', 'breath-l', `L: ${l}`));
-      breathInfo.appendChild(breakdownRow);
-    } else if (!breathAxisVisible) {
-      const breakdownRow = el('div', 'breath-breakdown');
-      breakdownRow.appendChild(el('span', 'breath-f', 'F: ???'));
-      breakdownRow.appendChild(document.createTextNode(' · '));
-      breakdownRow.appendChild(el('span', 'breath-i', 'I: ???'));
-      breakdownRow.appendChild(document.createTextNode(' · '));
-      breakdownRow.appendChild(el('span', 'breath-l', 'L: ???'));
+      breakdownRow.appendChild(el('span', 'breath-l', `L: ${isRevealed('breath_lightning') && bb ? bb.l : '???'}`));
       breathInfo.appendChild(breakdownRow);
     }
 
     // Prose description — only if all breath axes are revealed
-    if (breathAxisVisible && p.breathElement.desc) {
+    if (allRevealed(['breath_fire', 'breath_ice', 'breath_lightning']) && p.breathElement.desc) {
       const descEl = el('div', 'breath-desc', p.breathElement.desc);
       breathInfo.appendChild(descEl);
     }

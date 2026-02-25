@@ -97,7 +97,7 @@ export function initBreedTab(container, registry) {
   // Register egg callbacks: when eggs hatch or rack changes, refresh
   registerEggCallbacks(
     (dragon) => {
-      addToStables(dragon, true);
+      showRackHatchedDragon(dragon);
       triggerSave();
     },
     () => refreshEggRack()
@@ -108,7 +108,7 @@ export function initBreedTab(container, registry) {
   eggRackTimer = setInterval(() => {
     const hatched = tickEggRack();
     for (const dragon of hatched) {
-      addToStables(dragon, true);
+      showRackHatchedDragon(dragon);
     }
     if (hatched.length > 0) triggerSave();
     refreshEggRack();
@@ -487,6 +487,29 @@ function refreshClutchHalos() {
     const dragon = dragonRegistry.get(Number(card.dataset.dragonId));
     if (dragon) applyQuestHalo(card, dragon);
   }
+}
+
+// ── Rack-hatched dragon → shows on breed page (not stables) ──
+
+function showRackHatchedDragon(dragon) {
+  if (!clutchContainer) return;
+  dragonRegistry.add(dragon);
+
+  const quest = getHighlightedQuest();
+  const highlightGenes = quest ? getGenesForQuest(quest) : null;
+  const desiredAlleles = quest ? getDesiredAllelesForQuest(quest) : null;
+
+  const card = renderDragonCard(dragon, {
+    onUseAsParentA: (d) => setParent('A', d),
+    onUseAsParentB: (d) => setParent('B', d),
+    onSaveToStables: (d) => addToStables(d),
+    onViewLineage: (d) => openFamilyTree(d, dragonRegistry),
+    highlightGenes,
+    desiredAlleles,
+  });
+  card.dataset.dragonId = dragon.id;
+  applyQuestHalo(card, dragon);
+  clutchContainer.appendChild(card);
 }
 
 // ── Egg Rack display ──

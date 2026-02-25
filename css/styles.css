@@ -1085,6 +1085,11 @@ header {
   grid-column: 1 / -1;
 }
 
+/* Dragon cards span full width — one per row on mobile */
+.clutch-results .dragon-card {
+  grid-column: 1 / -1;
+}
+
 /* ---- Clutch Budget Bar ---- */
 .clutch-budget {
   display: flex;
