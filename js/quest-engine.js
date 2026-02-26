@@ -558,9 +558,13 @@ export function getRequirementStatus(dragon, quest) {
   }));
 }
 
-// Get all quests
+// Get all quests, sorted easy → hard
+const DIFFICULTY_ORDER = { easy: 0, medium: 1, hard: 2, 'extra-hard': 3 };
+
 export function getActiveQuests() {
-  return quests.filter(q => q.status === 'active');
+  return quests
+    .filter(q => q.status === 'active')
+    .sort((a, b) => (DIFFICULTY_ORDER[a.difficulty] ?? 9) - (DIFFICULTY_ORDER[b.difficulty] ?? 9));
 }
 
 export function getCompletedQuests() {
@@ -579,9 +583,10 @@ export function submitDragonToQuest(dragon, questId) {
     quest.completedById = dragon.id;
     quest.completedByGeneration = dragon.generation;
 
-    // Generate a replacement quest of the SAME difficulty
+    // Generate a replacement quest of the SAME difficulty, inserted at same position
     const newQuest = generateQuest(quest.difficulty);
-    quests.push(newQuest);
+    const questIdx = quests.indexOf(quest);
+    quests.splice(questIdx + 1, 0, newQuest);
 
     const genMsg = dragon.generation > 0
       ? ` Bred in ${dragon.generation} generation${dragon.generation !== 1 ? 's' : ''}!`
