@@ -170,6 +170,7 @@ const stats = {
   totalQuestsCompleted: 0,
   totalStabled: 0,
   totalReleased: 0,
+  totalEggsSold: 0,
   // Currency (earned from quests, spent in shop)
   gold: 0,
   exp: 0,

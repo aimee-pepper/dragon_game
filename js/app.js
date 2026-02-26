@@ -458,6 +458,25 @@ function initHotbar(registry) {
 
     // ── Egg targeting ──
     if (state.targetType === 'egg') {
+      // Clutch locked eggs (unlock-egg effect only)
+      if (state.effect === 'unlock-egg') {
+        const lockedCard = e.target.closest('.egg-card-locked[data-egg-index]');
+        if (lockedCard) {
+          e.preventDefault();
+          e.stopPropagation();
+          const eggIndex = Number(lockedCard.dataset.eggIndex);
+          // Use applyTargetToEgg to consume powder + cancel targeting
+          const success = applyTargetToEgg({ id: 0, dragon: null }, null);
+          if (success) {
+            document.dispatchEvent(new CustomEvent('unlock-clutch-egg', { detail: { index: eggIndex } }));
+          }
+          showPotionToast(success ? 'Egg unlocked!' : 'No effect');
+          refreshHotbar();
+          return;
+        }
+      }
+
+      // Egg rack eggs
       const eggSlot = e.target.closest('.egg-rack-slot');
       if (!eggSlot) return;
 

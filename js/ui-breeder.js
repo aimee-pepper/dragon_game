@@ -9,9 +9,9 @@ import { addToStables, getStabledDragons, isNestsFull, isStabled } from './ui-st
 import { openFamilyTree } from './ui-family-tree.js';
 import { applyQuestHalo, onHighlightChange, getHighlightedQuest } from './quest-highlight.js';
 import { getGenesForQuest, getDesiredAllelesForQuest } from './quest-gene-map.js';
-import { incrementStat, triggerSave, getPendingBreedEffects, clearPendingBreedEffects } from './save-manager.js';
-import { getHatchBudget, addToEggRack, isEggRackFull, getEggRack, getEggProgress, removeFromEggRack, tickEggRack, registerEggCallbacks, getEggRackCapacity } from './egg-system.js';
-import { incrementBreedCycle } from './shop-engine.js';
+import { incrementStat, addToStat, triggerSave, getPendingBreedEffects, clearPendingBreedEffects } from './save-manager.js';
+import { getHatchBudget, addToEggRack, isEggRackFull, getEggRack, getEggProgress, removeFromEggRack, tickEggRack, registerEggCallbacks, getEggRackCapacity, getEggSalePrice } from './egg-system.js';
+import { incrementBreedCycle, consumeItem, getInventory } from './shop-engine.js';
 import { POTION_PRICES } from './economy-config.js';
 import { buildBreedModifiers } from './potion-engine.js';
 
@@ -132,6 +132,18 @@ export function initBreedTab(container, registry) {
 
   // When highlighted quest changes, refresh halos on hatched cards
   onHighlightChange(() => refreshClutchHalos());
+
+  // Listen for hotbar Hatching Powder targeting on clutch locked eggs
+  document.addEventListener('unlock-clutch-egg', (e) => {
+    if (!currentClutch) return;
+    const idx = e.detail?.index;
+    if (idx == null || !currentClutch.eggs[idx]) return;
+    const egg = currentClutch.eggs[idx];
+    if (egg.status !== 'unhatched') return;
+    egg.status = 'hatched';
+    triggerSave();
+    renderClutch();
+  });
 }
 
 function renderEmptySlot(container, which) {
@@ -420,6 +432,15 @@ function renderClutch() {
     timedLabel.textContent = `Timed: ${timedRemaining} left`;
     budgetInfo.appendChild(timedLabel);
 
+    // Count locked eggs (unhatched eggs beyond instant + timed budget)
+    const unhatchedCount = eggs.filter(e => e.status === 'unhatched').length;
+    const lockedCount = Math.max(0, unhatchedCount - Math.max(0, instantRemaining) - Math.max(0, timedRemaining));
+    if (lockedCount > 0) {
+      const lockedLabel = el('span', 'budget-tag budget-locked');
+      lockedLabel.textContent = `Locked: ${lockedCount}`;
+      budgetInfo.appendChild(lockedLabel);
+    }
+
     clutchContainer.appendChild(budgetInfo);
   }
 
@@ -496,7 +517,13 @@ function buildEggTraitHints(egg) {
 }
 
 function renderUnhatchedEgg(egg, index, instantRemaining, timedRemaining) {
+  const isLocked = !currentClutch.unlimitedHatch &&
+                   instantRemaining <= 0 &&
+                   (timedRemaining <= 0 || isEggRackFull());
+
   const card = el('div', 'egg-card');
+  if (isLocked) card.classList.add('egg-card-locked');
+  card.dataset.eggIndex = index;
 
   // Canvas egg-in-nest visual
   const eggVisual = el('div', 'egg-visual');
@@ -509,43 +536,92 @@ function renderUnhatchedEgg(egg, index, instantRemaining, timedRemaining) {
 
   card.appendChild(eggVisual);
 
+  // Lock indicator
+  if (isLocked) {
+    const lockBadge = el('div', 'egg-lock-badge', '🔒 Locked');
+    card.appendChild(lockBadge);
+  }
+
   // Action buttons
   const actions = el('div', 'egg-actions');
 
-  // Instant hatch button
-  if (instantRemaining > 0 || currentClutch.unlimitedHatch) {
-    const hatchBtn = el('button', 'btn btn-breed btn-small', 'Hatch');
-    hatchBtn.addEventListener('click', () => {
-      egg.status = 'hatched';
-      currentClutch.instantUsed++;
+  if (isLocked) {
+    // ── Locked egg buttons ──
+
+    // Sell button
+    const salePrice = getEggSalePrice();
+    const sellBtn = el('button', 'btn btn-sell btn-small', `Sell (${salePrice}g)`);
+    sellBtn.addEventListener('click', () => {
+      addToStat('gold', salePrice);
+      incrementStat('totalEggsSold');
+      egg.status = 'sold';
+      triggerSave();
       renderClutch();
     });
-    actions.appendChild(hatchBtn);
-  }
+    actions.appendChild(sellBtn);
 
-  // Send to egg rack button
-  if ((timedRemaining > 0 || currentClutch.unlimitedHatch) && !isEggRackFull()) {
-    const rackBtn = el('button', 'btn btn-secondary btn-small', 'To Rack');
-    rackBtn.title = 'Send to egg rack for timed hatching';
-    rackBtn.addEventListener('click', () => {
-      const added = addToEggRack(egg.dragon);
-      if (added) {
-        egg.status = 'racked';
-        currentClutch.timedUsed++;
+    // Unlock button (only if player owns Hatching Powder)
+    const inv = getInventory();
+    const powderCount = inv.get('hatching-powder') || 0;
+    if (powderCount > 0) {
+      const unlockBtn = el('button', 'btn btn-breed btn-small', '⚗ Unlock');
+      unlockBtn.title = 'Use 1 Hatching Powder to instant-hatch';
+      unlockBtn.addEventListener('click', () => {
+        consumeItem('hatching-powder');
+        egg.status = 'hatched';
+        triggerSave();
         renderClutch();
-      }
-    });
-    actions.appendChild(rackBtn);
-  }
+      });
+      actions.appendChild(unlockBtn);
+    }
 
-  // Discard button
-  const discardBtn = el('button', 'btn btn-secondary btn-small', 'Discard');
-  discardBtn.style.opacity = '0.6';
-  discardBtn.addEventListener('click', () => {
-    egg.status = 'discarded';
-    renderClutch();
-  });
-  actions.appendChild(discardBtn);
+    // Discard button
+    const discardBtn = el('button', 'btn btn-secondary btn-small', 'Discard');
+    discardBtn.style.opacity = '0.6';
+    discardBtn.addEventListener('click', () => {
+      egg.status = 'discarded';
+      renderClutch();
+    });
+    actions.appendChild(discardBtn);
+
+  } else {
+    // ── Normal (unlocked) egg buttons ──
+
+    // Instant hatch button
+    if (instantRemaining > 0 || currentClutch.unlimitedHatch) {
+      const hatchBtn = el('button', 'btn btn-breed btn-small', 'Hatch');
+      hatchBtn.addEventListener('click', () => {
+        egg.status = 'hatched';
+        currentClutch.instantUsed++;
+        renderClutch();
+      });
+      actions.appendChild(hatchBtn);
+    }
+
+    // Send to egg rack button
+    if ((timedRemaining > 0 || currentClutch.unlimitedHatch) && !isEggRackFull()) {
+      const rackBtn = el('button', 'btn btn-secondary btn-small', 'To Rack');
+      rackBtn.title = 'Send to egg rack for timed hatching';
+      rackBtn.addEventListener('click', () => {
+        const added = addToEggRack(egg.dragon);
+        if (added) {
+          egg.status = 'racked';
+          currentClutch.timedUsed++;
+          renderClutch();
+        }
+      });
+      actions.appendChild(rackBtn);
+    }
+
+    // Discard button
+    const discardBtn = el('button', 'btn btn-secondary btn-small', 'Discard');
+    discardBtn.style.opacity = '0.6';
+    discardBtn.addEventListener('click', () => {
+      egg.status = 'discarded';
+      renderClutch();
+    });
+    actions.appendChild(discardBtn);
+  }
 
   card.appendChild(actions);
   clutchContainer.appendChild(card);
