@@ -14,6 +14,7 @@ import {
 import { getHighlightedQuest, setHighlightedQuest } from './quest-highlight.js';
 import { uiImg } from './ui-card.js';
 import { incrementStat, addToStat, triggerSave, getStats } from './save-manager.js';
+import { getAvailableXP } from './skill-engine.js';
 import { calculateQuestReward } from './reward-engine.js';
 import { QUEST_REWARDS } from './reward-config.js';
 
@@ -74,12 +75,16 @@ function renderQuests() {
   header.appendChild(el('span', 'quests-hint', `${stabledCount} dragon${stabledCount !== 1 ? 's' : ''} in stables`));
   questContainer.appendChild(header);
 
-  // Currency bar
+  // Currency bar — shows available + (total earned)
   const currStats = getStats();
+  const availXP = getAvailableXP();
   const currencyBar = el('div', 'currency-bar');
-  currencyBar.appendChild(currencySpan('c_coin.png', currStats.gold.toLocaleString(), 'currency-gold'));
-  currencyBar.appendChild(currencySpan('c_exp.png', `${currStats.exp.toLocaleString()} EXP`, 'currency-exp'));
-  currencyBar.appendChild(currencySpan('c_rep.png', `${currStats.rep.toLocaleString()} Rep`, 'currency-rep'));
+  currencyBar.appendChild(currencySpan('c_coin.png',
+    `${currStats.gold.toLocaleString()} (${currStats.totalGoldEarned.toLocaleString()} earned)`, 'currency-gold'));
+  currencyBar.appendChild(currencySpan('c_exp.png',
+    `${availXP.toLocaleString()} (${currStats.exp.toLocaleString()} earned) EXP`, 'currency-exp'));
+  currencyBar.appendChild(currencySpan('c_rep.png',
+    `${currStats.rep.toLocaleString()} (${currStats.totalRepEarned.toLocaleString()} earned) Rep`, 'currency-rep'));
   questContainer.appendChild(currencyBar);
 
   // Active quests

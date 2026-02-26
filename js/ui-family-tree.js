@@ -588,6 +588,7 @@ export function openFamilyTree(dragon, registry) {
   expandBtn.title = 'Expand to full screen';
   expandBtn.addEventListener('click', () => {
     const isExpanded = panel.classList.toggle('family-tree-fullscreen');
+    overlay.classList.toggle('family-tree-overlay-full', isExpanded);
     expandBtn.textContent = isExpanded ? '⬇' : '⬆';
     expandBtn.title = isExpanded ? 'Collapse' : 'Expand to full screen';
   });

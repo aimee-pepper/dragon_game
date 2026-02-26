@@ -41,7 +41,7 @@ export class Dragon {
     this.mutations = mutations || [];
     this.alleleOrigins = alleleOrigins || null; // { geneName: ['A', 'B'] } — null for wild/random dragons
     this.generation = generation ?? 0; // 0 for wild/random, increments with breeding
-    this.revealedGenes = revealedGenes || {}; // { geneName: 'peek' | 'full' }
+    this.revealedGenes = revealedGenes || {}; // { geneName: 'partial' | 'full' }
     this.phenotype = resolveFullPhenotype(this.genotype);
 
     // Auto-reveal genes at extreme phenotype values.
@@ -78,6 +78,11 @@ export class Dragon {
 
   // Restore a dragon from save data — recomputes phenotype from genotype
   static fromSaveData(data) {
+    // Migrate old 'peek' reveal values → 'partial' (renamed to avoid conflict with spell names)
+    const reveals = data.revealedGenes || {};
+    for (const key of Object.keys(reveals)) {
+      if (reveals[key] === 'peek') reveals[key] = 'partial';
+    }
     return new Dragon({
       id: data.id,
       genotype: data.genotype,
@@ -88,7 +93,7 @@ export class Dragon {
       alleleOrigins: data.alleleOrigins || null,
       generation: data.generation ?? 0,
       isDarkEnergy: data.isDarkEnergy || false,
-      revealedGenes: data.revealedGenes || {},
+      revealedGenes: reveals,
     });
   }
 
@@ -102,16 +107,16 @@ export class Dragon {
 
   // ── Gene reveal helpers ──────────────────────────────────
 
-  /** Reveal a gene at a given level ('peek' = one allele, 'full' = both) */
+  /** Reveal a gene at a given level ('partial' = one allele, 'full' = both) */
   revealGene(geneName, level) {
     const current = this.revealedGenes[geneName];
-    // Only upgrade: peek → full, never downgrade
+    // Only upgrade: partial → full, never downgrade
     if (current === 'full') return;
-    if (level === 'peek' && current === 'peek') return;
+    if (level === 'partial' && current === 'partial') return;
     this.revealedGenes[geneName] = level;
   }
 
-  /** Check if a gene is revealed. Returns 'peek' | 'full' | null */
+  /** Check if a gene is revealed. Returns 'partial' | 'full' | null */
   isGeneRevealed(geneName) {
     return this.revealedGenes[geneName] || null;
   }
@@ -137,7 +142,7 @@ export class Dragon {
    *   is max (because [max-1,max-1] averages to max-1, not max), but the second
    *   allele is ambiguous.
    *   → Seeing "Mega" means at least one allele is 6, but could be [5,6] or [6,6].
-   *   → Reveal level: 'peek' (one allele known to be max, other unknown).
+   *   → Reveal level: 'partial' (one allele known to be max, other unknown).
    */
   _autoRevealExtremes() {
     for (const [geneName, def] of Object.entries(GENE_DEFS)) {
@@ -147,15 +152,28 @@ export class Dragon {
       const pair = this.genotype[geneName];
       if (!pair) continue;
 
+      // Triangle system genes (CMY, Finish, Element): edge alleles → partial only.
+      // An allele at 0 or max (3) can't result from blending, so it's deducible.
+      // Always partial (show one allele) — never full, even if both are the same edge.
+      if (def.system === 'triangle') {
+        if (this.revealedGenes[geneName] !== 'partial' &&
+            (pair[0] === def.min || pair[1] === def.min ||
+             pair[0] === def.max || pair[1] === def.max)) {
+          this.revealedGenes[geneName] = 'partial';
+        }
+        continue;
+      }
+
+      // Non-triangle linear genes: existing logic
       // MIN extreme: both alleles must be min → fully revealed
       if (pair[0] === def.min && pair[1] === def.min) {
         this.revealedGenes[geneName] = 'full';
       }
-      // MAX extreme: at least one allele must be max → peek revealed
-      else if (this.revealedGenes[geneName] !== 'peek' &&
+      // MAX extreme: at least one allele must be max → partial revealed
+      else if (this.revealedGenes[geneName] !== 'partial' &&
                (pair[0] === def.max || pair[1] === def.max) &&
                Math.round((pair[0] + pair[1]) / 2) === def.max) {
-        this.revealedGenes[geneName] = 'peek';
+        this.revealedGenes[geneName] = 'partial';
       }
     }
   }

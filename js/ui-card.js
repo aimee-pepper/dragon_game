@@ -621,10 +621,10 @@ function buildGenotypeContent(dragon, parentNames, highlightGenes, desiredAllele
 
   function isGeneRevealed(geneName) {
     if (debugRevealAll) return true;
-    return !!dragonReveals[geneName]; // 'peek' or 'full'
+    return !!dragonReveals[geneName]; // 'partial' or 'full'
   }
 
-  /** Returns 'peek', 'full', or null */
+  /** Returns 'partial', 'full', or null */
   function getRevealLevel(geneName) {
     if (debugRevealAll) return 'full';
     return dragonReveals[geneName] || null;
@@ -632,7 +632,7 @@ function buildGenotypeContent(dragon, parentNames, highlightGenes, desiredAllele
 
   // If this dragon has allele origins and parent names, show the legend
   const hasOrigins = dragon.alleleOrigins && parentNames;
-  const hasAnyRevealed = debugRevealAll || Object.values(dragonReveals).some(v => v === 'full' || v === 'peek');
+  const hasAnyRevealed = debugRevealAll || Object.values(dragonReveals).some(v => v === 'full' || v === 'partial');
   if (hasOrigins && hasAnyRevealed) {
     const legend = el('div', 'genotype-legend');
     const legendA = el('span', 'legend-parent-a', `● ${parentNames.A || 'Parent A'}`);
@@ -705,8 +705,11 @@ function buildGenotypeContent(dragon, parentNames, highlightGenes, desiredAllele
           : Math.round((alleles[0] + alleles[1]) / 2);
         resolvedText = def.phenotypeMap[resolved] || String(resolved);
       } else if (triangleAxes.has(geneName)) {
-        const avg = ((alleles[0] + alleles[1]) / 2).toFixed(1);
-        resolvedText = `avg ${avg}`;
+        // Show classified tier name (None/Low/Mid/High), never numbers
+        const avg = (alleles[0] + alleles[1]) / 2;
+        const TRIANGLE_TIER_NAMES = { 0: 'None', 1: 'Low', 2: 'Mid', 3: 'High' };
+        const tier = avg < 0.5 ? 0 : avg < 1.5 ? 1 : avg < 2.5 ? 2 : 3;
+        resolvedText = TRIANGLE_TIER_NAMES[tier];
       }
     }
 
@@ -745,13 +748,24 @@ function buildGenotypeContent(dragon, parentNames, highlightGenes, desiredAllele
 
       // Peek reveal: show the higher allele (the extreme one) and ??? for the other
       const revealLevel = getRevealLevel(geneName);
-      const isPeek = revealLevel === 'peek';
+      const isPartial = revealLevel === 'partial';
 
-      if (isPeek) {
-        // For peek, reveal the extreme allele (max of the two) and hide the other
-        const maxVal = Math.max(alleles[0], alleles[1]);
-        const maxLabel = getAlleleLabel(maxVal);
-        allelesEl.textContent = `(${maxLabel}, ???)`;
+      if (isPartial) {
+        // Show the deducible allele and hide the other
+        let revealVal;
+        if (def.system === 'triangle') {
+          // For triangle genes, show the EDGE allele (0 or max) that triggered the reveal
+          if (alleles[0] === def.min || alleles[0] === def.max) {
+            revealVal = alleles[0];
+          } else {
+            revealVal = alleles[1];
+          }
+        } else {
+          // For non-triangle genes, show the max (extreme) allele
+          revealVal = Math.max(alleles[0], alleles[1]);
+        }
+        const revealLabel = getAlleleLabel(revealVal);
+        allelesEl.textContent = `(${revealLabel}, ???)`;
       } else if (hasOrigins) {
         // Color-coded alleles: each allele colored by which parent it came from
         const origins = dragon.alleleOrigins[geneName];

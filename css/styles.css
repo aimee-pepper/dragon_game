@@ -212,6 +212,162 @@ header {
   height: 14px;
 }
 
+/* Hotbar — floats above footer on the right side */
+#footer-hotbar {
+  position: absolute;
+  top: 0;
+  right: 8px;
+  transform: translateY(-100%);
+  display: flex;
+  gap: 4px;
+  padding: 4px 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.hotbar-slot {
+  width: 36px;
+  height: 36px;
+  border: 1.5px dashed var(--border);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  background: transparent;
+}
+
+.hotbar-slot:hover {
+  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.hotbar-slot.filled {
+  border-style: solid;
+  border-color: var(--accent);
+}
+
+.hotbar-slot .hotbar-icon {
+  width: 24px;
+  height: 24px;
+  pointer-events: none;
+}
+
+.hotbar-slot .hotbar-count {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  background: var(--accent);
+  color: #000;
+  font-size: 9px;
+  font-weight: 800;
+  min-width: 14px;
+  height: 14px;
+  line-height: 14px;
+  text-align: center;
+  border-radius: 7px;
+  padding: 0 3px;
+  pointer-events: none;
+}
+
+/* Item picker overlay (shown when clicking empty hotbar slot) */
+.hotbar-picker-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 80px;
+}
+
+.hotbar-picker-panel {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  min-width: 240px;
+  max-width: 320px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.hotbar-picker-title {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: var(--text);
+}
+
+.hotbar-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.hotbar-picker-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.hotbar-picker-item .picker-item-name {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.hotbar-picker-item .picker-item-count {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.hotbar-picker-subtitle {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 8px 8px 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2px;
+}
+
+.hotbar-picker-item .picker-item-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.hotbar-picker-item .picker-item-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 1px;
+}
+
+.hotbar-picker-empty {
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 16px 8px;
+}
+
+.hotbar-slot.filled-skill {
+  border-color: #80d0ff;
+  border-style: solid;
+  background: rgba(128, 208, 255, 0.06);
+}
+
 #footer-nav {
   display: flex;
   gap: var(--spacing-xs);
@@ -229,6 +385,86 @@ header {
   display: none;
   padding: var(--spacing);
   padding-bottom: calc(var(--spacing) * 2 + 64px); /* clear footer */
+}
+
+/* ---- Inventory Tab ---- */
+
+.inventory-container {
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.inventory-header {
+  margin-bottom: 12px;
+}
+
+.inventory-section {
+  margin-bottom: 20px;
+}
+
+.inventory-section-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.inventory-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s;
+}
+
+.inventory-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.inventory-item-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+  width: 28px;
+  text-align: center;
+}
+
+.inventory-item-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.inventory-item-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.inventory-item-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 1px;
+}
+
+.inventory-item-count {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.inventory-empty {
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 16px 8px;
+  font-style: italic;
 }
 
 /* ---- Placeholder (Coming Soon) Tabs ---- */
@@ -1371,6 +1607,51 @@ header {
   margin-top: var(--spacing-sm);
 }
 
+/* ---- Parent Replace Prompt ---- */
+
+.breed-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.breed-replace-panel {
+  background: var(--bg);
+  border-radius: var(--radius);
+  padding: var(--spacing);
+  width: 90%;
+  max-width: 340px;
+  text-align: center;
+}
+
+.breed-replace-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-bright);
+  margin-bottom: 6px;
+}
+
+.breed-replace-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+  line-height: 1.4;
+}
+
+.breed-replace-btns {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.breed-replace-btns .btn {
+  flex: 1;
+}
+
 /* ---- Section Dividers ---- */
 
 .section-divider {
@@ -1759,6 +2040,49 @@ header {
 .egg-rack-time-label {
   font-size: 10px;
   color: var(--text-muted);
+}
+
+.egg-rack-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.egg-rack-discard {
+  min-width: 28px;
+  padding: 2px 6px;
+  font-size: 14px;
+  opacity: 0.5;
+}
+
+.egg-rack-discard:hover {
+  opacity: 1;
+}
+
+/* Egg rack toast notification */
+.egg-rack-toast {
+  position: fixed;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-20px);
+  background: linear-gradient(135deg, #1a3a2a, #2a4a3a);
+  color: #50c878;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 10002;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  border: 1px solid rgba(80, 200, 120, 0.3);
+}
+
+.egg-rack-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 
 /* Egg rack incubation glow */
@@ -2314,6 +2638,10 @@ header {
   z-index: 10000;
 }
 
+.family-tree-overlay-full {
+  align-items: stretch;
+}
+
 .family-tree-panel {
   max-height: 85vh;
   display: flex;
@@ -2323,6 +2651,7 @@ header {
 
 .family-tree-panel.family-tree-fullscreen {
   max-height: calc(100vh - env(safe-area-inset-top, 0px));
+  height: 100%;
   border-radius: var(--radius) var(--radius) 0 0;
 }
 
@@ -4169,6 +4498,7 @@ header {
 
   .family-tree-panel.family-tree-fullscreen {
     max-height: calc(100vh - env(safe-area-inset-top, 0px));
+    height: 100%;
   }
 
   .family-tree-container {

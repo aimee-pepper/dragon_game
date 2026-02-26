@@ -5,7 +5,7 @@ import { renderEgg } from './egg-renderer.js';
 import { renderDragonSprite } from './ui-dragon-sprite.js';
 import { renderDragon } from './sprite-renderer.js';
 import { getSetting } from './settings.js';
-import { addToStables, getStabledDragons, isNestsFull } from './ui-stables.js';
+import { addToStables, getStabledDragons, isNestsFull, isStabled } from './ui-stables.js';
 import { openFamilyTree } from './ui-family-tree.js';
 import { applyQuestHalo, onHighlightChange, getHighlightedQuest } from './quest-highlight.js';
 import { getGenesForQuest, getDesiredAllelesForQuest } from './quest-gene-map.js';
@@ -110,7 +110,13 @@ export function initBreedTab(container, registry) {
     for (const dragon of hatched) {
       showRackHatchedDragon(dragon);
     }
-    if (hatched.length > 0) triggerSave();
+    if (hatched.length > 0) {
+      triggerSave();
+      renderClutch(); // update "To Rack" buttons now that rack has space
+      if (!isEggRackFull()) {
+        showEggRackToast('Egg rack slot available!');
+      }
+    }
     refreshEggRack();
   }, 1000);
 
@@ -235,6 +241,19 @@ function renderParentSummary(container, which, dragon) {
 }
 
 function setParent(which, dragon) {
+  const outgoing = which === 'A' ? parentA : parentB;
+
+  // If replacing an unstabled parent, ask what to do with it
+  if (outgoing && outgoing.id !== dragon.id && !isStabled(outgoing.id)) {
+    showParentReplacePrompt(outgoing, () => {
+      applyParent(which, dragon);
+    });
+  } else {
+    applyParent(which, dragon);
+  }
+}
+
+function applyParent(which, dragon) {
   if (which === 'A') {
     parentA = dragon;
     renderParentSummary(parentAContainer, 'A', dragon);
@@ -243,6 +262,58 @@ function setParent(which, dragon) {
     renderParentSummary(parentBContainer, 'B', dragon);
   }
   updateBreedButton();
+}
+
+/** Prompt: stable or release the outgoing parent before replacement */
+function showParentReplacePrompt(dragon, onDone) {
+  const overlay = el('div', 'breed-overlay');
+  const panel = el('div', 'breed-replace-panel');
+
+  panel.appendChild(el('div', 'breed-replace-title', `Replace ${dragon.name}?`));
+  panel.appendChild(el('div', 'breed-replace-desc', `${dragon.name} is not in your stables. What would you like to do?`));
+
+  const btns = el('div', 'breed-replace-btns');
+
+  const stableBtn = el('button', 'btn btn-stable btn-small', '★ Stable');
+  stableBtn.addEventListener('click', () => {
+    const result = addToStables(dragon);
+    if (result === false) {
+      stableBtn.textContent = 'Nests full!';
+      stableBtn.classList.add('btn-nests-full');
+      setTimeout(() => {
+        stableBtn.textContent = '★ Stable';
+        stableBtn.classList.remove('btn-nests-full');
+      }, 1500);
+      return;
+    }
+    triggerSave();
+    overlay.remove();
+    onDone();
+  });
+  btns.appendChild(stableBtn);
+
+  const releaseBtn = el('button', 'btn btn-secondary btn-small', 'Release');
+  releaseBtn.addEventListener('click', () => {
+    overlay.remove();
+    onDone();
+  });
+  btns.appendChild(releaseBtn);
+
+  const cancelBtn = el('button', 'btn btn-secondary btn-small', 'Cancel');
+  cancelBtn.addEventListener('click', () => {
+    overlay.remove();
+  });
+  btns.appendChild(cancelBtn);
+
+  panel.appendChild(btns);
+  overlay.appendChild(panel);
+
+  // Close on overlay background click
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.remove();
+  });
+
+  document.body.appendChild(overlay);
 }
 
 function updateBreedButton() {
@@ -546,6 +617,9 @@ function refreshEggRack() {
     // Name
     slot.appendChild(el('span', 'egg-rack-name', egg.dragon.name));
 
+    // Action row for buttons
+    const rackActions = el('div', 'egg-rack-actions');
+
     if (progress.isReady) {
       // Ready — show "Ready!" and hatch button
       const readyLabel = el('div', 'egg-rack-timer egg-rack-timer-ready');
@@ -560,9 +634,10 @@ function refreshEggRack() {
           addToStables(removed.dragon, true);
           triggerSave();
           refreshEggRack();
+          renderClutch(); // update "To Rack" buttons
         }
       });
-      slot.appendChild(hatchBtn);
+      rackActions.appendChild(hatchBtn);
     } else {
       // Countdown timer (prominent)
       const secs = Math.ceil(progress.remaining / 1000);
@@ -584,6 +659,21 @@ function refreshEggRack() {
       barWrap.appendChild(el('span', 'egg-rack-time-label', 'Incubating…'));
       slot.appendChild(barWrap);
     }
+
+    // Discard button (always available on rack eggs)
+    const discardBtn = el('button', 'btn btn-secondary btn-small egg-rack-discard', '🗑');
+    discardBtn.title = 'Remove egg from rack';
+    discardBtn.addEventListener('click', () => {
+      const removed = removeFromEggRack(egg.id);
+      if (removed) {
+        triggerSave();
+        refreshEggRack();
+        renderClutch(); // update "To Rack" buttons
+      }
+    });
+    rackActions.appendChild(discardBtn);
+
+    slot.appendChild(rackActions);
 
     eggRackContainer.appendChild(slot);
   }
@@ -676,4 +766,25 @@ export function getParentBId() {
 export function restoreBreedParents(dragonA, dragonB) {
   if (dragonA) setParent('A', dragonA);
   if (dragonB) setParent('B', dragonB);
+}
+
+// ── Simple toast notification ──
+
+function showEggRackToast(message) {
+  const existing = document.querySelector('.egg-rack-toast');
+  if (existing) existing.remove();
+
+  const toast = document.createElement('div');
+  toast.className = 'egg-rack-toast';
+  toast.textContent = message;
+  document.body.appendChild(toast);
+
+  // Animate in
+  requestAnimationFrame(() => toast.classList.add('show'));
+
+  // Auto-dismiss after 3s
+  setTimeout(() => {
+    toast.classList.remove('show');
+    toast.addEventListener('transitionend', () => toast.remove());
+  }, 3000);
 }

@@ -192,13 +192,13 @@ export function getRewardBonus(stat) {
   return bonus;
 }
 
-/** Get egg pricing bonus (highest tier) */
+/** Get egg pricing bonus in gold (highest tier) */
 export function getEggPricingBonus() {
   let bonus = 0;
   for (const skillId of unlockedSkills) {
     const def = SKILL_DEFS[skillId];
     if (def && def.effect && def.effect.type === 'egg-pricing') {
-      bonus = Math.max(bonus, def.effect.percent);
+      bonus = Math.max(bonus, def.effect.gold || 0);
     }
   }
   return bonus;

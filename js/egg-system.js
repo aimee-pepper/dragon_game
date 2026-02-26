@@ -13,6 +13,7 @@ import {
   BASE_EGG_RACK_SLOTS,
 } from './economy-config.js';
 import { getSetting } from './settings.js';
+import { getEggPricingBonus } from './skill-engine.js';
 
 // ── Egg Rack State ───────────────────────────────────────────
 // Eggs in the rack: { id, dragon, placedAt, hatchTime }
@@ -122,8 +123,7 @@ export function removeFromEggRack(eggId) {
 // ── Egg Sale ─────────────────────────────────────────────────
 
 export function getEggSalePrice() {
-  // TODO: Factor in Egg Pricing skills
-  return BASE_EGG_SALE_PRICE;
+  return BASE_EGG_SALE_PRICE + getEggPricingBonus();
 }
 
 // ── Save / Load ──────────────────────────────────────────────

@@ -23,6 +23,7 @@ import { getCompletedQuests } from './quest-engine.js';
 import { renderDragonCard } from './ui-card.js';
 import { openFamilyTree } from './ui-family-tree.js';
 import { getStats } from './save-manager.js';
+import { getAvailableXP } from './skill-engine.js';
 import { getStabledDragons } from './ui-stables.js';
 import { getSetting } from './settings.js';
 import {
@@ -407,7 +408,7 @@ function renderStatsPanel(wrapper) {
     { label: 'Dragons Stabled', value: stats.totalStabled, icon: '🏠' },
     { label: 'Dragons Released', value: stats.totalReleased, icon: '🌿' },
     { label: 'Gold', value: stats.gold, icon: '🪙' },
-    { label: 'Experience', value: stats.exp, icon: '📘' },
+    { label: 'Experience', value: getAvailableXP(), icon: '📘' },
     { label: 'Reputation', value: stats.rep, icon: '⭐' },
   ];
 

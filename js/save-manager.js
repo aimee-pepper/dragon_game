@@ -174,6 +174,11 @@ const stats = {
   gold: 0,
   exp: 0,
   rep: 0,
+  // Lifetime currency earned (never decremented)
+  totalGoldEarned: 0,
+  totalRepEarned: 0,
+  // Note: stats.exp already IS the lifetime XP counter (XP spending is tracked
+  // separately in skill-engine's xpSpent, so stats.exp only accumulates).
 };
 
 export function getStats() {
@@ -203,9 +208,55 @@ export function incrementStat(key) {
 export function addToStat(key, amount) {
   if (key in stats && typeof amount === 'number') {
     stats[key] += amount;
+    // Track lifetime currency earned (positive additions only)
+    if (amount > 0) {
+      if (key === 'gold') stats.totalGoldEarned += amount;
+      if (key === 'rep')  stats.totalRepEarned += amount;
+    }
     debouncedSave();
     notifyStatChange();
   }
+}
+
+// ── Hotbar state ────────────────────────────────────────────
+// 5 slots, each null or { type: 'item'|'skill', id: string }
+const hotbar = [null, null, null, null, null];
+
+export function getHotbar() {
+  return [...hotbar];
+}
+
+export function setHotbarSlot(slotIndex, entry) {
+  if (slotIndex >= 0 && slotIndex < hotbar.length) {
+    // entry should be { type: 'item'|'skill', id: '...' } or null
+    hotbar[slotIndex] = entry;
+    debouncedSave();
+  }
+}
+
+export function clearHotbarSlot(slotIndex) {
+  if (slotIndex >= 0 && slotIndex < hotbar.length) {
+    hotbar[slotIndex] = null;
+    debouncedSave();
+  }
+}
+
+// ── Pending breed effects ───────────────────────────────────
+// Array of potion IDs queued for next breed
+const pendingBreedEffects = [];
+
+export function getPendingBreedEffects() {
+  return [...pendingBreedEffects];
+}
+
+export function addPendingBreedEffect(potionId) {
+  pendingBreedEffects.push(potionId);
+  debouncedSave();
+}
+
+export function clearPendingBreedEffects() {
+  pendingBreedEffects.length = 0;
+  debouncedSave();
 }
 
 // ── Save ────────────────────────────────────────────────────
@@ -263,6 +314,8 @@ export function saveGame(registry) {
       achievements: _getAchievementSaveData(),
       shop: _getShopSaveData(),
       skills: _getSkillSaveData(),
+      hotbar: [...hotbar],
+      pendingBreedEffects: [...pendingBreedEffects],
     };
 
     for (const dragon of dragonsToSave) {
@@ -431,6 +484,29 @@ export function loadGame(registry) {
     // Restore skill state
     if (saveData.skills) {
       _restoreSkillState(saveData.skills);
+    }
+
+    // Restore hotbar (migrate old string-only entries → { type: 'item', id })
+    if (Array.isArray(saveData.hotbar)) {
+      for (let i = 0; i < hotbar.length && i < saveData.hotbar.length; i++) {
+        const entry = saveData.hotbar[i];
+        if (entry === null) {
+          hotbar[i] = null;
+        } else if (typeof entry === 'string') {
+          // Backward compat: old format was just an item ID string
+          hotbar[i] = { type: 'item', id: entry };
+        } else if (entry && entry.type && entry.id) {
+          hotbar[i] = entry;
+        } else {
+          hotbar[i] = null;
+        }
+      }
+    }
+
+    // Restore pending breed effects
+    if (Array.isArray(saveData.pendingBreedEffects)) {
+      pendingBreedEffects.length = 0;
+      pendingBreedEffects.push(...saveData.pendingBreedEffects);
     }
 
     // Deferred restore: breed parents (applied after initBreedTab)
