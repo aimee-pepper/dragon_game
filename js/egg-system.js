@@ -10,10 +10,11 @@
 import {
   BASE_CLUTCH_SIZE, BASE_INSTANT_HATCH, BASE_TIMED_EGGS, BASE_LOCKED_EGGS,
   BASE_HATCH_TIME_MS, MIN_HATCH_TIME_MS, BASE_EGG_SALE_PRICE,
-  BASE_EGG_RACK_SLOTS,
+  BASE_EGG_RACK_SLOTS, HATCH_REDUCTION_PER_CHARM,
 } from './economy-config.js';
 import { getSetting } from './settings.js';
-import { getEggPricingBonus } from './skill-engine.js';
+import { getEggPricingBonus, getClutchSizeBonus, getHatchCapacityBonus } from './skill-engine.js';
+import { getInventory } from './shop-engine.js';
 
 // ── Egg Rack State ───────────────────────────────────────────
 // Eggs in the rack: { id, dragon, placedAt, hatchTime }
@@ -35,20 +36,29 @@ export function registerEggCallbacks(onHatched, onRackChange) {
 // Returns how many of each type based on current skills
 
 export function getHatchBudget(clutchSize) {
-  // TODO: Factor in Clutch Size skills and Hatch Capacity skills
-  // For now, use base values
-  const instantCount = BASE_INSTANT_HATCH;
+  // Skill bonuses
+  const skillClutchBonus = getClutchSizeBonus();
+  const skillHatchBonus = getHatchCapacityBonus();
+
+  // Talisman bonuses
+  const inv = getInventory();
+  const breedingCharmCount = inv.get('breeding-charm') || 0;
+  const hatchersPendantCount = inv.get('hatchers-pendant') || 0;
+
+  const instantCount = BASE_INSTANT_HATCH + skillHatchBonus + hatchersPendantCount;
   const timedCount = BASE_TIMED_EGGS;
-  // Locked = everything remaining
+  // Locked = everything remaining after instant and timed slots
   const lockedCount = Math.max(0, clutchSize - instantCount - timedCount);
-  return { instantCount, timedCount, lockedCount };
+  return { instantCount, timedCount, lockedCount, clutchBonus: skillClutchBonus + breedingCharmCount };
 }
 
 // ── Current Hatch Time ───────────────────────────────────────
 
 export function getHatchDuration() {
-  // TODO: Factor in Quickening Salve uses and Quick-Hatch Charm purchases
-  return BASE_HATCH_TIME_MS;
+  const inv = getInventory();
+  const quickHatchCount = inv.get('quick-hatch-charm') || 0;
+  const reduction = quickHatchCount * HATCH_REDUCTION_PER_CHARM;
+  return Math.max(MIN_HATCH_TIME_MS, BASE_HATCH_TIME_MS - reduction);
 }
 
 // ── Egg Rack Operations ──────────────────────────────────────
@@ -109,6 +119,19 @@ export function getEggProgress(egg) {
   const remaining = Math.max(0, egg.hatchTime - elapsed);
   const percent = Math.min(100, (elapsed / egg.hatchTime) * 100);
   return { remaining, percent, isReady: remaining <= 0 };
+}
+
+// Reduce an egg's hatch time by a given amount (clamped to MIN_HATCH_TIME_MS minimum remaining)
+export function reduceEggHatchTime(eggId, reductionMs) {
+  const egg = eggRack.find(e => e.id === eggId);
+  if (!egg) return;
+  egg.hatchTime = Math.max(MIN_HATCH_TIME_MS, egg.hatchTime - reductionMs);
+  if (_onRackChange) _onRackChange();
+}
+
+// Get an egg from the rack by ID (for targeting)
+export function getEggById(eggId) {
+  return eggRack.find(e => e.id === eggId) || null;
 }
 
 // Remove an egg from the rack (e.g. hatched via button or discarded)

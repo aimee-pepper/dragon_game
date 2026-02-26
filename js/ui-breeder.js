@@ -9,9 +9,11 @@ import { addToStables, getStabledDragons, isNestsFull, isStabled } from './ui-st
 import { openFamilyTree } from './ui-family-tree.js';
 import { applyQuestHalo, onHighlightChange, getHighlightedQuest } from './quest-highlight.js';
 import { getGenesForQuest, getDesiredAllelesForQuest } from './quest-gene-map.js';
-import { incrementStat, triggerSave } from './save-manager.js';
+import { incrementStat, triggerSave, getPendingBreedEffects, clearPendingBreedEffects } from './save-manager.js';
 import { getHatchBudget, addToEggRack, isEggRackFull, getEggRack, getEggProgress, removeFromEggRack, tickEggRack, registerEggCallbacks, getEggRackCapacity } from './egg-system.js';
 import { incrementBreedCycle } from './shop-engine.js';
+import { POTION_PRICES } from './economy-config.js';
+import { buildBreedModifiers } from './potion-engine.js';
 
 let dragonRegistry = null;
 let parentA = null;
@@ -78,6 +80,12 @@ export function initBreedTab(container, registry) {
   breedActions.appendChild(clearAllBtn);
 
   container.appendChild(breedActions);
+
+  // Pending breed effects indicator
+  const pendingEffectsBar = el('div', 'pending-effects-bar');
+  pendingEffectsBar.id = 'pending-effects-bar';
+  container.appendChild(pendingEffectsBar);
+  refreshPendingEffectsBar();
 
   // Clutch results area
   clutchContainer = el('div', 'clutch-results');
@@ -338,7 +346,24 @@ function updateBreedButton() {
 function doBreed() {
   if (!parentA || !parentB) return;
 
-  const offspring = Dragon.breed(parentA, parentB);
+  // Build breed modifiers from any queued potions/effects
+  const pendingEffects = getPendingBreedEffects();
+  const modifiers = buildBreedModifiers(pendingEffects);
+
+  // Add permanent clutch bonus from skills + talismans
+  const preBudget = getHatchBudget(0); // read permanent clutchBonus from skills/talismans
+  if (preBudget.clutchBonus > 0) {
+    modifiers.clutchBonus = (modifiers.clutchBonus || 0) + preBudget.clutchBonus;
+  }
+
+  const offspring = Dragon.breed(parentA, parentB, modifiers);
+
+  // Clear pending effects now that they've been consumed
+  if (pendingEffects.length > 0) {
+    clearPendingBreedEffects();
+    refreshPendingEffectsBar();
+  }
+
   for (const child of offspring) {
     incrementStat('totalBred');
     if (child.mutations && child.mutations.length > 0) {
@@ -602,6 +627,7 @@ function refreshEggRack() {
   for (const egg of eggs) {
     const progress = getEggProgress(egg);
     const slot = el('div', 'egg-rack-slot');
+    slot.dataset.eggId = egg.id;
 
     // Egg art (larger for card layout, canvas-rendered)
     const eggArt = el('div', 'egg-art-wrap');
@@ -766,6 +792,43 @@ export function getParentBId() {
 export function restoreBreedParents(dragonA, dragonB) {
   if (dragonA) setParent('A', dragonA);
   if (dragonB) setParent('B', dragonB);
+}
+
+// ── Pending breed effects indicator ──
+
+export function refreshPendingEffectsBar() {
+  const bar = document.getElementById('pending-effects-bar');
+  if (!bar) return;
+  bar.innerHTML = '';
+
+  const effects = getPendingBreedEffects();
+  if (effects.length === 0) {
+    bar.style.display = 'none';
+    return;
+  }
+
+  bar.style.display = 'flex';
+  const label = el('span', 'pending-effects-label', 'Active: ');
+  bar.appendChild(label);
+
+  for (const effectId of effects) {
+    const tag = el('span', 'pending-effect-tag');
+    // Look up the potion name
+    const potionInfo = POTION_PRICES[effectId];
+    if (potionInfo) {
+      tag.textContent = potionInfo.name;
+    } else if (effectId.startsWith('trait-lock:')) {
+      tag.textContent = 'Trait Lock';
+    } else {
+      tag.textContent = effectId;
+    }
+    bar.appendChild(tag);
+  }
+}
+
+// Listen for hotbar changes to refresh pending effects display
+if (typeof window !== 'undefined') {
+  window.addEventListener('hotbar-changed', refreshPendingEffectsBar);
 }
 
 // ── Simple toast notification ──

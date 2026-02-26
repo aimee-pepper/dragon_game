@@ -179,8 +179,8 @@ export class Dragon {
   }
 
   // Breed two dragons, returning an array of offspring Dragon instances
-  static breed(parentA, parentB) {
-    const offspringData = breedDragons(parentA.genotype, parentB.genotype);
+  static breed(parentA, parentB, modifiers = {}) {
+    const offspringData = breedDragons(parentA.genotype, parentB.genotype, modifiers);
     const childGeneration = Math.max(parentA.generation, parentB.generation) + 1;
     return offspringData.map(data => new Dragon({
       genotype: data.genotype,

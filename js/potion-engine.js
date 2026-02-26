@@ -8,10 +8,10 @@
 // Effects that target a specific gene show a gene picker after
 // the player selects a dragon.
 
-import { GENE_DEFS } from './gene-config.js';
+import { GENE_DEFS, MUTATION_RATE } from './gene-config.js';
 import { consumeItem, getInventory } from './shop-engine.js';
 import { addPendingBreedEffect, triggerSave } from './save-manager.js';
-import { POTION_PRICES } from './economy-config.js';
+import { POTION_PRICES, FLUX_CATALYST_BONUS } from './economy-config.js';
 import { SKILL_DEFS } from './skill-config.js';
 
 // ── Potion effect definitions ──────────────────────────────
@@ -73,6 +73,101 @@ export const POTION_EFFECTS = {
   'scale-lacquer':        { mode: 'breed-modifier', effect: 'bias-scale',
                             desc: 'Bias scale traits on next breed' },
 };
+
+// ── Gene groups for bias potions ──────────────────────────
+
+const GENE_GROUPS = {
+  chroma:      new Set(['color_cyan', 'color_magenta', 'color_yellow']),
+  finish:      new Set(['finish_opacity', 'finish_shine', 'finish_schiller']),
+  element:     new Set(['breath_fire', 'breath_ice', 'breath_lightning']),
+  morphology:  new Set(['body_size', 'body_type', 'body_scales', 'frame_wings', 'frame_limbs', 'frame_bones']),
+  appendage:   new Set(['horn_style', 'horn_direction', 'spine_style', 'spine_height', 'tail_shape', 'tail_length']),
+  'breath-arts': new Set(['breath_shape', 'breath_range']),
+  scale:       new Set(['body_scales', 'frame_bones']),
+};
+
+// ── Build breeding modifiers from pending effects ─────────
+
+/**
+ * Convert an array of pending brew effect IDs into a modifiers object
+ * suitable for breedDragons(). Call this before breeding and pass the result.
+ * @param {string[]} pendingEffects — array of potion IDs (from getPendingBreedEffects)
+ * @returns {{ clutchBonus, mutationRate, biasDominant, biasRecessive, biasGenes, suppressMutations }}
+ */
+export function buildBreedModifiers(pendingEffects) {
+  if (!pendingEffects || pendingEffects.length === 0) return {};
+
+  let clutchBonus = 0;
+  let mutationRate = MUTATION_RATE;
+  let biasDominant = false;
+  let biasRecessive = false;
+  let suppressMutations = false;
+  let biasGenes = null; // null = all genes
+
+  for (const effectId of pendingEffects) {
+    // Handle trait-lock entries (format: "trait-lock:geneName:alleleIndex")
+    if (effectId.startsWith('trait-lock:')) continue;
+
+    const def = POTION_EFFECTS[effectId];
+    if (!def) continue;
+
+    switch (def.effect) {
+      case 'clutch-plus-one':
+        clutchBonus += 1;
+        break;
+
+      case 'bias-dominant':
+        biasDominant = true;
+        break;
+
+      case 'bias-recessive':
+        biasRecessive = true;
+        break;
+
+      case 'mutation-boost':
+        mutationRate += FLUX_CATALYST_BONUS; // +15%
+        break;
+
+      case 'mutation-suppress':
+        suppressMutations = true;
+        break;
+
+      case 'force-mutation':
+        // Force at least one mutation — set very high rate
+        mutationRate = 1.0;
+        break;
+
+      // Gene-group biases: set biasDominant + restrict to specific genes
+      case 'bias-chroma':
+      case 'bias-finish':
+      case 'bias-element':
+      case 'bias-morphology':
+      case 'bias-appendage':
+      case 'bias-breath-arts':
+      case 'bias-scale': {
+        const groupKey = def.effect.replace('bias-', '');
+        const genes = GENE_GROUPS[groupKey];
+        if (genes) {
+          biasDominant = true;
+          // Merge with existing bias gene set
+          if (biasGenes === null) biasGenes = new Set();
+          for (const g of genes) biasGenes.add(g);
+        }
+        break;
+      }
+    }
+  }
+
+  const modifiers = {};
+  if (clutchBonus > 0) modifiers.clutchBonus = clutchBonus;
+  if (mutationRate !== MUTATION_RATE) modifiers.mutationRate = mutationRate;
+  if (biasDominant) modifiers.biasDominant = true;
+  if (biasRecessive) modifiers.biasRecessive = true;
+  if (suppressMutations) modifiers.suppressMutations = true;
+  if (biasGenes !== null) modifiers.biasGenes = biasGenes;
+
+  return modifiers;
+}
 
 // ── Targeting state ────────────────────────────────────────
 
@@ -286,6 +381,56 @@ export function applyTargetToDragon(dragon, geneName, alleleIndex) {
         addPendingBreedEffect(`trait-lock:${geneName}:${alleleIndex}`);
         success = true;
       }
+      break;
+    }
+  }
+
+  if (success && entryType === 'item') {
+    consumeItem(entryId);
+  }
+
+  if (success) triggerSave();
+  cancelTargeting();
+  return success;
+}
+
+// ── Apply effect to egg target ──────────────────────────────
+
+/**
+ * Apply the current targeting effect to an egg rack egg.
+ * @param {{ id, dragon, placedAt, hatchTime }} egg — egg object from getEggRack()
+ * @param {Function} reduceHatchTimeFn — (eggId, reductionMs) => void — mutates the egg in the rack
+ * @returns {boolean} success
+ */
+export function applyTargetToEgg(egg, reduceHatchTimeFn) {
+  if (!_targetingState || _targetingState.targetType !== 'egg') return false;
+
+  const { entryType, entryId, effect } = _targetingState;
+  let success = false;
+
+  switch (effect) {
+    case 'unlock-egg': {
+      // Currently locked eggs aren't fully implemented in the rack system
+      // This would unlock a locked egg for hatching — mark as success for future use
+      success = true;
+      break;
+    }
+
+    case 'reveal-egg': {
+      // Reveal all genes on the egg's dragon to 'partial'
+      for (const gn of Object.keys(GENE_DEFS)) {
+        egg.dragon.revealGene(gn, 'partial');
+      }
+      success = true;
+      break;
+    }
+
+    case 'reduce-hatch-time': {
+      // Reduce hatch time by 1 minute (60000ms)
+      if (reduceHatchTimeFn) {
+        reduceHatchTimeFn(egg.id, 60000);
+      }
+      success = true;
       break;
     }
   }

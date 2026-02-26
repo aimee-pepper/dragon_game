@@ -112,8 +112,9 @@ export function determineSex() {
 
 // Apply mutation to a single allele value
 // Returns { value, mutated }
-function mutateAllele(value, geneName) {
-  if (Math.random() >= MUTATION_RATE) {
+// mutationRate override allows potions/skills to adjust mutation chance
+function mutateAllele(value, geneName, mutationRate = MUTATION_RATE) {
+  if (Math.random() >= mutationRate) {
     return { value, mutated: false };
   }
   const def = GENE_DEFS[geneName];
@@ -124,14 +125,38 @@ function mutateAllele(value, geneName) {
 
 // Perform meiosis for a single gene: pick one allele from each parent
 // Returns alleles, mutations, and which allele index was selected from each parent
-function meiosisOneGene(parentA_alleles, parentB_alleles, geneName) {
-  const idxA = Math.random() < 0.5 ? 0 : 1;
-  const idxB = Math.random() < 0.5 ? 0 : 1;
+// Options:
+//   mutationRate: override per-allele mutation chance
+//   biasDominant: if true, prefer higher allele values from each parent
+//   biasRecessive: if true, prefer lower allele values from each parent
+function meiosisOneGene(parentA_alleles, parentB_alleles, geneName, options = {}) {
+  const { mutationRate = MUTATION_RATE, biasDominant, biasRecessive } = options;
+
+  let idxA, idxB;
+
+  if (biasDominant) {
+    // Pick the higher allele from each parent (70% chance)
+    idxA = parentA_alleles[0] >= parentA_alleles[1] ? 0 : 1;
+    idxB = parentB_alleles[0] >= parentB_alleles[1] ? 0 : 1;
+    // 30% chance to pick the other allele instead
+    if (Math.random() < 0.3) idxA = 1 - idxA;
+    if (Math.random() < 0.3) idxB = 1 - idxB;
+  } else if (biasRecessive) {
+    // Pick the lower allele from each parent (70% chance)
+    idxA = parentA_alleles[0] <= parentA_alleles[1] ? 0 : 1;
+    idxB = parentB_alleles[0] <= parentB_alleles[1] ? 0 : 1;
+    if (Math.random() < 0.3) idxA = 1 - idxA;
+    if (Math.random() < 0.3) idxB = 1 - idxB;
+  } else {
+    idxA = Math.random() < 0.5 ? 0 : 1;
+    idxB = Math.random() < 0.5 ? 0 : 1;
+  }
+
   const fromA = parentA_alleles[idxA];
   const fromB = parentB_alleles[idxB];
 
-  const mutA = mutateAllele(fromA, geneName);
-  const mutB = mutateAllele(fromB, geneName);
+  const mutA = mutateAllele(fromA, geneName, mutationRate);
+  const mutB = mutateAllele(fromB, geneName, mutationRate);
 
   return {
     alleles: [mutA.value, mutB.value],
@@ -145,16 +170,32 @@ function meiosisOneGene(parentA_alleles, parentB_alleles, geneName) {
 // Breed two parents: produce a single offspring genotype
 // Returns { genotype, mutations, alleleOrigins }
 // alleleOrigins: { geneName: ['A', 'B'] } — alleleOrigins[gene][0] is the origin of alleles[0]
-function breedOneOffspring(parentA_genotype, parentB_genotype) {
+// modifiers: optional { mutationRate, biasDominant, biasRecessive, biasGenes (Set of gene names to apply bias to) }
+function breedOneOffspring(parentA_genotype, parentB_genotype, modifiers = {}) {
   const genotype = {};
   const mutations = [];
   const alleleOrigins = {};
 
+  const {
+    mutationRate = MUTATION_RATE,
+    biasDominant = false,
+    biasRecessive = false,
+    biasGenes = null, // Set of gene names — if null, bias applies to ALL genes
+  } = modifiers;
+
   for (const geneName of Object.keys(GENE_DEFS)) {
+    // Check if this gene should get bias applied
+    const applyBias = biasGenes === null || biasGenes.has(geneName);
+
     const result = meiosisOneGene(
       parentA_genotype[geneName],
       parentB_genotype[geneName],
       geneName,
+      {
+        mutationRate,
+        biasDominant: applyBias && biasDominant,
+        biasRecessive: applyBias && biasRecessive,
+      },
     );
     genotype[geneName] = result.alleles;
     alleleOrigins[geneName] = result.origins;
@@ -168,12 +209,34 @@ function breedOneOffspring(parentA_genotype, parentB_genotype) {
 
 // Breed two parents: produce a clutch of 2-4 offspring
 // Returns array of { genotype, sex, mutations, alleleOrigins }
-export function breedDragons(parentA_genotype, parentB_genotype) {
-  const clutchSize = randomInt(CLUTCH_SIZE_MIN, CLUTCH_SIZE_MAX);
+// modifiers: optional {
+//   clutchBonus: extra eggs on top of base clutch size,
+//   mutationRate: override mutation rate,
+//   biasDominant, biasRecessive: allele selection bias,
+//   biasGenes: Set of gene names to restrict bias to,
+//   suppressMutations: if true, force mutation rate to 0,
+// }
+export function breedDragons(parentA_genotype, parentB_genotype, modifiers = {}) {
+  const clutchBonus = modifiers.clutchBonus || 0;
+  const clutchSize = randomInt(CLUTCH_SIZE_MIN, CLUTCH_SIZE_MAX) + clutchBonus;
+
+  // Build meiosis modifiers
+  let mutationRate = modifiers.mutationRate ?? MUTATION_RATE;
+  if (modifiers.suppressMutations) mutationRate = 0;
+
+  const meiosisModifiers = {
+    mutationRate,
+    biasDominant: modifiers.biasDominant || false,
+    biasRecessive: modifiers.biasRecessive || false,
+    biasGenes: modifiers.biasGenes || null,
+  };
+
   const offspring = [];
 
   for (let i = 0; i < clutchSize; i++) {
-    const { genotype, mutations, alleleOrigins } = breedOneOffspring(parentA_genotype, parentB_genotype);
+    const { genotype, mutations, alleleOrigins } = breedOneOffspring(
+      parentA_genotype, parentB_genotype, meiosisModifiers
+    );
     offspring.push({
       genotype,
       sex: determineSex(),

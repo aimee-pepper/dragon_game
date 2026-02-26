@@ -1,6 +1,6 @@
 // App initialization, tab switching, settings, and shared dragon registry
 import { initGenerateTab, getCapturedDragonIds, restoreCapturedDragons } from './ui-generator.js';
-import { initBreedTab, getParentAId, getParentBId, restoreBreedParents } from './ui-breeder.js';
+import { initBreedTab, getParentAId, getParentBId, restoreBreedParents, refreshPendingEffectsBar } from './ui-breeder.js';
 import { initStablesTab, addToStables } from './ui-stables.js';
 import { onStablesChange } from './ui-stables.js';
 import { initQuestsTab } from './ui-quests.js';
@@ -18,10 +18,11 @@ import { Dragon } from './dragon.js';
 import { initShopTab, refreshShop } from './ui-shop.js';
 import { getShopSaveData, restoreShopState, getInventory } from './shop-engine.js';
 import { POTION_PRICES } from './economy-config.js';
-import { useHotbarEntry, isTargeting, applyTargetToDragon, getTargetingState, cancelTargeting, POTION_EFFECTS } from './potion-engine.js';
+import { useHotbarEntry, isTargeting, applyTargetToDragon, applyTargetToEgg, getTargetingState, cancelTargeting, POTION_EFFECTS } from './potion-engine.js';
 import { SKILL_DEFS } from './skill-config.js';
 import { hasSkill } from './skill-engine.js';
 import { GENE_DEFS } from './gene-config.js';
+import { getEggById, reduceEggHatchTime } from './egg-system.js';
 import { initInventoryTab, refreshInventory } from './ui-inventory.js';
 import { getSkillSaveData, restoreSkillState, getAvailableXP } from './skill-engine.js';
 import { initSkillsTab, refreshSkills } from './ui-skills.js';
@@ -431,6 +432,7 @@ function initHotbar(registry) {
         if (result.ok) {
           showPotionToast(result.message);
           refreshHotbar();
+          refreshPendingEffectsBar(); // update breed modifier display
         } else {
           showPotionToast(result.message);
         }
@@ -447,10 +449,34 @@ function initHotbar(registry) {
   });
 
   // Global click handler for targeting mode
-  // When targeting is active, clicking a dragon card → show gene picker → apply
+  // When targeting is active, clicking a dragon card or egg rack slot → apply effect
   document.addEventListener('click', (e) => {
     if (!isTargeting()) return;
 
+    const state = getTargetingState();
+    if (!state) return;
+
+    // ── Egg targeting ──
+    if (state.targetType === 'egg') {
+      const eggSlot = e.target.closest('.egg-rack-slot');
+      if (!eggSlot) return;
+
+      const eggId = Number(eggSlot.dataset.eggId);
+      if (!eggId) return;
+
+      const egg = getEggById(eggId);
+      if (!egg) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      const success = applyTargetToEgg(egg, reduceEggHatchTime);
+      showPotionToast(success ? 'Applied!' : 'No effect');
+      refreshHotbar();
+      return;
+    }
+
+    // ── Dragon targeting ──
     const cardEl = e.target.closest('.dragon-card');
     if (!cardEl) return;
 
@@ -462,8 +488,6 @@ function initHotbar(registry) {
 
     e.preventDefault();
     e.stopPropagation();
-
-    const state = getTargetingState();
 
     // Check if this effect needs a specific gene selection
     if (state && state.needsGenePick) {
