@@ -310,8 +310,10 @@ header {
 }
 
 .hotbar-picker-title {
-  font-size: 14px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-heading);
   font-weight: 700;
+  text-transform: uppercase;
   margin-bottom: 8px;
   color: var(--text);
 }
@@ -453,8 +455,10 @@ header {
 }
 
 .inventory-item-name {
-  font-size: 13px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-body);
   font-weight: 600;
+  text-transform: uppercase;
   color: var(--text);
 }
 
@@ -500,6 +504,7 @@ header {
   font-family: var(--font-hand);
   font-size: var(--fs-title);
   font-weight: 700;
+  text-transform: uppercase;
   color: var(--text-bright);
 }
 
@@ -516,7 +521,7 @@ header {
 }
 
 .placeholder-desc {
-  font-size: 14px;
+  font-size: var(--fs-body);
   color: var(--text-muted);
   max-width: 280px;
 }
@@ -745,15 +750,16 @@ header {
 
 /* Compact: no banner, plain text */
 .dragon-name {
-  font-size: 15px;
+  font-size: var(--fs-heading);
   font-weight: 700;
   color: var(--text-bright);
 }
 
 .compact .dragon-name-text {
-  font-family: inherit;
-  font-size: inherit;
+  font-family: var(--font-hand);
+  font-size: var(--fs-heading);
   font-weight: 700;
+  text-transform: uppercase;
 }
 
 .dragon-sex {
@@ -847,6 +853,7 @@ header {
   font-family: var(--font-hand);
   font-size: var(--fs-heading);
   font-weight: 600;
+  text-transform: uppercase;
   color: var(--text-bright);
   margin-bottom: 2px;
   display: flex;
@@ -981,6 +988,7 @@ header {
   font-family: var(--font-hand);
   font-size: var(--fs-heading);
   font-weight: 600;
+  text-transform: uppercase;
   color: var(--text-bright);
   margin-bottom: 2px;
   display: flex;
@@ -1039,8 +1047,10 @@ header {
 }
 
 .breath-label {
-  font-size: 14px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-heading);
   font-weight: 600;
+  text-transform: uppercase;
   color: var(--text-bright);
 }
 
@@ -1056,7 +1066,8 @@ header {
 }
 
 .trait-section-label {
-  font-size: 10px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-fine);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -1100,8 +1111,10 @@ header {
   background: var(--bg-card-alt);
   border: 1px solid var(--border);
   color: var(--text);
-  font-size: 12px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-detail);
   font-weight: 600;
+  text-transform: uppercase;
   cursor: pointer;
   padding: 6px 14px;
   border-radius: var(--radius-sm);
@@ -1230,7 +1243,8 @@ header {
 }
 
 .parent-label {
-  font-size: 11px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-detail);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -1268,8 +1282,10 @@ header {
 }
 
 .parent-summary-name {
-  font-size: 14px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-heading);
   font-weight: 700;
+  text-transform: uppercase;
   color: var(--text-bright);
   white-space: nowrap;
   overflow: hidden;
@@ -1290,8 +1306,10 @@ header {
   background: var(--accent-secondary);
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: var(--text);
-  font-size: 11px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-detail);
   font-weight: 600;
+  text-transform: uppercase;
   cursor: pointer;
   padding: 4px 10px;
   border-radius: var(--radius-sm);
@@ -1364,8 +1382,10 @@ header {
 }
 
 .clutch-header {
-  font-size: 14px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-heading);
   font-weight: 600;
+  text-transform: uppercase;
   color: var(--text-muted);
   margin-bottom: var(--spacing-sm);
   text-align: center;
@@ -1634,13 +1654,15 @@ header {
   font-family: var(--font-hand);
   font-size: var(--fs-heading);
   font-weight: 700;
+  text-transform: uppercase;
   color: var(--text-bright);
   text-align: center;
   margin-bottom: var(--spacing);
 }
 
 .picker-section-header {
-  font-size: 13px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-body);
   font-weight: 600;
   color: var(--text-muted);
   padding: 10px 12px 4px;
@@ -1680,8 +1702,10 @@ header {
 }
 
 .picker-name {
-  font-size: 14px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-heading);
   font-weight: 600;
+  text-transform: uppercase;
   color: var(--text-bright);
 }
 
@@ -1723,6 +1747,7 @@ header {
   font-family: var(--font-hand);
   font-size: var(--fs-heading);
   font-weight: 700;
+  text-transform: uppercase;
   color: var(--text-bright);
   margin-bottom: 6px;
 }
@@ -1908,6 +1933,7 @@ header {
   font-family: var(--font-hand);
   font-size: var(--fs-title);
   font-weight: 700;
+  text-transform: uppercase;
   color: var(--text-bright);
 }
 
@@ -2091,8 +2117,10 @@ header {
 }
 
 .egg-rack-name {
-  font-size: 13px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-heading);
   font-weight: 600;
+  text-transform: uppercase;
   color: var(--text-bright);
   white-space: nowrap;
   overflow: hidden;
@@ -2228,6 +2256,7 @@ header {
   font-family: var(--font-hand);
   font-size: var(--fs-heading);
   font-weight: 700;
+  text-transform: uppercase;
   color: var(--text-bright);
 }
 
@@ -2267,8 +2296,10 @@ header {
 }
 
 .stables-count {
-  font-size: 14px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-heading);
   font-weight: 600;
+  text-transform: uppercase;
   color: var(--text-muted);
 }
 
@@ -2555,8 +2586,10 @@ header {
   background: none;
   border: 1px solid var(--border);
   color: var(--text-muted);
-  font-size: 13px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-body);
   font-weight: 600;
+  text-transform: uppercase;
   cursor: pointer;
   padding: 8px 14px;
   border-radius: var(--radius-sm);
@@ -2596,7 +2629,9 @@ header {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 14px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-heading);
+  text-transform: uppercase;
   color: var(--text);
 }
 
@@ -3041,8 +3076,10 @@ header {
 
 /* Pane header */
 .almanac-pane-header {
-  font-size: 15px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-heading);
   font-weight: 700;
+  text-transform: uppercase;
   color: var(--text-bright);
   margin-bottom: 4px;
   text-align: center;
@@ -3117,8 +3154,10 @@ header {
 }
 
 .almanac-entry-name {
-  font-size: 14px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-heading);
   font-weight: 700;
+  text-transform: uppercase;
   color: var(--text-bright);
   margin-bottom: 2px;
 }
@@ -3313,9 +3352,11 @@ header {
 }
 
 .trait-gene-label {
+  font-family: var(--font-hand);
+  font-size: var(--fs-heading);
   font-weight: 600;
+  text-transform: uppercase;
   color: var(--text-bright);
-  font-size: 13px;
   margin-bottom: 6px;
 }
 
@@ -3536,8 +3577,10 @@ header {
 }
 
 .ach-cat-label {
-  font-size: 14px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-heading);
   font-weight: 600;
+  text-transform: uppercase;
   color: var(--text-bright);
 }
 
@@ -3597,8 +3640,10 @@ header {
 
 /* Badge name */
 .ach-badge-name {
-  font-size: 12px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-detail);
   font-weight: 700;
+  text-transform: uppercase;
   color: var(--text-bright);
   margin-bottom: 4px;
   line-height: 1.3;
@@ -3705,8 +3750,10 @@ header {
 }
 
 .ach-toast-name {
-  font-size: 14px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-heading);
   font-weight: 700;
+  text-transform: uppercase;
   color: var(--text-bright);
   white-space: nowrap;
   overflow: hidden;
@@ -3740,12 +3787,14 @@ header {
   font-family: var(--font-hand);
   font-size: var(--fs-title);
   font-weight: 700;
+  text-transform: uppercase;
   color: var(--text-bright);
   margin-bottom: var(--spacing);
 }
 
 .options-section-header {
-  font-size: 11px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-detail);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -3774,8 +3823,10 @@ header {
 }
 
 .options-toggle-label {
-  font-size: 14px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-heading);
   font-weight: 600;
+  text-transform: uppercase;
   color: var(--text-bright);
 }
 
@@ -4127,6 +4178,7 @@ header {
   color: var(--success);
   font-family: var(--font-hand);
   font-size: var(--fs-btn);
+  text-transform: uppercase;
   text-align: center;
   z-index: 10000;
   opacity: 0;
@@ -4789,6 +4841,7 @@ header {
 .loading-text {
   font-family: var(--font-hand);
   font-size: var(--fs-title);
+  text-transform: uppercase;
   color: var(--accent);
   letter-spacing: 2px;
 }
@@ -4851,7 +4904,7 @@ header {
 }
 
 .shop-tab-icon { font-size: 20px; }
-.shop-tab-name { font-size: 11px; text-align: center; }
+.shop-tab-name { font-family: var(--font-hand); font-size: 11px; text-transform: uppercase; text-align: center; }
 
 /* Locked shop */
 .shop-locked-card {
@@ -4863,7 +4916,7 @@ header {
 }
 
 .shop-locked-icon { font-size: 48px; margin-bottom: 12px; }
-.shop-locked-title { font-family: var(--font-hand); font-size: var(--fs-title); font-weight: 600; color: var(--text-bright); margin-bottom: 4px; }
+.shop-locked-title { font-family: var(--font-hand); font-size: var(--fs-title); font-weight: 600; text-transform: uppercase; color: var(--text-bright); margin-bottom: 4px; }
 .shop-locked-desc { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; }
 
 .shop-rep-bar {
@@ -4916,7 +4969,7 @@ header {
 }
 
 .shop-header-icon { font-size: 20px; }
-.shop-header-name { font-family: var(--font-hand); font-size: var(--fs-btn); font-weight: 600; color: var(--text-bright); }
+.shop-header-name { font-family: var(--font-hand); font-size: var(--fs-btn); font-weight: 600; text-transform: uppercase; color: var(--text-bright); }
 
 .shop-header-right {
   display: flex;
@@ -4955,7 +5008,8 @@ header {
 }
 
 .shop-tier-header {
-  font-size: 11px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-detail);
   text-transform: uppercase;
   letter-spacing: 1px;
   color: var(--text-muted);
@@ -4978,8 +5032,10 @@ header {
 .shop-item-info { flex: 1; min-width: 0; }
 
 .shop-item-name {
-  font-size: 13px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-body);
   font-weight: 600;
+  text-transform: uppercase;
   color: var(--text-bright);
   display: flex;
   align-items: center;
@@ -5076,7 +5132,8 @@ header {
 }
 
 .shop-inventory-header {
-  font-size: 12px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-detail);
   text-transform: uppercase;
   letter-spacing: 1px;
   color: var(--text-muted);
@@ -5221,6 +5278,7 @@ header {
 .skill-branch-name {
   font-family: var(--font-hand);
   font-size: var(--fs-heading);
+  text-transform: uppercase;
 }
 
 /* Branch content */
@@ -5261,8 +5319,10 @@ header {
 
 .skill-line-name {
   flex: 1;
+  font-family: var(--font-hand);
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--fs-heading);
+  text-transform: uppercase;
   color: var(--text-bright);
 }
 
@@ -5352,8 +5412,10 @@ header {
 }
 
 .skill-card-name {
+  font-family: var(--font-hand);
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--fs-body);
+  text-transform: uppercase;
   color: var(--text-bright);
   margin-bottom: 2px;
 }
@@ -5440,8 +5502,10 @@ header {
 }
 
 .skill-parallel-header {
-  font-size: 11px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-detail);
   font-weight: 600;
+  text-transform: uppercase;
   color: var(--text-muted);
   text-align: center;
   padding: 4px 0;
@@ -5472,8 +5536,10 @@ header {
 }
 
 .skill-tome-name {
+  font-family: var(--font-hand);
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--fs-body);
+  text-transform: uppercase;
   color: var(--text-bright);
 }
 
