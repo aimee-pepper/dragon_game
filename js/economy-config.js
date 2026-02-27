@@ -27,6 +27,7 @@ export const XP_COST_PER_TIER = {
 
 // Shop unlock thresholds (base rep needed to access each shop)
 export const SHOP_UNLOCK_REP = {
+  carpenter: 10,
   potion: 50,
   talisman: 150,  // also requires achievement: discover 10 gem finishes
   arcana: 400,
@@ -56,6 +57,8 @@ export const SHOP_DISCOUNTS = {
 export const SHOP_REFRESH_INTERVAL = 3; // refresh every Nth breeding cycle
 
 // ── Egg economy ──────────────────────────────────────────────
+
+export const EGG_SALE_REP = 50; // rep needed before player can sell eggs
 
 export const BASE_EGG_SALE_PRICE = 5; // gold per egg
 
@@ -133,6 +136,12 @@ export const EGG_RACK_EXPANSION_COSTS = {
 // Formula: ~50 * 1.45^(slot-2) — same gentle curve as breeding nests
 
 // ── Gold costs — shop items ──────────────────────────────────
+
+// Carpenter — early milestone upgrades (available before other shops)
+export const CARPENTER_PRICES = {
+  'nest-milestone': { gold: 10, tier: 1, name: 'Nest Expansion', milestone: 'nest' },
+  'den-milestone':  { gold: 10, tier: 1, name: 'Den Expansion', milestone: 'den' },
+};
 
 export const POTION_PRICES = {
   'broodmothers-draught':  { gold: 15,  tier: 1, name: "Broodmother's Draught" },

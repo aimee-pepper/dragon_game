@@ -47,6 +47,17 @@
   --spacing-sm: 8px;
   --spacing-xs: 4px;
   --bg-breakdown: var(--bg-card-alt);
+
+  /* ── Type scale ── */
+  --font-hand: 'AimeeHandwriting', cursive;
+  --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'SF Mono', 'Menlo', 'Consolas', monospace;
+  --fs-title:  18px;   /* page-level headings */
+  --fs-heading: 16px;  /* section / card headings */
+  --fs-btn:    15px;   /* buttons, nav tabs */
+  --fs-body:   14px;   /* normal body text */
+  --fs-detail: 12px;   /* secondary / helper text */
+  --fs-fine:   10px;   /* badges, tiny labels */
 }
 
 /* Light mode — Sunlit Parchment */
@@ -88,8 +99,8 @@ body.light-mode .finish-hint-axis { color: #7a3399; }
 
 html, body {
   height: 100%;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  font-size: 15px;
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
   line-height: 1.4;
   color: var(--text);
   background: var(--bg);
@@ -148,8 +159,8 @@ header {
   border: none;
   background: var(--btn-secondary-bg);
   color: var(--text-muted);
-  font-family: 'AimeeHandwriting', cursive;
-  font-size: 16px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-btn);
   font-weight: 600;
   cursor: pointer;
   border-radius: var(--radius-sm);
@@ -403,7 +414,8 @@ header {
 }
 
 .inventory-section-title {
-  font-size: 14px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-heading);
   font-weight: 700;
   color: var(--text-secondary);
   text-transform: uppercase;
@@ -485,7 +497,8 @@ header {
 }
 
 .placeholder-title {
-  font-size: 22px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-title);
   font-weight: 700;
   color: var(--text-bright);
 }
@@ -521,8 +534,8 @@ header {
   padding: 12px 20px;
   border: none;
   border-radius: var(--radius-sm);
-  font-family: 'AimeeHandwriting', cursive;
-  font-size: 17px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-btn);
   font-weight: 600;
   text-transform: uppercase;
   cursor: pointer;
@@ -549,7 +562,7 @@ header {
 
 .btn-small {
   padding: 8px 14px;
-  font-size: 15px;
+  font-size: 13px;
   min-height: 36px;
 }
 
@@ -563,12 +576,24 @@ header {
 
 .btn-group {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--spacing-sm);
   margin-bottom: var(--spacing);
 }
 
 .btn-group .btn {
   flex: 1;
+}
+
+.btn-group .btn-primary {
+  flex-basis: 100%;
+}
+
+@media (min-width: 768px) {
+  .btn-group .btn-primary {
+    flex-basis: auto;
+    width: auto;
+  }
 }
 
 /* ---- Pending Breed Effects ---- */
@@ -706,8 +731,8 @@ header {
 }
 
 .dragon-name-text {
-  font-family: 'AimeeHandwriting', cursive;
-  font-size: 22px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-title);
   font-weight: 400;
   text-transform: uppercase;
   color: #2a2015; /* dark text on light beige banner */
@@ -819,7 +844,8 @@ header {
 /* ---- Finish Name (mirrors .color-name) ---- */
 
 .finish-name {
-  font-size: 16px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-heading);
   font-weight: 600;
   color: var(--text-bright);
   margin-bottom: 2px;
@@ -952,7 +978,8 @@ header {
 }
 
 .color-name {
-  font-size: 16px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-heading);
   font-weight: 600;
   color: var(--text-bright);
   margin-bottom: 2px;
@@ -1604,7 +1631,8 @@ header {
 }
 
 .picker-title {
-  font-size: 16px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-heading);
   font-weight: 700;
   color: var(--text-bright);
   text-align: center;
@@ -1692,7 +1720,8 @@ header {
 }
 
 .breed-replace-title {
-  font-size: 16px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-heading);
   font-weight: 700;
   color: var(--text-bright);
   margin-bottom: 6px;
@@ -1876,7 +1905,8 @@ header {
 }
 
 .den-title {
-  font-size: 18px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-title);
   font-weight: 700;
   color: var(--text-bright);
 }
@@ -1998,8 +2028,14 @@ header {
 /* Expanded den — full card grid */
 .den-expanded {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 1fr;
   gap: var(--spacing-sm);
+}
+
+@media (min-width: 768px) {
+  .den-expanded {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 .den-expanded-empty {
@@ -2189,7 +2225,8 @@ header {
 }
 
 .nests-section-label {
-  font-size: 16px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-heading);
   font-weight: 700;
   color: var(--text-bright);
 }
@@ -2310,8 +2347,8 @@ header {
 }
 
 .quests-title {
-  font-family: 'AimeeHandwriting', cursive;
-  font-size: 18px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-title);
   font-weight: 700;
   color: var(--text-bright);
   text-transform: uppercase;
@@ -2324,7 +2361,8 @@ header {
 
 .currency-bar {
   display: flex;
-  gap: 12px;
+  flex-direction: column;
+  gap: 4px;
   padding: 8px 12px;
   margin-bottom: 12px;
   background: var(--bg-card-alt);
@@ -2332,8 +2370,33 @@ header {
   border: 1px solid var(--border);
 }
 
+.currency-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.currency-row-earned {
+  opacity: 0.6;
+  font-size: var(--fs-detail);
+}
+
+.currency-sep {
+  color: var(--text-muted);
+  font-size: var(--fs-detail);
+}
+
+.currency-label {
+  color: var(--text-muted);
+  font-size: var(--fs-detail);
+  margin-left: 2px;
+}
+
 .currency {
-  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: var(--fs-body);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -2377,8 +2440,8 @@ header {
 }
 
 .quest-card-title {
-  font-family: 'AimeeHandwriting', cursive;
-  font-size: 17px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-heading);
   font-weight: 700;
   color: var(--text-bright);
   text-transform: uppercase;
@@ -2947,8 +3010,8 @@ header {
   border: 1px solid var(--border);
   background: var(--btn-secondary-bg);
   color: var(--text-muted);
-  font-family: 'AimeeHandwriting', cursive;
-  font-size: 15px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-btn);
   font-weight: 600;
   text-transform: uppercase;
   cursor: pointer;
@@ -3212,8 +3275,8 @@ header {
   border: none;
   background: transparent;
   color: var(--text-muted);
-  font-family: 'AimeeHandwriting', cursive;
-  font-size: 17px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-btn);
   font-weight: 600;
   text-transform: uppercase;
   cursor: pointer;
@@ -3674,7 +3737,8 @@ header {
 }
 
 .options-title {
-  font-size: 18px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-title);
   font-weight: 700;
   color: var(--text-bright);
   margin-bottom: var(--spacing);
@@ -4031,7 +4095,7 @@ header {
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.3s ease, transform 0.3s ease;
-  font-family: 'AimeeHandwriting', serif;
+  font-family: var(--font-hand);
   text-transform: uppercase;
 }
 
@@ -4061,8 +4125,8 @@ header {
   border: 2px solid var(--success);
   border-radius: var(--radius);
   color: var(--success);
-  font-family: 'AimeeHandwriting', serif;
-  font-size: 15px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-btn);
   text-align: center;
   z-index: 10000;
   opacity: 0;
@@ -4723,8 +4787,8 @@ header {
 }
 
 .loading-text {
-  font-family: 'AimeeHandwriting', cursive;
-  font-size: 18px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-title);
   color: var(--accent);
   letter-spacing: 2px;
 }
@@ -4742,7 +4806,8 @@ header {
 }
 
 .shop-currency {
-  font-size: 16px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-heading);
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -4798,7 +4863,7 @@ header {
 }
 
 .shop-locked-icon { font-size: 48px; margin-bottom: 12px; }
-.shop-locked-title { font-size: 18px; font-weight: 600; color: var(--text-bright); margin-bottom: 4px; }
+.shop-locked-title { font-family: var(--font-hand); font-size: var(--fs-title); font-weight: 600; color: var(--text-bright); margin-bottom: 4px; }
 .shop-locked-desc { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; }
 
 .shop-rep-bar {
@@ -4851,7 +4916,7 @@ header {
 }
 
 .shop-header-icon { font-size: 20px; }
-.shop-header-name { font-size: 15px; font-weight: 600; color: var(--text-bright); }
+.shop-header-name { font-family: var(--font-hand); font-size: var(--fs-btn); font-weight: 600; color: var(--text-bright); }
 
 .shop-header-right {
   display: flex;
@@ -5154,7 +5219,8 @@ header {
 }
 
 .skill-branch-name {
-  font-size: 13px;
+  font-family: var(--font-hand);
+  font-size: var(--fs-heading);
 }
 
 /* Branch content */
@@ -5251,6 +5317,11 @@ header {
   opacity: 0.5;
 }
 
+.skill-rep-locked {
+  border-left-color: var(--border);
+  opacity: 0.5;
+}
+
 /* Tier badge */
 .skill-tier-badge {
   width: 28px;
@@ -5306,6 +5377,10 @@ header {
 
 .skill-card-tome-req {
   color: var(--accent-secondary);
+}
+
+.skill-card-rep-req {
+  color: var(--text-muted);
 }
 
 /* Card right (cost / unlock button) */

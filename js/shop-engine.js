@@ -8,8 +8,9 @@
 import {
   SHOP_UNLOCK_REP, SHOP_TIER_OFFSETS, SHOP_DISCOUNTS,
   SHOP_REFRESH_INTERVAL,
-  POTION_PRICES, TALISMAN_PRICES, TOME_PRICES,
+  CARPENTER_PRICES, POTION_PRICES, TALISMAN_PRICES, TOME_PRICES,
   NEST_EXPANSION_COSTS, DEN_EXPANSION_COSTS, EGG_RACK_EXPANSION_COSTS,
+  MILESTONE_NEST_SLOTS, MILESTONE_DEN_SLOTS,
 } from './economy-config.js';
 import { getStats, addToStat } from './save-manager.js';
 import { getNestSlotCount, setNestSlotCount, getDenSlotCount, setDenSlotCount, getEggRackSlotCount, setEggRackSlotCount } from './ui-stables.js';
@@ -79,6 +80,7 @@ export function getAvailableItems(shopKey) {
 
   let catalog;
   switch (shopKey) {
+    case 'carpenter': catalog = CARPENTER_PRICES; break;
     case 'potion': catalog = POTION_PRICES; break;
     case 'talisman': catalog = TALISMAN_PRICES; break;
     case 'arcana': catalog = TOME_PRICES; break;
@@ -90,6 +92,12 @@ export function getAvailableItems(shopKey) {
     if (item.tier > tier) continue; // not unlocked yet
 
     let goldCost = item.gold;
+
+    // Milestone items (one-time carpenter upgrades) — skip if already at target
+    if (item.milestone) {
+      if (item.milestone === 'nest' && getNestSlotCount() >= MILESTONE_NEST_SLOTS) continue;
+      if (item.milestone === 'den' && getDenSlotCount() >= MILESTONE_DEN_SLOTS) continue;
+    }
 
     // Scaling items (nest/den/rack expansion)
     if (item.scaling) {
@@ -173,6 +181,13 @@ export function purchaseItem(shopKey, itemId) {
 }
 
 function applyPurchase(shopKey, itemId, item) {
+  if (shopKey === 'carpenter') {
+    // Milestone upgrades — jump to milestone slot count
+    const def = CARPENTER_PRICES[itemId];
+    if (def?.milestone === 'nest') setNestSlotCount(MILESTONE_NEST_SLOTS);
+    if (def?.milestone === 'den') setDenSlotCount(MILESTONE_DEN_SLOTS);
+    return;
+  }
   if (shopKey === 'arcana') {
     purchasedTomes.add(itemId);
     // Tome effects will be handled by skill system in Stage 2

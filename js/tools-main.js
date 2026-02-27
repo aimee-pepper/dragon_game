@@ -39,6 +39,7 @@ function initExternalLinks() {
     'open-spine-placement':  'spine-placement.html',
     'open-breath-elements':  'breath-elements.html',
     'open-dragon-creator':   'dragon-creator.html',
+    'open-combat-sim':       'combat-simulator.html',
   };
   for (const [id, url] of Object.entries(openers)) {
     const btn = document.getElementById(id);

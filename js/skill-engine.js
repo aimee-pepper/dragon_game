@@ -5,7 +5,7 @@
 // XP is "spent" on skills but tracked separately from stats.exp.
 // Available XP = stats.exp - xpSpent.
 
-import { SKILL_DEFS } from './skill-config.js';
+import { SKILL_DEFS, LINE_DEFS } from './skill-config.js';
 import { XP_COST_PER_TIER } from './economy-config.js';
 import { getStats } from './save-manager.js';
 import { hasTome } from './shop-engine.js';
@@ -106,6 +106,14 @@ export function canUnlockSkill(skillId) {
 
   const def = SKILL_DEFS[skillId];
   if (!def) return { ok: false, reason: 'Unknown skill' };
+
+  // Check line-level rep gate
+  if (def.line) {
+    const lineDef = LINE_DEFS[def.line];
+    if (lineDef?.repGate && getStats().rep < lineDef.repGate) {
+      return { ok: false, reason: `Requires ${lineDef.repGate} Rep` };
+    }
+  }
 
   // Check prerequisites
   if (def.requires) {

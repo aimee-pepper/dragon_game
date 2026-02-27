@@ -29,24 +29,20 @@ export function initGenerateTab(container, registry) {
   generateBtn.addEventListener('click', () => generateOne(list));
   controls.appendChild(generateBtn);
 
-  container.appendChild(controls);
-
-  const controls2 = el('div', 'btn-group');
-
   const generate5Btn = el('button', 'btn btn-secondary', 'Capture 5');
   generate5Btn.addEventListener('click', () => {
     for (let i = 0; i < 5; i++) generateOne(list);
   });
-  controls2.appendChild(generate5Btn);
+  controls.appendChild(generate5Btn);
 
   const clearBtn = el('button', 'btn btn-secondary', 'Clear All');
   clearBtn.addEventListener('click', () => {
     list.innerHTML = '';
     capturedDragonIds = [];
   });
-  controls2.appendChild(clearBtn);
+  controls.appendChild(clearBtn);
 
-  container.appendChild(controls2);
+  container.appendChild(controls);
 
   // Dragon list
   const list = el('div', 'dragon-list');

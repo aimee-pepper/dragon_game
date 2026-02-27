@@ -12,7 +12,7 @@ import { isUnlocked as isAchievementUnlocked } from './achievements.js';
 import { uiImg } from './ui-card.js';
 
 let shopContainer = null;
-let activeShop = 'potion'; // 'potion' | 'talisman' | 'arcana'
+let activeShop = 'carpenter'; // 'carpenter' | 'potion' | 'talisman' | 'arcana'
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -24,6 +24,12 @@ function el(tag, className, text) {
 // ── Shop Definitions ──────────────────────────────────────────
 
 const SHOP_DEFS = {
+  carpenter: {
+    name: 'Carpenter',
+    icon: '🪚',
+    desc: 'Stables & den expansions',
+    color: 'shop-carpenter',
+  },
   potion: {
     name: 'Potion Shop',
     icon: '🧪',
@@ -46,6 +52,9 @@ const SHOP_DEFS = {
 
 // Item descriptions (for tooltip/display)
 const ITEM_DESCRIPTIONS = {
+  // Carpenter
+  'nest-milestone': 'Expand breeding nests from 2 to 4 slots',
+  'den-milestone': 'Expand keeper den from 1 to 3 slots',
   // Potions
   'broodmothers-draught': '+1 egg in next clutch',
   'seers-tincture': 'Peek at one unhatched egg\'s traits',
@@ -252,7 +261,10 @@ function renderUnlockedShop(content, shopKey, def, gold, rep) {
   const items = getAvailableItems(shopKey);
 
   if (items.length === 0) {
-    const empty = el('div', 'shop-empty', 'No items available at this tier.');
+    const emptyMsg = shopKey === 'carpenter'
+      ? 'All expansions built! Check back when new construction is available.'
+      : 'No items available at this tier.';
+    const empty = el('div', 'shop-empty', emptyMsg);
     content.appendChild(empty);
     return;
   }

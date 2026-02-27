@@ -46,16 +46,19 @@ body {
 header {
   background: var(--bg-card);
   border-bottom: 1px solid var(--border);
-  padding: var(--spacing);
+  padding: var(--spacing-sm) var(--spacing);
   position: sticky;
   top: 0;
   z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 header h1 {
   color: var(--accent);
   font-size: 18px;
-  margin-bottom: var(--spacing-sm);
+  margin-bottom: 0;
 }
 
 #tools-nav {
@@ -598,4 +601,657 @@ body.light-mode .checker-bg {
   padding: 4px 8px;
   font-family: inherit;
   font-size: 12px;
+}
+
+/* ── Combat Simulator ── */
+
+.combat-sim {
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+/* Two dragon panels side by side */
+.combat-panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+}
+
+.combat-dragon-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px;
+}
+
+.combat-dragon-panel[data-side="A"] {
+  border-top: 3px solid #e0a030;
+}
+
+.combat-dragon-panel[data-side="B"] {
+  border-top: 3px solid #5588cc;
+}
+
+/* Panel header */
+.combat-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.combat-panel-side {
+  font-size: 16px;
+}
+
+.combat-name-input {
+  flex: 1;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: 12px;
+  min-width: 0;
+}
+
+.combat-random-btn {
+  background: var(--btn-secondary-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.combat-random-btn:hover {
+  background: var(--bg-card-alt);
+}
+
+/* ── Panel body — info + sprite side by side (mirrored) ── */
+.combat-panel-body {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+/* Dragon A: info left, sprite right */
+.combat-dragon-panel[data-side="A"] .combat-panel-body {
+  flex-direction: row;
+}
+
+/* Dragon B: sprite left, info right (mirrored) */
+.combat-dragon-panel[data-side="B"] .combat-panel-body {
+  flex-direction: row-reverse;
+}
+
+/* Dragon B info: stats before phenotype (outward from center) */
+.combat-dragon-panel[data-side="B"] .combat-panel-info {
+  flex-direction: row-reverse;
+}
+
+.combat-panel-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+}
+
+.combat-stats-column {
+  flex: 1;
+  min-width: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Sprite column */
+.combat-sprite-wrap {
+  flex-shrink: 0;
+  width: 220px;
+  text-align: center;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.combat-sprite-canvas {
+  max-width: 220px;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+/* ── Phenotype Card ── */
+.combat-phenotype-card {
+  font-size: 11px;
+  line-height: 1.3;
+  padding: 4px 6px;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  flex: 1;
+  min-width: 0;
+}
+
+.combat-pheno-line {
+  display: flex;
+  gap: 2px;
+  padding: 1px 0;
+}
+
+.combat-pheno-label {
+  color: var(--text-muted);
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.combat-pheno-value {
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.combat-pheno-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  border: 1px solid rgba(255,255,255,0.15);
+  flex-shrink: 0;
+}
+
+/* ── Stat bars (compact) ── */
+.combat-stat-bars {
+  margin-bottom: 2px;
+}
+
+.combat-stat-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 2px;
+}
+
+.combat-stat-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  min-width: 36px;
+  text-align: right;
+  font-weight: bold;
+}
+
+.combat-stat-bar-outer {
+  flex: 1;
+  height: 6px;
+  background: var(--bg);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.combat-stat-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.combat-stat-value {
+  font-size: 10px;
+  color: var(--text);
+  min-width: 28px;
+  font-family: 'Courier New', monospace;
+}
+
+/* ── Stat Breakdown ── */
+.combat-breakdown {
+  font-size: 10px;
+  line-height: 1.4;
+  margin-top: 4px;
+}
+
+.combat-bd-row {
+  margin-bottom: 2px;
+}
+
+.combat-bd-stat {
+  color: var(--text);
+  font-weight: bold;
+  margin-right: 4px;
+}
+
+.combat-bd-sources {
+  color: var(--text-muted);
+  font-size: 9px;
+}
+
+/* Element badge */
+.combat-element-badge {
+  margin-bottom: 2px;
+}
+
+.combat-element-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+/* ── Gene editor (collapsible) ── */
+.combat-gene-toggle {
+  background: var(--btn-secondary-bg);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  margin-bottom: 2px;
+}
+
+.combat-gene-toggle:hover {
+  color: var(--text);
+}
+
+.combat-gene-editor {
+  margin-top: 4px;
+  overflow: hidden;
+}
+
+.combat-gene-mode-bar {
+  margin-bottom: 6px;
+}
+
+.combat-gene-mode-btn {
+  background: var(--btn-secondary-bg);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 3px 10px;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.combat-gene-mode-btn:hover {
+  background: var(--bg-card-alt);
+}
+
+.combat-pheno-select {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Gene editor overrides inside combat panels */
+.combat-dragon-panel .creator-row {
+  gap: 4px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+
+.combat-dragon-panel .creator-gene-label {
+  font-size: 11px;
+  min-width: 80px;
+  max-width: 80px;
+}
+
+.combat-dragon-panel .creator-allele-pair {
+  min-width: 0;
+  flex: 1;
+}
+
+.combat-dragon-panel .creator-allele-select {
+  min-width: 0;
+  font-size: 11px;
+  padding: 3px 4px;
+}
+
+/* ── Trait stat impact annotation ── */
+.combat-trait-impact {
+  display: block;
+  font-size: 10px;
+  color: var(--accent);
+  line-height: 1.3;
+  padding-left: 2px;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.combat-trait-impact:empty {
+  display: none;
+}
+
+/* ── Control row: HP A | buttons | HP B ── */
+.combat-control-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: 4px;
+}
+
+.combat-control-row > .combat-hp-container {
+  flex: 1;
+}
+
+.combat-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-shrink: 0;
+}
+
+.combat-fight-btn {
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 6px 20px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.combat-fight-btn:hover {
+  filter: brightness(1.1);
+}
+
+.combat-step-btn {
+  background: var(--btn-secondary-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 5px 12px;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.combat-auto-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.combat-auto-label input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+
+/* ── HP containers ── */
+.combat-hp-container {
+  flex: 1;
+}
+
+.combat-hp-label {
+  font-size: 11px;
+  color: var(--text);
+  margin-bottom: 0;
+  font-weight: bold;
+}
+
+.combat-hp-container[data-side="A"] .combat-hp-label { color: #e0a030; }
+.combat-hp-container[data-side="B"] .combat-hp-label { color: #5588cc; }
+
+.combat-hp-bar-outer {
+  height: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  margin-bottom: 1px;
+}
+
+.combat-hp-bar-fill {
+  height: 100%;
+  border-radius: var(--radius-sm);
+  transition: width 0.4s ease, background-color 0.3s ease;
+}
+
+.combat-hp-text {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: 'Courier New', monospace;
+}
+
+/* ── Inline HP in log text ── */
+.combat-log-hp-inline {
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  font-size: 11px;
+  white-space: nowrap;
+  margin-left: 4px;
+  color: var(--text-muted);
+}
+
+.combat-log-hp-val {
+  font-weight: bold;
+}
+
+/* ── Buff/Debuff area ── */
+.combat-buff-area {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-bottom: 2px;
+}
+
+.combat-buff-row {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  min-height: 0;
+}
+
+.combat-buff-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: bold;
+}
+
+.combat-buff-icon.buff {
+  background: rgba(80, 187, 112, 0.2);
+  color: #50bb70;
+  border: 1px solid rgba(80, 187, 112, 0.3);
+}
+
+.combat-buff-icon.debuff {
+  background: rgba(224, 85, 85, 0.2);
+  color: #e05555;
+  border: 1px solid rgba(224, 85, 85, 0.3);
+}
+
+/* ── Winner banner (compact) ── */
+.combat-winner-banner {
+  text-align: center;
+  font-size: 14px;
+  font-weight: bold;
+  padding: 4px;
+  border-radius: var(--radius);
+  margin-bottom: 4px;
+}
+
+.combat-winner-banner.winner-a {
+  background: rgba(224, 160, 48, 0.15);
+  color: #e0a030;
+  border: 1px solid rgba(224, 160, 48, 0.3);
+}
+
+.combat-winner-banner.winner-b {
+  background: rgba(85, 136, 204, 0.15);
+  color: #5588cc;
+  border: 1px solid rgba(85, 136, 204, 0.3);
+}
+
+.combat-winner-banner.draw {
+  background: rgba(138, 126, 114, 0.15);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+/* ── Combat log (compact) ── */
+.combat-log-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px;
+}
+
+.combat-log-title {
+  font-size: 13px;
+  color: var(--accent);
+  font-weight: bold;
+  margin-bottom: 4px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--border);
+}
+
+.combat-log {
+  max-height: 250px;
+  overflow-y: auto;
+  font-size: 11px;
+  font-family: 'Courier New', monospace;
+  line-height: 1.5;
+}
+
+.combat-log-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 2px 4px;
+  border-bottom: 1px solid rgba(61, 53, 48, 0.3);
+  border-radius: 2px;
+}
+
+/* ── Side alignment ── */
+.combat-log-entry.log-side-a {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.combat-log-entry.log-side-b {
+  justify-content: flex-end;
+  text-align: right;
+  flex-direction: row-reverse;
+}
+
+.combat-log-entry.log-system {
+  justify-content: center;
+  text-align: center;
+}
+
+/* ── Turn badge ── */
+.combat-turn-badge {
+  display: inline-block;
+  min-width: 24px;
+  text-align: center;
+  background: var(--bg-card-alt);
+  color: var(--text-muted);
+  border-radius: 3px;
+  padding: 0 3px;
+  font-size: 9px;
+  flex-shrink: 0;
+}
+
+/* ── Log text base colors by side ── */
+.combat-log-text {
+  flex: 1;
+  color: var(--text);
+}
+
+.combat-log-entry.log-system .combat-log-text {
+  color: var(--accent);
+  font-style: italic;
+}
+
+/* ── Color-coding by result type (overrides side color) ── */
+.combat-log-entry.log-hit .combat-log-text {
+  color: var(--text);
+}
+
+.combat-log-entry.log-hit.log-side-a .combat-log-text {
+  color: #e0a030;
+}
+
+.combat-log-entry.log-hit.log-side-b .combat-log-text {
+  color: #5588cc;
+}
+
+.combat-log-entry.log-miss .combat-log-text {
+  color: #777;
+  font-style: italic;
+}
+
+.combat-log-entry.log-dot .combat-log-text {
+  color: #cc6666;
+}
+
+.combat-log-entry.log-reflect .combat-log-text {
+  color: #aa88dd;
+}
+
+.combat-log-entry.log-status .combat-log-text {
+  color: #cc6666;
+}
+
+/* ── Additional stat display elements ── */
+.combat-height-badge {
+  font-weight: bold;
+  color: var(--accent);
+}
+
+.combat-debuff-info {
+  font-size: 9px;
+  color: var(--text-muted);
+}
+
+.combat-breath-info {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* ── Responsive: combat sim ── */
+@media (max-width: 768px) {
+  .combat-panels {
+    grid-template-columns: 1fr;
+  }
+
+  .combat-panel-body {
+    flex-direction: column !important;
+  }
+
+  .combat-panel-info {
+    flex-direction: column;
+  }
+
+  .combat-sprite-wrap {
+    width: 100%;
+    max-width: 200px;
+    margin: 0 auto;
+  }
+
+  .combat-sprite-canvas {
+    max-width: 200px;
+  }
 }

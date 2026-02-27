@@ -9,10 +9,10 @@ import { addToStables, getStabledDragons, isNestsFull, isStabled } from './ui-st
 import { openFamilyTree } from './ui-family-tree.js';
 import { applyQuestHalo, onHighlightChange, getHighlightedQuest } from './quest-highlight.js';
 import { getGenesForQuest, getDesiredAllelesForQuest } from './quest-gene-map.js';
-import { incrementStat, addToStat, triggerSave, getPendingBreedEffects, clearPendingBreedEffects } from './save-manager.js';
+import { getStats, incrementStat, addToStat, triggerSave, getPendingBreedEffects, clearPendingBreedEffects } from './save-manager.js';
 import { getHatchBudget, addToEggRack, isEggRackFull, getEggRack, getEggProgress, removeFromEggRack, tickEggRack, registerEggCallbacks, getEggRackCapacity, getEggSalePrice } from './egg-system.js';
 import { incrementBreedCycle, consumeItem, getInventory } from './shop-engine.js';
-import { POTION_PRICES } from './economy-config.js';
+import { POTION_PRICES, EGG_SALE_REP } from './economy-config.js';
 import { buildBreedModifiers } from './potion-engine.js';
 
 let dragonRegistry = null;
@@ -235,11 +235,25 @@ function renderParentSummary(container, which, dragon) {
   });
   wrapper.appendChild(caretBtn);
 
-  // Action buttons: change + clear
+  // Action buttons: change + stable + clear
   const actions = el('div', 'btn-group parent-summary-actions');
   const changeBtn = el('button', 'btn btn-secondary btn-small', 'Change');
   changeBtn.addEventListener('click', () => openPicker(which));
   actions.appendChild(changeBtn);
+
+  const stableBtn = el('button', 'btn btn-secondary btn-small', 'Stable');
+  if (isStabled(dragon.id)) {
+    stableBtn.disabled = true;
+    stableBtn.textContent = 'Stabled';
+  }
+  stableBtn.addEventListener('click', () => {
+    if (addToStables(dragon)) {
+      stableBtn.disabled = true;
+      stableBtn.textContent = 'Stabled';
+    }
+  });
+  actions.appendChild(stableBtn);
+
   const clearBtn = el('button', 'btn btn-secondary btn-small', 'Clear');
   clearBtn.addEventListener('click', () => {
     if (which === 'A') {
@@ -548,16 +562,23 @@ function renderUnhatchedEgg(egg, index, instantRemaining, timedRemaining) {
   if (isLocked) {
     // ── Locked egg buttons ──
 
-    // Sell button
+    // Sell button (rep-gated)
+    const canSell = getStats().rep >= EGG_SALE_REP;
     const salePrice = getEggSalePrice();
-    const sellBtn = el('button', 'btn btn-sell btn-small', `Sell (${salePrice}g)`);
-    sellBtn.addEventListener('click', () => {
-      addToStat('gold', salePrice);
-      incrementStat('totalEggsSold');
-      egg.status = 'sold';
-      triggerSave();
-      renderClutch();
-    });
+    const sellBtn = el('button', 'btn btn-sell btn-small',
+      canSell ? `Sell (${salePrice}g)` : `Sell (${EGG_SALE_REP} Rep)`);
+    if (canSell) {
+      sellBtn.addEventListener('click', () => {
+        addToStat('gold', salePrice);
+        incrementStat('totalEggsSold');
+        egg.status = 'sold';
+        triggerSave();
+        renderClutch();
+      });
+    } else {
+      sellBtn.disabled = true;
+      sellBtn.title = `Requires ${EGG_SALE_REP} reputation to sell eggs`;
+    }
     actions.appendChild(sellBtn);
 
     // Unlock button (only if player owns Hatching Powder)

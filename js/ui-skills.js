@@ -6,7 +6,7 @@ import {
 } from './skill-engine.js';
 import { hasTome } from './shop-engine.js';
 import { uiImg } from './ui-card.js';
-import { triggerSave } from './save-manager.js';
+import { getStats, triggerSave } from './save-manager.js';
 
 let container = null;
 let activeBranch = 'geneticist';
@@ -34,9 +34,14 @@ export function refreshSkills() {
 
 function getSkillState(skillId) {
   if (hasSkill(skillId)) return 'unlocked';
+  const def = SKILL_DEFS[skillId];
+  // Check line-level rep gate
+  if (def.line) {
+    const lineDef = LINE_DEFS[def.line];
+    if (lineDef?.repGate && getStats().rep < lineDef.repGate) return 'rep-locked';
+  }
   const check = canUnlockSkill(skillId);
   if (check.ok) return 'available';
-  const def = SKILL_DEFS[skillId];
   if (def.requires?.tome && !hasTome(def.requires.tome)) return 'tome-locked';
   return 'locked';
 }
@@ -389,7 +394,10 @@ function renderSkillCard(skillId, def, compact = false) {
   info.appendChild(el('div', 'skill-card-desc', def.desc));
 
   // Prereq text for locked skills
-  if (state === 'locked') {
+  if (state === 'rep-locked') {
+    const lineDef = LINE_DEFS[def.line];
+    info.appendChild(el('div', 'skill-card-prereq skill-card-rep-req', `Requires ${lineDef.repGate} Rep`));
+  } else if (state === 'locked') {
     const check = canUnlockSkill(skillId);
     if (!check.ok && check.reason !== 'Already unlocked') {
       info.appendChild(el('div', 'skill-card-prereq', check.reason));

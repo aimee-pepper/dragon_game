@@ -75,16 +75,29 @@ function renderQuests() {
   header.appendChild(el('span', 'quests-hint', `${stabledCount} dragon${stabledCount !== 1 ? 's' : ''} in stables`));
   questContainer.appendChild(header);
 
-  // Currency bar — shows available + (total earned)
+  // Currency bar — two rows: available + earned
   const currStats = getStats();
   const availXP = getAvailableXP();
   const currencyBar = el('div', 'currency-bar');
-  currencyBar.appendChild(currencySpan('c_coin.png',
-    `${currStats.gold.toLocaleString()} (${currStats.totalGoldEarned.toLocaleString()} earned)`, 'currency-gold'));
-  currencyBar.appendChild(currencySpan('c_exp.png',
-    `${availXP.toLocaleString()} (${currStats.exp.toLocaleString()} earned) EXP`, 'currency-exp'));
-  currencyBar.appendChild(currencySpan('c_rep.png',
-    `${currStats.rep.toLocaleString()} (${currStats.totalRepEarned.toLocaleString()} earned) Rep`, 'currency-rep'));
+
+  const availRow = el('div', 'currency-row');
+  availRow.appendChild(currencySpan('c_coin.png', currStats.gold.toLocaleString(), 'currency-gold'));
+  availRow.appendChild(el('span', 'currency-sep', '/'));
+  availRow.appendChild(currencySpan('c_exp.png', availXP.toLocaleString(), 'currency-exp'));
+  availRow.appendChild(el('span', 'currency-sep', '/'));
+  availRow.appendChild(currencySpan('c_rep.png', currStats.rep.toLocaleString(), 'currency-rep'));
+  availRow.appendChild(el('span', 'currency-label', 'available'));
+  currencyBar.appendChild(availRow);
+
+  const earnedRow = el('div', 'currency-row currency-row-earned');
+  earnedRow.appendChild(currencySpan('c_coin.png', currStats.totalGoldEarned.toLocaleString(), 'currency-gold'));
+  earnedRow.appendChild(el('span', 'currency-sep', '/'));
+  earnedRow.appendChild(currencySpan('c_exp.png', currStats.exp.toLocaleString(), 'currency-exp'));
+  earnedRow.appendChild(el('span', 'currency-sep', '/'));
+  earnedRow.appendChild(currencySpan('c_rep.png', currStats.totalRepEarned.toLocaleString(), 'currency-rep'));
+  earnedRow.appendChild(el('span', 'currency-label', 'earned'));
+  currencyBar.appendChild(earnedRow);
+
   questContainer.appendChild(currencyBar);
 
   // Active quests

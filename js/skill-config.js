@@ -34,7 +34,7 @@ export const LINE_DEFS = {
 
   // Handler
   'economy':     { branch: 'handler', name: 'Economy',          desc: 'Quest reward bonuses' },
-  'egg-sales':   { branch: 'handler', name: 'Egg Sales',        desc: 'Egg sale price bonuses' },
+  'egg-sales':   { branch: 'handler', name: 'Egg Sales',        desc: 'Egg sale price bonuses', repGate: 50 },
   'quest':       { branch: 'handler', name: 'Quest Management', desc: 'Reroll and modify quests' },
   'tome-sub':    { branch: 'handler', name: 'Tome Skills',      desc: 'Per-gene pressure/lock from tomes' },
 };
