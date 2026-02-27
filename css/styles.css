@@ -2707,14 +2707,14 @@ header {
 
 .quest-toast {
   position: fixed;
-  bottom: 30px;
+  bottom: 120px;
   left: 50%;
   transform: translateX(-50%) translateY(20px);
   padding: 12px 24px;
   border-radius: var(--radius-sm);
   font-size: 14px;
   font-weight: 600;
-  z-index: 300;
+  z-index: 10002;
   opacity: 0;
   transition: opacity 0.3s, transform 0.3s;
   pointer-events: none;
@@ -2740,14 +2740,14 @@ header {
 /* ---- Parent-Set Toast ---- */
 .parent-set-toast {
   position: fixed;
-  bottom: 30px;
+  bottom: 120px;
   left: 50%;
   transform: translateX(-50%) translateY(20px);
   padding: 10px 20px;
   border-radius: var(--radius-sm);
   font-size: 13px;
   font-weight: 600;
-  z-index: 300;
+  z-index: 10002;
   opacity: 0;
   transition: opacity 0.3s, transform 0.3s;
   pointer-events: none;
@@ -4131,7 +4131,7 @@ header {
 /* Toast notification for import/export feedback */
 .io-toast {
   position: fixed;
-  bottom: 80px;
+  bottom: 120px;
   left: 50%;
   transform: translateX(-50%) translateY(20px);
   padding: 10px 20px;
@@ -4168,7 +4168,7 @@ header {
 /* Toast notification for NFC dragon claim */
 .claim-toast {
   position: fixed;
-  bottom: 80px;
+  bottom: 120px;
   left: 50%;
   transform: translateX(-50%) translateY(20px);
   padding: 12px 24px;
@@ -4180,7 +4180,7 @@ header {
   font-size: var(--fs-btn);
   text-transform: uppercase;
   text-align: center;
-  z-index: 10000;
+  z-index: 10002;
   opacity: 0;
   transition: opacity 0.3s ease, transform 0.3s ease;
   pointer-events: none;

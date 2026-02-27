@@ -296,6 +296,8 @@ function applyParent(which, dragon) {
     renderParentSummary(parentBContainer, 'B', dragon);
   }
   updateBreedButton();
+  // Notify card buttons elsewhere to reset stale "✓ Parent X" state
+  document.dispatchEvent(new CustomEvent('parent-set', { detail: { slot: which, dragonId: dragon.id } }));
 }
 
 /** Prompt: stable or release the outgoing parent before replacement */
@@ -562,12 +564,10 @@ function renderUnhatchedEgg(egg, index, instantRemaining, timedRemaining) {
   if (isLocked) {
     // ── Locked egg buttons ──
 
-    // Sell button (rep-gated)
-    const canSell = getStats().rep >= EGG_SALE_REP;
-    const salePrice = getEggSalePrice();
-    const sellBtn = el('button', 'btn btn-sell btn-small',
-      canSell ? `Sell (${salePrice}g)` : `Sell (${EGG_SALE_REP} Rep)`);
-    if (canSell) {
+    // Sell button — only visible once player has enough rep
+    if (getStats().rep >= EGG_SALE_REP) {
+      const salePrice = getEggSalePrice();
+      const sellBtn = el('button', 'btn btn-sell btn-small', `Sell (${salePrice}g)`);
       sellBtn.addEventListener('click', () => {
         addToStat('gold', salePrice);
         incrementStat('totalEggsSold');
@@ -575,11 +575,8 @@ function renderUnhatchedEgg(egg, index, instantRemaining, timedRemaining) {
         triggerSave();
         renderClutch();
       });
-    } else {
-      sellBtn.disabled = true;
-      sellBtn.title = `Requires ${EGG_SALE_REP} reputation to sell eggs`;
+      actions.appendChild(sellBtn);
     }
-    actions.appendChild(sellBtn);
 
     // Unlock button (only if player owns Hatching Powder)
     const inv = getInventory();

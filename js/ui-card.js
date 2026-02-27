@@ -383,6 +383,14 @@ export function renderDragonCard(dragon, options = {}) {
         onUseAsParentA(dragon);
         btnA.textContent = '✓ Parent A';
         btnA.classList.add('btn-parent-set');
+        document.dispatchEvent(new CustomEvent('parent-set', { detail: { slot: 'A', dragonId: dragon.id } }));
+      });
+      // Listen for other dragons being set as Parent A — reset this button
+      document.addEventListener('parent-set', (e) => {
+        if (e.detail.slot === 'A' && e.detail.dragonId !== dragon.id) {
+          btnA.textContent = 'Set Parent A';
+          btnA.classList.remove('btn-parent-set');
+        }
       });
       actions.appendChild(btnA);
     }
@@ -392,6 +400,14 @@ export function renderDragonCard(dragon, options = {}) {
         onUseAsParentB(dragon);
         btnB.textContent = '✓ Parent B';
         btnB.classList.add('btn-parent-set');
+        document.dispatchEvent(new CustomEvent('parent-set', { detail: { slot: 'B', dragonId: dragon.id } }));
+      });
+      // Listen for other dragons being set as Parent B — reset this button
+      document.addEventListener('parent-set', (e) => {
+        if (e.detail.slot === 'B' && e.detail.dragonId !== dragon.id) {
+          btnB.textContent = 'Set Parent B';
+          btnB.classList.remove('btn-parent-set');
+        }
       });
       actions.appendChild(btnB);
     }
