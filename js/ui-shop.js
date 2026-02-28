@@ -78,6 +78,7 @@ const ITEM_DESCRIPTIONS = {
   'scrying-vapors': 'See probability breakdown for next breed',
   'carriers-tincture': 'Guarantee carrier status for one gene',
   // Talismans
+  'egg-sale-license': 'Unlock the ability to sell locked eggs for gold',
   'breeding-nest-expansion': 'Add one breeding nest slot',
   'den-slot-expansion': 'Add one den slot',
   'egg-rack-expansion': 'Add one egg rack slot',
@@ -282,7 +283,7 @@ function renderUnlockedShop(content, shopKey, def, gold, rep) {
     tierSection.appendChild(tierHeader);
 
     for (const item of tierItems) {
-      const row = renderShopItem(item, shopKey, gold);
+      const row = renderShopItem(item, shopKey, gold, rep);
       tierSection.appendChild(row);
     }
 
@@ -308,7 +309,7 @@ function renderUnlockedShop(content, shopKey, def, gold, rep) {
 
 // ── Item Row ─────────────────────────────────────────────────
 
-function renderShopItem(item, shopKey, currentGold) {
+function renderShopItem(item, shopKey, currentGold, currentRep) {
   const row = el('div', 'shop-item');
 
   // Item info
@@ -353,19 +354,25 @@ function renderShopItem(item, shopKey, currentGold) {
     const owned = el('div', 'shop-item-price shop-item-purchased', 'Purchased');
     buyArea.appendChild(owned);
   } else {
+    const isRepCost = item.rep > 0;
     const price = el('div', 'shop-item-price');
-    price.appendChild(uiImg('c_coin.png', 'currency-icon'));
-    price.appendChild(document.createTextNode(` ${item.gold}`));
+    if (isRepCost) {
+      price.appendChild(uiImg('c_rep.png', 'currency-icon'));
+      price.appendChild(document.createTextNode(` ${item.rep}`));
+    } else {
+      price.appendChild(uiImg('c_coin.png', 'currency-icon'));
+      price.appendChild(document.createTextNode(` ${item.gold}`));
+    }
     buyArea.appendChild(price);
 
-    const canAfford = currentGold >= item.gold;
+    const canAfford = isRepCost ? (currentRep || 0) >= item.rep : currentGold >= item.gold;
     const achBlocked = item.achievement && !isAchievementUnlocked(item.achievement);
 
     const buyBtn = el('button', 'btn btn-shop btn-small', 'Buy');
     if (!canAfford) {
       buyBtn.disabled = true;
       buyBtn.classList.add('btn-disabled');
-      buyBtn.title = 'Not enough gold';
+      buyBtn.title = isRepCost ? 'Not enough rep' : 'Not enough gold';
     }
     if (achBlocked) {
       buyBtn.disabled = true;

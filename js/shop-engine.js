@@ -21,6 +21,7 @@ import { isUnlocked as isAchievementUnlocked } from './achievements.js';
 let breedCycleCount = 0; // incremented each breeding
 let purchasedTomes = new Set();    // set of tome IDs already bought (one-time purchases)
 let purchasedItems = new Map();    // itemId → count of permanent items bought
+let eggSaleUnlocked = false;       // one-time talisman shop purchase
 
 // ── Rep tier helpers ─────────────────────────────────────────
 
@@ -93,6 +94,9 @@ export function getAvailableItems(shopKey) {
 
     let goldCost = item.gold;
 
+    // Skip already-purchased one-time items
+    if (id === 'egg-sale-license' && eggSaleUnlocked) continue;
+
     // Milestone items (one-time carpenter upgrades) — skip if already at target
     if (item.milestone) {
       if (item.milestone === 'nest' && getNestSlotCount() >= MILESTONE_NEST_SLOTS) continue;
@@ -114,6 +118,7 @@ export function getAvailableItems(shopKey) {
       id,
       name: item.name,
       gold: goldCost,
+      rep: item.rep || 0,
       tier: item.tier,
       scaling: item.scaling || null,
       limited: item.limited || false,
@@ -165,14 +170,19 @@ export function purchaseItem(shopKey, itemId) {
     return { success: false, message: 'Achievement required' };
   }
 
-  // Check gold
-  const { gold } = getStats();
-  if (gold < item.gold) {
-    return { success: false, message: 'Not enough gold' };
+  // Check currency (rep-cost items use rep, otherwise gold)
+  const { gold, rep } = getStats();
+  if (item.rep > 0) {
+    if (rep < item.rep) {
+      return { success: false, message: 'Not enough rep' };
+    }
+    addToStat('rep', -item.rep);
+  } else if (item.gold > 0) {
+    if (gold < item.gold) {
+      return { success: false, message: 'Not enough gold' };
+    }
+    addToStat('gold', -item.gold);
   }
-
-  // Deduct gold
-  addToStat('gold', -item.gold);
 
   // Apply item effect
   applyPurchase(shopKey, itemId, item);
@@ -186,6 +196,10 @@ function applyPurchase(shopKey, itemId, item) {
     const def = CARPENTER_PRICES[itemId];
     if (def?.milestone === 'nest') setNestSlotCount(MILESTONE_NEST_SLOTS);
     if (def?.milestone === 'den') setDenSlotCount(MILESTONE_DEN_SLOTS);
+    return;
+  }
+  if (itemId === 'egg-sale-license') {
+    eggSaleUnlocked = true;
     return;
   }
   if (shopKey === 'arcana') {
@@ -241,6 +255,10 @@ export function hasTome(tomeId) {
   return purchasedTomes.has(tomeId);
 }
 
+export function isEggSaleUnlocked() {
+  return eggSaleUnlocked;
+}
+
 // ── Save / Load ──────────────────────────────────────────────
 
 export function getShopSaveData() {
@@ -248,6 +266,7 @@ export function getShopSaveData() {
     breedCycleCount,
     purchasedTomes: [...purchasedTomes],
     purchasedItems: Object.fromEntries(purchasedItems),
+    eggSaleUnlocked,
   };
 }
 
@@ -259,5 +278,8 @@ export function restoreShopState(data) {
   }
   if (data.purchasedItems && typeof data.purchasedItems === 'object') {
     purchasedItems = new Map(Object.entries(data.purchasedItems).map(([k, v]) => [k, Number(v)]));
+  }
+  if (typeof data.eggSaleUnlocked === 'boolean') {
+    eggSaleUnlocked = data.eggSaleUnlocked;
   }
 }

@@ -11,8 +11,8 @@ import { applyQuestHalo, onHighlightChange, getHighlightedQuest } from './quest-
 import { getGenesForQuest, getDesiredAllelesForQuest } from './quest-gene-map.js';
 import { getStats, incrementStat, addToStat, triggerSave, getPendingBreedEffects, clearPendingBreedEffects } from './save-manager.js';
 import { getHatchBudget, addToEggRack, isEggRackFull, getEggRack, getEggProgress, removeFromEggRack, tickEggRack, registerEggCallbacks, getEggRackCapacity, getEggSalePrice } from './egg-system.js';
-import { incrementBreedCycle, consumeItem, getInventory } from './shop-engine.js';
-import { POTION_PRICES, EGG_SALE_REP } from './economy-config.js';
+import { incrementBreedCycle, consumeItem, getInventory, isEggSaleUnlocked } from './shop-engine.js';
+import { POTION_PRICES } from './economy-config.js';
 import { buildBreedModifiers } from './potion-engine.js';
 
 let dragonRegistry = null;
@@ -564,8 +564,8 @@ function renderUnhatchedEgg(egg, index, instantRemaining, timedRemaining) {
   if (isLocked) {
     // ── Locked egg buttons ──
 
-    // Sell button — only visible once player has enough rep
-    if (getStats().rep >= EGG_SALE_REP) {
+    // Sell button — only visible once player purchases Egg Selling License
+    if (isEggSaleUnlocked()) {
       const salePrice = getEggSalePrice();
       const sellBtn = el('button', 'btn btn-sell btn-small', `Sell (${salePrice}g)`);
       sellBtn.addEventListener('click', () => {

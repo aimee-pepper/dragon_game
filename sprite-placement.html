@@ -865,7 +865,9 @@
       const ghostFiles = (batchName !== 'body') ? (GHOST_BODY_FILES[currentBodyType] || []) : [];
       // Ghost head files for horns and headspines
       const ghostHeadFiles = (batchName === 'horns' || batchName === 'headspines') ? GHOST_HEAD_FILES : [];
-      const allToLoad = [...new Set([...filenames, ...ghostFiles, ...ghostHeadFiles])];
+      // Ghost normal wing files for wingfade batch
+      const ghostWingFiles = (batchName === 'wingfade') ? getModelFiles('wings') : [];
+      const allToLoad = [...new Set([...filenames, ...ghostFiles, ...ghostHeadFiles, ...ghostWingFiles])];
       await Promise.all(allToLoad.map(f => loadImage(f)));
 
       // Set visibility for model layers
@@ -1046,6 +1048,33 @@
           ctx.save(); ctx.globalAlpha = 0.3;
           ctx.drawImage(img, headGPos.x + off.x, headGPos.y + off.y);
           ctx.restore();
+        }
+      }
+
+      // Ghost normal wings (for wingfade batch)
+      if (showGhost && currentBatch === 'wingfade') {
+        const ghostPairs = getActivePairs('wings');
+        for (const [modelName, model] of Object.entries(WING_MODELS)) {
+          for (const pair of ghostPairs) {
+            const groupId = modelName + ':p' + pair;
+            const gKey = groupAnchorKeyFor(groupId, 'wings', currentBodyType, currentWingCount, currentLimbCount);
+            const gPos = groupAnchors[gKey] || { x: 0, y: 0, rot: 0 };
+            const groupRot = gPos.rot || 0;
+            ctx.save();
+            ctx.globalAlpha = 0.2;
+            if (Math.abs(groupRot) > 0.01) {
+              ctx.translate(gPos.x, gPos.y);
+              ctx.rotate(groupRot * Math.PI / 180);
+              ctx.translate(-gPos.x, -gPos.y);
+            }
+            for (const ml of model.layers) {
+              const img = images[ml.file];
+              if (!img) continue;
+              const off = modelOffsets[ml.modelId] || { x: 0, y: 0 };
+              ctx.drawImage(img, gPos.x + off.x, gPos.y + off.y);
+            }
+            ctx.restore();
+          }
         }
       }
 

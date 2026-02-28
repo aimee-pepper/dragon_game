@@ -1189,7 +1189,9 @@ function restorePath(seedFrom) {
   // Try exact key first, then old key, then any key sharing the same body:tail_length prefix
   const oldKey = `${currentBody}:${currentTail}_${currentLength}`;
   const prefix = oldKey + '_';
-  let data = allPaths[currentPathKey()] || allPaths[oldKey];
+  let data = allPaths[currentPathKey()];
+  const isExactMatch = !!data;
+  if (!data) data = allPaths[oldKey];
   if (!data) {
     // Find any entry with matching body:tail_length prefix
     for (const [key, val] of Object.entries(allPaths)) {
@@ -1209,6 +1211,10 @@ function restorePath(seedFrom) {
     globalRotation = data.globalRotation || 0;
     perSpineOverrides = data.perSpineOverrides || {};
     heightControlPoints = data.heightControlPoints || [{ t: 0, mul: 1.0, rot: 0, wid: 1.0, spc: 1.0 }, { t: 1, mul: 1.0, rot: 0, wid: 1.0, spc: 1.0 }];
+    // Non-exact match (old key or prefix fallback) — reset width like seedFrom does
+    if (!isExactMatch) {
+      for (const cp of heightControlPoints) cp.wid = 1.0;
+    }
   } else if (seedFrom) {
     // No saved path — seed from current working path (deep copy)
     controlPoints = seedFrom.controlPoints.map(p => ({ x: p.x, y: p.y }));

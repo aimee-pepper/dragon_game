@@ -58,7 +58,7 @@ export const SHOP_REFRESH_INTERVAL = 3; // refresh every Nth breeding cycle
 
 // ── Egg economy ──────────────────────────────────────────────
 
-export const EGG_SALE_REP = 50; // rep needed before player can sell eggs
+export const EGG_SALE_REP_COST = 50; // rep cost to purchase egg selling license from talisman shop
 
 export const BASE_EGG_SALE_PRICE = 5; // gold per egg
 
@@ -168,6 +168,7 @@ export const POTION_PRICES = {
 };
 
 export const TALISMAN_PRICES = {
+  'egg-sale-license':         { gold: 0, rep: 50, tier: 1, name: 'Egg Selling License' },
   'breeding-nest-expansion': { gold: null, tier: 1, name: 'Breeding Nest Expansion', scaling: 'nest' },
   'den-slot-expansion':      { gold: null, tier: 1, name: 'Den Slot Expansion', scaling: 'den' },
   'egg-rack-expansion':      { gold: null, tier: 1, name: 'Egg Rack Expansion', scaling: 'rack' },
