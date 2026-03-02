@@ -8,7 +8,7 @@ const DEFAULTS = {
   'quest-halos': true,
   'quest-genotype-highlight': true,
   'pinned-quest-widget': true,
-  'active-tab': 'generate',
+  'active-tab': 'map',
   'pinned-quest-id': null,
 
   // Debug/Testing toggles — visibility
@@ -21,6 +21,10 @@ const DEFAULTS = {
   'debug-unlimited-stables': false,  // bypass nest and den slot limits
   'debug-free-reroll': false,        // reroll quest trait requirements freely
   'debug-no-cooldown': false,        // remove breeding cooldown (if/when cooldowns exist)
+
+  // Debug/Testing toggles — map
+  'debug-unlock-all-zones': false,   // bypass zone unlock requirements
+  'debug-capture-tab': false,        // show debug capture sub-tab with zone selectors
 };
 
 let settings = { ...DEFAULTS };

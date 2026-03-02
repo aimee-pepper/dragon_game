@@ -4,7 +4,7 @@ import {
   getShopTier, isShopUnlocked, getActiveDiscount,
   getAvailableItems, purchaseItem,
   getBreedCycleCount, shouldRefreshShop,
-  getInventory, hasTome,
+  getInventory, hasTome, isCarpenterComplete,
 } from './shop-engine.js';
 import { SHOP_UNLOCK_REP } from './economy-config.js';
 import { getStats } from './save-manager.js';
@@ -53,8 +53,7 @@ const SHOP_DEFS = {
 // Item descriptions (for tooltip/display)
 const ITEM_DESCRIPTIONS = {
   // Carpenter
-  'nest-milestone': 'Expand breeding nests from 2 to 4 slots',
-  'den-milestone': 'Expand keeper den from 1 to 3 slots',
+  'carpenter-upgrade': 'Expand breeding nests (2 → 4 slots) and keeper den (1 → 3 slots)',
   // Potions
   'broodmothers-draught': '+1 egg in next clutch',
   'seers-tincture': 'Peek at one unhatched egg\'s traits',
@@ -163,9 +162,19 @@ function renderShop() {
   currencyBar.appendChild(repDisplay);
   shopContainer.appendChild(currencyBar);
 
-  // Shop tabs
+  // Shop tabs — hide carpenter once complete
+  const carpenterDone = isCarpenterComplete();
+  const visibleShops = Object.entries(SHOP_DEFS).filter(([key]) =>
+    !(key === 'carpenter' && carpenterDone)
+  );
+
+  // If active shop was carpenter but it's gone, default to first visible
+  if (activeShop === 'carpenter' && carpenterDone) {
+    activeShop = visibleShops[0]?.[0] || 'potion';
+  }
+
   const tabBar = el('div', 'shop-tab-bar');
-  for (const [key, def] of Object.entries(SHOP_DEFS)) {
+  for (const [key, def] of visibleShops) {
     const tab = el('button', 'shop-tab');
     const unlocked = isShopUnlocked(key);
 
@@ -189,6 +198,8 @@ function renderShop() {
 
   if (!unlocked) {
     renderLockedShop(content, activeShop, def, rep);
+  } else if (activeShop === 'carpenter' && !carpenterDone) {
+    renderCarpenterVisit(content, gold);
   } else {
     renderUnlockedShop(content, activeShop, def, gold, rep);
   }
@@ -233,6 +244,83 @@ function renderLockedShop(content, shopKey, def, currentRep) {
   }
 
   content.appendChild(lockCard);
+}
+
+// ── Carpenter NPC Visit (one-off) ────────────────────────────
+
+function renderCarpenterVisit(content, currentGold) {
+  const card = el('div', 'shop-locked-card');
+  card.style.textAlign = 'left';
+
+  // NPC header
+  const header = el('div', 'shop-header');
+  const headerLeft = el('div', 'shop-header-left');
+  headerLeft.innerHTML = '<span class="shop-header-icon">🪚</span><span class="shop-header-name">The Carpenter</span>';
+  header.appendChild(headerLeft);
+  card.appendChild(header);
+
+  // Flavor intro
+  const intro = el('p', 'shop-npc-flavor');
+  intro.textContent = 'A weathered carpenter has arrived at your keep. He sizes up your modest stables and den with a practiced eye.';
+  card.appendChild(intro);
+
+  // What you get
+  const offer = el('div', 'shop-item');
+  const offerInfo = el('div', 'shop-item-info');
+  offerInfo.appendChild(el('div', 'shop-item-name', "Carpenter's Overhaul"));
+  offerInfo.appendChild(el('div', 'shop-item-desc', 'Expand breeding nests (2 → 4 slots) and keeper den (1 → 3 slots)'));
+  offer.appendChild(offerInfo);
+
+  // Price + buy
+  const buyArea = el('div', 'shop-item-buy');
+  const price = el('div', 'shop-item-price');
+  price.appendChild(uiImg('c_coin.png', 'currency-icon'));
+  price.appendChild(document.createTextNode(' 15'));
+  buyArea.appendChild(price);
+
+  const canAfford = currentGold >= 15;
+  const buyBtn = el('button', 'btn btn-shop btn-small', 'Hire');
+  if (!canAfford) {
+    buyBtn.disabled = true;
+    buyBtn.classList.add('btn-disabled');
+    buyBtn.title = 'Not enough gold';
+  }
+
+  buyBtn.addEventListener('click', () => {
+    const result = purchaseItem('carpenter', 'carpenter-upgrade');
+    if (result.success) {
+      // Show departure message
+      card.innerHTML = '';
+      const departing = el('div', 'shop-locked-card');
+      departing.style.textAlign = 'center';
+      departing.appendChild(el('div', 'shop-locked-icon', '🪚'));
+      const msg = el('p', 'shop-npc-flavor');
+      msg.textContent = 'The carpenter packs his tools and departs with a wave. Your stables and den have been expanded!';
+      departing.appendChild(msg);
+      content.innerHTML = '';
+      content.appendChild(departing);
+      // Re-render after delay (carpenter tab will be gone)
+      setTimeout(() => renderShop(), 2500);
+    } else {
+      buyBtn.textContent = result.message;
+      buyBtn.classList.add('btn-error');
+      setTimeout(() => {
+        buyBtn.textContent = 'Hire';
+        buyBtn.classList.remove('btn-error');
+      }, 1500);
+    }
+  });
+
+  buyArea.appendChild(buyBtn);
+  offer.appendChild(buyArea);
+  card.appendChild(offer);
+
+  // Flavor outro — teasing the other shops
+  const outro = el('p', 'shop-npc-flavor');
+  outro.textContent = "He gestures toward the empty market square. \"I'll send word to the merchants\u200A—\u200Aa potion brewer, a talisman crafter, and a scholar of arcana. They'll set up shop once you've got enough pull around here. Build your reputation and they'll come sooner.\"";
+  card.appendChild(outro);
+
+  content.appendChild(card);
 }
 
 // ── Unlocked Shop ────────────────────────────────────────────

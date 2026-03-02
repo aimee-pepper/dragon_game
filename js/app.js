@@ -10,7 +10,7 @@ import { initSettings, getSetting, setSetting, onSettingChange } from './setting
 import { initQuestWidget } from './ui-quest-widget.js';
 import { restoreHighlightedQuest } from './quest-highlight.js';
 import { getActiveQuests } from './quest-engine.js';
-import { loadGame, saveGame, triggerSave, onStatChange, getStats, getHotbar, setHotbarSlot, clearHotbarSlot, registerAchievementHooks, registerBreedHooks, applyPendingBreedRestore, registerCaptureHooks, applyPendingCapturedRestore, registerShopHooks, registerSkillHooks } from './save-manager.js';
+import { loadGame, saveGame, triggerSave, onStatChange, getStats, getHotbar, setHotbarSlot, clearHotbarSlot, registerAchievementHooks, registerBreedHooks, applyPendingBreedRestore, registerCaptureHooks, applyPendingCapturedRestore, registerShopHooks, registerSkillHooks, registerMapHooks } from './save-manager.js';
 import { uiImg } from './ui-card.js';
 import { checkAchievements, onAchievementUnlock, getAchievementSaveData, restoreAchievements } from './achievements.js';
 import { decodeDragonParams } from './dragon-url.js';
@@ -26,6 +26,8 @@ import { getEggById, reduceEggHatchTime } from './egg-system.js';
 import { initInventoryTab, refreshInventory } from './ui-inventory.js';
 import { getSkillSaveData, restoreSkillState, getAvailableXP } from './skill-engine.js';
 import { initSkillsTab, refreshSkills } from './ui-skills.js';
+import { initMapTab } from './ui-map.js';
+import { getMapSaveData, restoreMapState } from './map-engine.js';
 
 // Shared dragon registry — all dragons accessible across tabs
 class DragonRegistry {
@@ -619,7 +621,7 @@ function showClaimToast(dragonName, error) {
 }
 
 // Boot
-function init() {
+async function init() {
   const registry = new DragonRegistry();
 
   // Settings first — everything else may depend on them
@@ -638,6 +640,7 @@ function init() {
   registerCaptureHooks(getCapturedDragonIds, restoreCapturedDragons);
   registerShopHooks(getShopSaveData, restoreShopState);
   registerSkillHooks(getSkillSaveData, restoreSkillState);
+  registerMapHooks(getMapSaveData, restoreMapState);
 
   // Load saved game state (restores dragons, stables, quests, stats, ID counters, achievements)
   // Breed parents + captured dragons are deferred (stored as IDs, applied after UI init)
@@ -647,6 +650,7 @@ function init() {
   }
 
   initTabs();
+  await initMapTab(document.getElementById('tab-map'), registry);
   initGenerateTab(document.getElementById('tab-generate'), registry);
   initBreedTab(document.getElementById('tab-breed'), registry);
   initStablesTab(document.getElementById('tab-stables'), registry);

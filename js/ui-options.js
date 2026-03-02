@@ -191,6 +191,16 @@ export function initOptionsTab(container, registry) {
     makeBoolToggle('Quest Item Highlighting', 'Highlight quest-relevant traits (will become skill-based)', 'debug-quest-highlight')
   );
 
+  // Map toggles
+  wrapper.appendChild(el('div', 'options-subsection-header', 'Map / Exploration'));
+
+  wrapper.appendChild(
+    makeBoolToggle('Unlock All Zones', 'Bypass zone unlock requirements — access all regions', 'debug-unlock-all-zones')
+  );
+  wrapper.appendChild(
+    makeBoolToggle('Debug Capture Tab', 'Show debug capture sub-tab with zone/territory/habitat selectors', 'debug-capture-tab')
+  );
+
   // Limit bypasses
   wrapper.appendChild(el('div', 'options-subsection-header', 'Limit Bypasses'));
 

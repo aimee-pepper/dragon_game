@@ -105,6 +105,24 @@ export class Dragon {
     });
   }
 
+  // Create a dragon from a pre-built genotype (used by map encounters)
+  // metadata: { speciesId, speciesName, habitatId, encounterType, encounterLevel, encounterZoneId, encounterZoneName }
+  static fromConstrained(genotype, metadata = {}) {
+    const dragon = new Dragon({
+      genotype,
+      sex: determineSex(),
+    });
+    // Attach origin metadata (not persisted in save, cosmetic only)
+    dragon.originHabitat = metadata.habitatId || null;
+    dragon.originSpecies = metadata.speciesId || null;
+    dragon.originSpeciesName = metadata.speciesName || null;
+    dragon.encounterType = metadata.encounterType || null;
+    dragon.encounterLevel = metadata.encounterLevel || null;
+    dragon.encounterZoneId = metadata.encounterZoneId || null;
+    dragon.encounterZoneName = metadata.encounterZoneName || null;
+    return dragon;
+  }
+
   // ── Gene reveal helpers ──────────────────────────────────
 
   /** Reveal a gene at a given level ('partial' = one allele, 'full' = both) */

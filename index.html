@@ -19,14 +19,16 @@
     <nav id="header-nav">
       <img src="assets/ui/ui-assets/title.png" alt="Dragon Keeper" class="header-title-img header-title-full">
       <img src="assets/ui/ui-assets/title_init.png" alt="Dragon Keeper" class="header-title-img header-title-init">
-      <button data-tab="generate" class="tab-btn active">Capture</button>
+      <button data-tab="map" class="tab-btn active">Explore</button>
+      <button data-tab="generate" class="tab-btn" style="display:none;">Capture</button>
       <button data-tab="breed" class="tab-btn">Breed</button>
       <button data-tab="stables" class="tab-btn">Stables</button>
       <button data-tab="shop" class="tab-btn">Shop</button>
     </nav>
   </header>
   <main id="app">
-    <section id="tab-generate" class="tab-panel active"></section>
+    <section id="tab-map" class="tab-panel active"></section>
+    <section id="tab-generate" class="tab-panel"></section>
     <section id="tab-breed" class="tab-panel"></section>
     <section id="tab-stables" class="tab-panel"></section>
     <section id="tab-shop" class="tab-panel"></section>

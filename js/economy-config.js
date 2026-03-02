@@ -137,10 +137,9 @@ export const EGG_RACK_EXPANSION_COSTS = {
 
 // ── Gold costs — shop items ──────────────────────────────────
 
-// Carpenter — early milestone upgrades (available before other shops)
+// Carpenter — single one-off upgrade (carpenter vanishes after purchase)
 export const CARPENTER_PRICES = {
-  'nest-milestone': { gold: 10, tier: 1, name: 'Nest Expansion', milestone: 'nest' },
-  'den-milestone':  { gold: 10, tier: 1, name: 'Den Expansion', milestone: 'den' },
+  'carpenter-upgrade': { gold: 15, tier: 1, name: "Carpenter's Overhaul", milestone: 'both' },
 };
 
 export const POTION_PRICES = {

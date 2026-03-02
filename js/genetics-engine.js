@@ -73,6 +73,185 @@ function generateTriangleAlleles(systemName) {
   return result;
 }
 
+// Generate triangle alleles with optional per-axis constraints and tier overrides
+// constraints: { geneName: { min, max } } — restrict allele values for specific axes
+// tierOverride: { 0: weight, 1: weight, ... } — override how many axes are High
+// speciesGenes: { geneName: [a, b] } — hard-set alleles (skip generation entirely)
+function generateConstrainedTriangleAlleles(systemName, constraints, tierOverride, speciesGenes) {
+  const def = TRIANGLE_DEFS[systemName];
+  if (!def) return null;
+
+  // If all 3 axes are species-set, just return those
+  const allSpeciesSet = def.axes.every(axis => speciesGenes && speciesGenes[axis]);
+  if (allSpeciesSet) {
+    const result = {};
+    for (const axis of def.axes) result[axis] = [...speciesGenes[axis]];
+    return result;
+  }
+
+  // Pick tier (number of High axes) using override weights or defaults
+  const tierWeights = tierOverride || TRIANGLE_TIER_WEIGHTS[systemName];
+  if (!tierWeights) return null;
+  const numHigh = pickWeightedTier(tierWeights);
+
+  // Randomly choose which axes are High
+  const axisIndices = [0, 1, 2];
+  for (let i = 2; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [axisIndices[i], axisIndices[j]] = [axisIndices[j], axisIndices[i]];
+  }
+  const highAxes = new Set(axisIndices.slice(0, numHigh));
+
+  const result = {};
+  for (let i = 0; i < 3; i++) {
+    const axisName = def.axes[i];
+
+    // Species genes override everything
+    if (speciesGenes && speciesGenes[axisName]) {
+      result[axisName] = [...speciesGenes[axisName]];
+      continue;
+    }
+
+    const geneDef = GENE_DEFS[axisName];
+    const constraint = constraints && constraints[axisName];
+    const isHigh = highAxes.has(i);
+
+    if (constraint) {
+      // Constrained: generate within the specified range, biased by tier
+      const weights = isHigh ? HIGH_ALLELE_WEIGHTS : LOW_ALLELE_WEIGHTS;
+      // Map weights to the constrained range
+      const rangeSize = constraint.max - constraint.min + 1;
+      const slicedWeights = weights.slice(0, rangeSize);
+      result[axisName] = [
+        weightedRandomInt(constraint.min, constraint.max, slicedWeights.length >= rangeSize ? slicedWeights : null),
+        weightedRandomInt(constraint.min, constraint.max, slicedWeights.length >= rangeSize ? slicedWeights : null),
+      ];
+    } else {
+      // Unconstrained: use normal biased generation
+      result[axisName] = generateAlleleForTarget(geneDef, isHigh);
+    }
+  }
+  return result;
+}
+
+// ── Subordination helpers ────────────────────────────────────
+// Computes the expressed phenotype level (None/Low/Mid/High) from two alleles
+function getExpressedLevel(a, b) {
+  const avg = (a + b) / 2;
+  if (avg < 0.5) return 0;  // None
+  if (avg < 1.5) return 1;  // Low
+  if (avg < 2.5) return 2;  // Mid
+  return 3;                  // High
+}
+
+/**
+ * Enforce the subordination rule on a genotype:
+ *   - The primary gene's expressed level is always ≥ 1 (never None)
+ *   - Each secondary gene's expressed level must be strictly < primary's level
+ *
+ * subordination shape:
+ *   { color: 'color_cyan', breath: 'breath_ice' }
+ *   — names the primary axis for color and breath triangle systems
+ *
+ * The function mutates the genotype in place.
+ */
+function enforceSubordination(genotype, subordination) {
+  if (!subordination) return;
+
+  const COLOR_AXES = ['color_cyan', 'color_magenta', 'color_yellow'];
+  const BREATH_AXES = ['breath_fire', 'breath_ice', 'breath_lightning'];
+
+  const rules = [];
+  if (subordination.color) {
+    rules.push({ primary: subordination.color, axes: COLOR_AXES });
+  }
+  if (subordination.breath) {
+    rules.push({ primary: subordination.breath, axes: BREATH_AXES });
+  }
+
+  for (const { primary, axes } of rules) {
+    const secondaries = axes.filter(g => g !== primary);
+
+    // Ensure primary is at least Low (both alleles ≥ 1)
+    genotype[primary][0] = Math.max(1, genotype[primary][0]);
+    genotype[primary][1] = Math.max(1, genotype[primary][1]);
+
+    const primaryLevel = getExpressedLevel(genotype[primary][0], genotype[primary][1]);
+
+    // Max allele value for secondaries: ensures their expressed level < primary's level
+    // Level 1 (Low) → secondaries max 0 (None)
+    // Level 2 (Mid) → secondaries max 1 (Low)
+    // Level 3 (High) → secondaries max 2 (Mid)
+    const maxSecAllele = Math.max(0, primaryLevel - 1);
+
+    for (const secGene of secondaries) {
+      genotype[secGene][0] = Math.min(genotype[secGene][0], maxSecAllele);
+      genotype[secGene][1] = Math.min(genotype[secGene][1], maxSecAllele);
+    }
+  }
+}
+
+// Create a constrained genotype using habitat gene constraints and species templates
+// constraints shape:
+//   geneConstraints: { geneName: { min, max } } — restrict allele ranges
+//   triangleOverrides: { systemName: { tierCount: weight } } — override tier distributions
+//   speciesGenes: { geneName: [alleleA, alleleB] } — hard-set specific genes
+//   subordination: { color: 'color_X', breath: 'breath_X' } — primary axis enforcement
+export function createConstrainedGenotype(constraints = {}) {
+  const { geneConstraints = {}, triangleOverrides = {}, speciesGenes = {}, subordination } = constraints;
+  const genotype = {};
+
+  // First, generate triangle system axes with controlled rarity
+  const triangleGenes = new Set();
+  for (const [systemName, def] of Object.entries(TRIANGLE_DEFS)) {
+    const tierOverride = triangleOverrides[systemName] || null;
+    const alleles = generateConstrainedTriangleAlleles(
+      systemName, geneConstraints, tierOverride, speciesGenes
+    );
+    if (alleles) {
+      for (const [geneName, allelePair] of Object.entries(alleles)) {
+        genotype[geneName] = allelePair;
+        triangleGenes.add(geneName);
+      }
+    }
+  }
+
+  // Then generate all remaining genes (non-triangle)
+  for (const [name, def] of Object.entries(GENE_DEFS)) {
+    if (triangleGenes.has(name)) continue;
+
+    // Species genes: hard-set, no randomization
+    if (speciesGenes[name]) {
+      genotype[name] = [...speciesGenes[name]];
+      continue;
+    }
+
+    // Constrained genes: use restricted range
+    const constraint = geneConstraints[name];
+    if (constraint) {
+      genotype[name] = [
+        randomInt(constraint.min, constraint.max),
+        randomInt(constraint.min, constraint.max),
+      ];
+      continue;
+    }
+
+    // Unconstrained: normal random generation
+    const weights = RANDOM_ALLELE_WEIGHTS[name] || null;
+    genotype[name] = [
+      weightedRandomInt(def.min, def.max, weights),
+      weightedRandomInt(def.min, def.max, weights),
+    ];
+  }
+
+  // Enforce subordination: primary color/breath always dominant
+  if (subordination) {
+    enforceSubordination(genotype, subordination);
+  }
+
+  return genotype;
+}
+
 // Create a fully random genotype (all 23 genes with random allele pairs)
 // Triangle system genes use tier-based rarity control
 // All other genes use uniform random (or per-gene weights if defined)

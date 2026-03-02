@@ -955,11 +955,21 @@
           statusEl.innerHTML = '<strong style="color:#6a8a72;">✓ ' + (statusMsg || 'Saved!') + '</strong>';
           setTimeout(() => { statusEl.textContent = ''; }, 3000);
         } else {
-          statusEl.innerHTML = '<strong style="color:#a05050;">✗ Save failed</strong>';
+          throw new Error('HTTP ' + resp.status);
         }
       }).catch(e => {
-        statusEl.innerHTML = '<strong style="color:#a05050;">✗ Server error</strong>';
-        console.warn('Server save failed:', e);
+        console.warn('Server save failed, falling back to download:', e);
+        // Fallback: download the file so the user can place it manually
+        const json = JSON.stringify(payload, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'sprite-anchors.json';
+        a.click();
+        URL.revokeObjectURL(url);
+        statusEl.innerHTML = '<strong style="color:#c4a265;">⬇ Downloaded sprite-anchors.json</strong><br><small>Move to data/ folder in project</small>';
+        setTimeout(() => { statusEl.textContent = ''; }, 6000);
       });
     }
 

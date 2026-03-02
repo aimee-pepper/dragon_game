@@ -18,7 +18,7 @@ import {
 } from './quest-engine.js';
 
 const SAVE_KEY = 'dragon-keeper-save';
-const SAVE_VERSION = 2;
+const SAVE_VERSION = 3;
 
 // ── Rolling backups ─────────────────────────────────────────
 // Keep the last 3 good saves so players can recover from data loss.
@@ -111,6 +111,16 @@ let _restoreSkillState = () => {};
 export function registerSkillHooks(getSaveData, restore) {
   _getSkillSaveData = getSaveData;
   _restoreSkillState = restore;
+}
+
+// ── Map hooks (set by app.js to avoid circular dependency: save-manager <-> map-engine) ──
+
+let _getMapSaveData = () => ({});
+let _restoreMapState = () => {};
+
+export function registerMapHooks(getSaveData, restore) {
+  _getMapSaveData = getSaveData;
+  _restoreMapState = restore;
 }
 
 // ── Breed parent hooks (set by app.js) ──
@@ -315,6 +325,7 @@ export function saveGame(registry) {
       achievements: _getAchievementSaveData(),
       shop: _getShopSaveData(),
       skills: _getSkillSaveData(),
+      map: _getMapSaveData(),
       hotbar: [...hotbar],
       pendingBreedEffects: [...pendingBreedEffects],
     };
@@ -419,6 +430,13 @@ export function loadGame(registry) {
       console.log('Migrated save from v1 → v2');
     }
 
+    if (saveData.version === 2) {
+      // v2 → v3: Add map state
+      if (!saveData.map) saveData.map = {};
+      saveData.version = 3;
+      console.log('Migrated save from v2 → v3');
+    }
+
     if (saveData.version !== SAVE_VERSION) return false;
 
     // Restore ID counters (must happen before creating dragons)
@@ -485,6 +503,11 @@ export function loadGame(registry) {
     // Restore skill state
     if (saveData.skills) {
       _restoreSkillState(saveData.skills);
+    }
+
+    // Restore map state
+    if (saveData.map) {
+      _restoreMapState(saveData.map);
     }
 
     // Restore hotbar (migrate old string-only entries → { type: 'item', id })

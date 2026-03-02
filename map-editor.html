@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Map Zone Editor — Dragon Keeper</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #1e1a16; color: #d4cdc4;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      overflow: hidden; height: 100vh;
+    }
+    h1 { font-size: 18px; color: #c4a265; margin-bottom: 2px; }
+    .subtitle { font-size: 12px; color: #8a7e72; margin-bottom: 8px; }
+
+    /* ── Layout ── */
+    .top-bar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 12px; border-bottom: 1px solid #3d3530;
+      flex-wrap: wrap;
+    }
+    .main-layout {
+      display: flex; height: calc(100vh - 80px);
+    }
+    .canvas-container {
+      flex: 1; position: relative; overflow: hidden;
+      background: #131110;
+    }
+    .side-panel {
+      width: 280px; min-width: 280px;
+      border-left: 1px solid #3d3530;
+      overflow-y: auto; padding: 8px;
+      background: #1e1a16;
+    }
+
+    /* ── Canvas ── */
+    #mapCanvas {
+      position: absolute; top: 0; left: 0;
+      transform-origin: 0 0;
+      cursor: crosshair;
+      image-rendering: auto;
+    }
+    .canvas-container.panning #mapCanvas { cursor: grabbing; }
+    .zoom-indicator {
+      position: absolute; bottom: 8px; right: 8px;
+      background: #00000099; color: #8a7e72; font-size: 11px;
+      padding: 2px 8px; border-radius: 4px; pointer-events: none;
+    }
+
+    /* ── Toolbar ── */
+    .toolbar-row {
+      display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    }
+    .toolbar-row label { font-size: 12px; color: #8a7e72; }
+    .toolbar-row .sep { width: 1px; height: 18px; background: #3d3530; margin: 0 4px; }
+    button, .toggle-btn {
+      background: #3d3530; color: #d4cdc4; border: 1px solid #504840;
+      padding: 4px 10px; border-radius: 4px; font-size: 12px;
+      cursor: pointer; transition: all 0.15s;
+    }
+    button:hover, .toggle-btn:hover { background: #504840; }
+    .toggle-btn.active { background: #c4a26530; color: #c4a265; border-color: #c4a265; }
+    .btn-save { background: #2a4a2a; border-color: #4a7a4a; }
+    .btn-save:hover { background: #3a5a3a; }
+    .btn-danger { background: #4a2a2a; border-color: #7a4a4a; }
+    .btn-danger:hover { background: #5a3a3a; }
+    #saveStatus { font-size: 11px; color: #8a7e72; }
+    #activeZoneLabel {
+      font-size: 12px; color: #c4a265; font-weight: 600;
+      padding: 2px 8px; background: #c4a26520; border-radius: 4px;
+    }
+
+    /* ── Side panel ── */
+    .panel-title {
+      font-size: 13px; color: #c4a265; font-weight: 600;
+      margin-bottom: 6px; padding-bottom: 4px;
+      border-bottom: 1px solid #3d3530;
+    }
+    .zone-group { margin-bottom: 4px; }
+    .zone-group-header {
+      display: flex; align-items: center; gap: 4px;
+      padding: 4px 6px; cursor: pointer; border-radius: 4px;
+      font-size: 12px; font-weight: 600; user-select: none;
+    }
+    .zone-group-header:hover { background: #3d353040; }
+    .zone-group-header .arrow { font-size: 10px; color: #8a7e72; width: 12px; }
+    .zone-group-children { padding-left: 16px; }
+    .zone-group-children.collapsed { display: none; }
+
+    .zone-item {
+      display: flex; align-items: center; gap: 6px;
+      padding: 3px 6px; cursor: pointer; border-radius: 4px;
+      font-size: 11px; transition: background 0.1s;
+    }
+    .zone-item:hover { background: #3d353040; }
+    .zone-item.selected { background: #c4a26525; color: #c4a265; }
+    .zone-item .dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    }
+    .zone-item .dot.region { width: 10px; height: 10px; background: #c4a265; }
+    .zone-item .dot.territory { background: #aaaaaa; }
+    .zone-item .dot.habitat { width: 6px; height: 6px; background: #dddddd; }
+    .zone-item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .zone-item .vcount {
+      font-size: 10px; color: #8a7e72; flex-shrink: 0;
+    }
+    .zone-item .check { color: #6a6; font-size: 12px; flex-shrink: 0; }
+    .zone-item .clear-btn {
+      font-size: 10px; padding: 1px 5px; background: #4a2a2a;
+      border: 1px solid #7a4a4a; border-radius: 3px; color: #d4cdc4;
+      cursor: pointer; opacity: 0; transition: opacity 0.15s; flex-shrink: 0;
+    }
+    .zone-item:hover .clear-btn { opacity: 1; }
+
+    /* ── Help ── */
+    .help-bar {
+      padding: 4px 12px; font-size: 11px; color: #8a7e72;
+      border-top: 1px solid #3d3530; background: #1a1714;
+    }
+    .help-bar kbd {
+      background: #3d3530; padding: 1px 4px; border-radius: 3px;
+      font-family: inherit; color: #d4cdc4; font-size: 10px;
+    }
+  </style>
+</head>
+<body>
+  <script src="js/tool-nav.js"></script>
+
+  <div class="top-bar">
+    <div>
+      <h1>Map Zone Editor</h1>
+      <p class="subtitle">Draw clickable polygon regions for the world map</p>
+    </div>
+    <span class="sep"></span>
+    <div class="toolbar-row">
+      <label>Show:</label>
+      <div class="toggle-btn active" id="tog-regions" data-tier="region">Regions</div>
+      <div class="toggle-btn active" id="tog-territories" data-tier="territory">Territories</div>
+      <div class="toggle-btn active" id="tog-habitats" data-tier="habitat">Habitats</div>
+    </div>
+    <span class="sep"></span>
+    <div id="activeZoneLabel">No zone selected</div>
+    <span class="sep"></span>
+    <button class="btn-save" id="btn-save">&#128190; Save to File</button>
+    <span id="saveStatus">Not saved</span>
+  </div>
+
+  <div class="main-layout">
+    <div class="canvas-container" id="canvasContainer">
+      <canvas id="mapCanvas"></canvas>
+      <div class="zoom-indicator" id="zoomIndicator">100%</div>
+    </div>
+    <div class="side-panel" id="sidePanel"></div>
+  </div>
+
+  <div class="help-bar">
+    <kbd>Click</kbd> add vertex &nbsp;
+    <kbd>Dbl-click</kbd> / click 1st pt to close &nbsp;
+    <kbd>Drag</kbd> move vertex &nbsp;
+    <kbd>Right-click</kbd> delete vertex &nbsp;
+    <kbd>Shift+Click</kbd> edge insert &nbsp;
+    <kbd>Space+Drag</kbd> pan &nbsp;
+    <kbd>Scroll</kbd> zoom &nbsp;
+    <kbd>Esc</kbd> deselect &nbsp;
+    <kbd>Del</kbd> clear polygon &nbsp;
+    <kbd>1/2/3</kbd> toggle layers
+  </div>
+
+<script type="module">
+import {
+  REGIONS, TERRITORIES, HABITATS,
+} from './js/map-config.js';
+
+// ============================================================
+// Zone hierarchy — build flat list + tree
+// ============================================================
+const ALL_ZONES = [];
+const ZONE_TREE = [];
+
+for (const [regionId, region] of Object.entries(REGIONS)) {
+  const rNode = { id: regionId, name: region.name, tier: 'region', children: [] };
+  ALL_ZONES.push({ id: regionId, name: region.name, tier: 'region' });
+
+  for (const territoryId of region.territories) {
+    const territory = TERRITORIES[territoryId];
+    if (!territory) continue;
+    const tNode = { id: territoryId, name: territory.name, tier: 'territory', children: [] };
+    ALL_ZONES.push({ id: territoryId, name: territory.name, tier: 'territory' });
+
+    for (const habitatId of territory.habitats) {
+      const habitat = HABITATS[habitatId];
+      if (!habitat) continue;
+      tNode.children.push({ id: habitatId, name: habitat.name, tier: 'habitat' });
+      ALL_ZONES.push({ id: habitatId, name: habitat.name, tier: 'habitat' });
+    }
+    rNode.children.push(tNode);
+  }
+  ZONE_TREE.push(rNode);
+}
+
+console.log(`Loaded ${ALL_ZONES.length} zones (${ZONE_TREE.length} regions)`);
+
+// ============================================================
+// State
+// ============================================================
+let polygons = {};          // { zoneId: [[x,y], [x,y], ...] }  normalized 0–1
+let selectedZoneId = null;
+let drawingVerts = [];      // in-progress polygon vertices (normalized)
+let isDraggingVert = -1;    // index of vertex being dragged
+let isPanning = false;
+let spaceHeld = false;
+let panX = 0, panY = 0, panStartX = 0, panStartY = 0;
+let zoom = 0.5;
+let showTiers = { region: true, territory: true, habitat: true };
+
+const TIER_COLORS = {
+  region:    { stroke: '#c4a265', fill: 'rgba(196,162,101,0.20)', lineWidth: 3 },
+  territory: { stroke: '#aaaaaa', fill: 'rgba(170,170,170,0.15)', lineWidth: 2 },
+  habitat:   { stroke: '#dddddd', fill: 'rgba(221,221,221,0.10)', lineWidth: 1.5 },
+};
+const SELECTED_COLOR = '#ff8844';
+const VERT_RADIUS = 6;
+const CLOSE_THRESHOLD = 12; // px in canvas-space for closing polygon
+
+// ============================================================
+// Canvas + image setup
+// ============================================================
+const canvas = document.getElementById('mapCanvas');
+const ctx = canvas.getContext('2d');
+const container = document.getElementById('canvasContainer');
+const zoomIndicator = document.getElementById('zoomIndicator');
+
+let mapImage = null;
+let imgW = 1080, imgH = 1080; // defaults, overridden when image loads
+
+const img = new Image();
+img.onload = () => {
+  mapImage = img;
+  imgW = img.naturalWidth;
+  imgH = img.naturalHeight;
+  canvas.width = imgW;
+  canvas.height = imgH;
+  // Center the canvas
+  const cRect = container.getBoundingClientRect();
+  zoom = Math.min(cRect.width / imgW, cRect.height / imgH) * 0.9;
+  panX = (cRect.width - imgW * zoom) / 2;
+  panY = (cRect.height - imgH * zoom) / 2;
+  updateTransform();
+  render();
+};
+img.onerror = () => {
+  console.warn('Map image not found at assets/ui/map.png — using blank canvas');
+  canvas.width = imgW;
+  canvas.height = imgH;
+  updateTransform();
+  render();
+};
+img.src = 'assets/ui/map.png';
+
+function updateTransform() {
+  canvas.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+  zoomIndicator.textContent = `${Math.round(zoom * 100)}%`;
+}
+
+// ============================================================
+// Coordinate conversion
+// ============================================================
+function canvasFromEvent(e) {
+  const rect = canvas.getBoundingClientRect();
+  const x = (e.clientX - rect.left) / (rect.width / canvas.width);
+  const y = (e.clientY - rect.top) / (rect.height / canvas.height);
+  return { x, y };
+}
+function normFromCanvas(cx, cy) {
+  return [cx / imgW, cy / imgH];
+}
+function canvasFromNorm(nx, ny) {
+  return { x: nx * imgW, y: ny * imgH };
+}
+
+// ============================================================
+// Render
+// ============================================================
+function render() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Background image
+  if (mapImage) {
+    ctx.drawImage(mapImage, 0, 0, imgW, imgH);
+  } else {
+    ctx.fillStyle = '#2a2520';
+    ctx.fillRect(0, 0, imgW, imgH);
+    ctx.fillStyle = '#8a7e72';
+    ctx.font = '24px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('No map image — place assets/ui/map.png', imgW / 2, imgH / 2);
+  }
+
+  // Draw all completed polygons (bottom tier first so regions are behind)
+  const tierOrder = ['region', 'territory', 'habitat'];
+  for (const tier of tierOrder) {
+    if (!showTiers[tier]) continue;
+    for (const zone of ALL_ZONES) {
+      if (zone.tier !== tier) continue;
+      const pts = polygons[zone.id];
+      if (!pts || pts.length < 3) continue;
+      const isSelected = zone.id === selectedZoneId;
+
+      const colors = TIER_COLORS[tier];
+      ctx.beginPath();
+      for (let i = 0; i < pts.length; i++) {
+        const { x, y } = canvasFromNorm(pts[i][0], pts[i][1]);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+
+      // Fill
+      ctx.fillStyle = isSelected ? 'rgba(255,136,68,0.25)' : colors.fill;
+      ctx.fill();
+
+      // Stroke
+      ctx.strokeStyle = isSelected ? SELECTED_COLOR : colors.stroke;
+      ctx.lineWidth = isSelected ? colors.lineWidth + 1 : colors.lineWidth;
+      ctx.stroke();
+
+      // Vertices (only for selected zone)
+      if (isSelected) {
+        for (let i = 0; i < pts.length; i++) {
+          const { x, y } = canvasFromNorm(pts[i][0], pts[i][1]);
+          ctx.beginPath();
+          ctx.arc(x, y, VERT_RADIUS, 0, Math.PI * 2);
+          ctx.fillStyle = isDraggingVert === i ? '#ffffff' : SELECTED_COLOR;
+          ctx.fill();
+          ctx.strokeStyle = '#000';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+      }
+    }
+  }
+
+  // Draw in-progress polygon
+  if (selectedZoneId && drawingVerts.length > 0) {
+    ctx.beginPath();
+    ctx.setLineDash([6, 4]);
+    for (let i = 0; i < drawingVerts.length; i++) {
+      const { x, y } = canvasFromNorm(drawingVerts[i][0], drawingVerts[i][1]);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = '#ff8844';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Draw vertices
+    for (let i = 0; i < drawingVerts.length; i++) {
+      const { x, y } = canvasFromNorm(drawingVerts[i][0], drawingVerts[i][1]);
+      ctx.beginPath();
+      ctx.arc(x, y, VERT_RADIUS, 0, Math.PI * 2);
+      ctx.fillStyle = i === 0 ? '#44ff44' : '#ff8844';  // first vertex green (close target)
+      ctx.fill();
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  }
+}
+
+// ============================================================
+// Mouse interactions
+// ============================================================
+canvas.addEventListener('mousedown', (e) => {
+  if (spaceHeld || e.button === 1) {
+    // Pan
+    isPanning = true;
+    panStartX = e.clientX - panX;
+    panStartY = e.clientY - panY;
+    container.classList.add('panning');
+    e.preventDefault();
+    return;
+  }
+
+  if (e.button === 2) {
+    // Right-click: delete vertex
+    e.preventDefault();
+    if (!selectedZoneId) return;
+    const pts = polygons[selectedZoneId];
+    if (!pts || pts.length === 0) return;
+    const { x: cx, y: cy } = canvasFromEvent(e);
+    const idx = findNearestVertex(pts, cx, cy);
+    if (idx !== -1) {
+      pts.splice(idx, 1);
+      if (pts.length < 3) {
+        // Not enough for a polygon — move remaining to drawing verts
+        drawingVerts = pts.splice(0);
+        delete polygons[selectedZoneId];
+      }
+      render();
+      updateSidePanel();
+    }
+    return;
+  }
+
+  if (e.button !== 0) return;
+  const { x: cx, y: cy } = canvasFromEvent(e);
+
+  // If we have a selected zone with a completed polygon, check for vertex drag
+  if (selectedZoneId && polygons[selectedZoneId] && polygons[selectedZoneId].length >= 3) {
+    const pts = polygons[selectedZoneId];
+
+    // Shift+click on edge: insert vertex
+    if (e.shiftKey) {
+      const edgeIdx = findNearestEdge(pts, cx, cy);
+      if (edgeIdx !== -1) {
+        const norm = normFromCanvas(cx, cy);
+        pts.splice(edgeIdx + 1, 0, norm);
+        isDraggingVert = edgeIdx + 1;
+        render();
+        updateSidePanel();
+        return;
+      }
+    }
+
+    // Check vertex hit
+    const vIdx = findNearestVertex(pts, cx, cy);
+    if (vIdx !== -1) {
+      isDraggingVert = vIdx;
+      render();
+      return;
+    }
+
+    // Click inside another zone? select it
+    const hitZone = findZoneAtPoint(cx, cy);
+    if (hitZone && hitZone !== selectedZoneId) {
+      selectZone(hitZone);
+      return;
+    }
+    return;
+  }
+
+  // Drawing mode
+  if (selectedZoneId) {
+    const norm = normFromCanvas(cx, cy);
+
+    // Check if clicking near first vertex (close the polygon)
+    if (drawingVerts.length >= 3) {
+      const first = canvasFromNorm(drawingVerts[0][0], drawingVerts[0][1]);
+      const dist = Math.hypot(cx - first.x, cy - first.y);
+      if (dist < CLOSE_THRESHOLD) {
+        closePolygon();
+        return;
+      }
+    }
+
+    drawingVerts.push(norm);
+    render();
+    updateSidePanel();
+    return;
+  }
+
+  // No zone selected — click inside a polygon to select it
+  const hitZone = findZoneAtPoint(cx, cy);
+  if (hitZone) {
+    selectZone(hitZone);
+  }
+});
+
+canvas.addEventListener('dblclick', (e) => {
+  if (!selectedZoneId || drawingVerts.length < 3) return;
+  e.preventDefault();
+  // Remove the last vertex added by the second click of the double-click
+  // (the mousedown already added it)
+  if (drawingVerts.length > 3) drawingVerts.pop();
+  closePolygon();
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  if (isPanning) {
+    panX = e.clientX - panStartX;
+    panY = e.clientY - panStartY;
+    updateTransform();
+    return;
+  }
+  if (isDraggingVert !== -1 && selectedZoneId && polygons[selectedZoneId]) {
+    const { x: cx, y: cy } = canvasFromEvent(e);
+    const norm = normFromCanvas(cx, cy);
+    polygons[selectedZoneId][isDraggingVert] = norm;
+    render();
+  }
+});
+
+canvas.addEventListener('mouseup', () => {
+  if (isPanning) {
+    isPanning = false;
+    container.classList.remove('panning');
+  }
+  if (isDraggingVert !== -1) {
+    isDraggingVert = -1;
+    render();
+    updateSidePanel();
+  }
+});
+
+canvas.addEventListener('mouseleave', () => {
+  if (isPanning) { isPanning = false; container.classList.remove('panning'); }
+  if (isDraggingVert !== -1) { isDraggingVert = -1; render(); }
+});
+
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+// Zoom
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const rect = container.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  const oldZoom = zoom;
+  const factor = e.deltaY > 0 ? 0.9 : 1.1;
+  zoom = Math.max(0.05, Math.min(10, zoom * factor));
+
+  // Zoom toward cursor
+  panX = mx - (mx - panX) * (zoom / oldZoom);
+  panY = my - (my - panY) * (zoom / oldZoom);
+  updateTransform();
+}, { passive: false });
+
+// Keyboard
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' && !e.repeat) {
+    spaceHeld = true;
+    canvas.style.cursor = 'grab';
+    e.preventDefault();
+  }
+  if (e.code === 'Escape') {
+    if (drawingVerts.length > 0) {
+      drawingVerts = [];
+      render();
+    } else {
+      selectZone(null);
+    }
+  }
+  if (e.code === 'Delete' || e.code === 'Backspace') {
+    if (selectedZoneId && polygons[selectedZoneId]) {
+      delete polygons[selectedZoneId];
+      drawingVerts = [];
+      render();
+      updateSidePanel();
+    }
+  }
+  if (e.code === 'Digit1') toggleTier('region');
+  if (e.code === 'Digit2') toggleTier('territory');
+  if (e.code === 'Digit3') toggleTier('habitat');
+});
+
+document.addEventListener('keyup', (e) => {
+  if (e.code === 'Space') {
+    spaceHeld = false;
+    canvas.style.cursor = 'crosshair';
+  }
+});
+
+// ============================================================
+// Helpers
+// ============================================================
+function findNearestVertex(pts, cx, cy) {
+  const threshold = VERT_RADIUS * 2.5 / zoom;
+  let best = -1, bestDist = Infinity;
+  for (let i = 0; i < pts.length; i++) {
+    const { x, y } = canvasFromNorm(pts[i][0], pts[i][1]);
+    const d = Math.hypot(cx - x, cy - y);
+    if (d < threshold && d < bestDist) { best = i; bestDist = d; }
+  }
+  return best;
+}
+
+function findNearestEdge(pts, cx, cy) {
+  const threshold = 10 / zoom;
+  let best = -1, bestDist = Infinity;
+  for (let i = 0; i < pts.length; i++) {
+    const j = (i + 1) % pts.length;
+    const a = canvasFromNorm(pts[i][0], pts[i][1]);
+    const b = canvasFromNorm(pts[j][0], pts[j][1]);
+    const d = distToSegment(cx, cy, a.x, a.y, b.x, b.y);
+    if (d < threshold && d < bestDist) { best = i; bestDist = d; }
+  }
+  return best;
+}
+
+function distToSegment(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) return Math.hypot(px - ax, py - ay);
+  let t = ((px - ax) * dx + (py - ay) * dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+
+function findZoneAtPoint(cx, cy) {
+  const norm = normFromCanvas(cx, cy);
+  // Check smallest zones first (habitats), then territories, then regions
+  const order = ['habitat', 'territory', 'region'];
+  for (const tier of order) {
+    if (!showTiers[tier]) continue;
+    for (const zone of ALL_ZONES) {
+      if (zone.tier !== tier) continue;
+      const pts = polygons[zone.id];
+      if (!pts || pts.length < 3) continue;
+      if (pointInPolygon(norm[0], norm[1], pts)) return zone.id;
+    }
+  }
+  return null;
+}
+
+function pointInPolygon(x, y, pts) {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const xi = pts[i][0], yi = pts[i][1];
+    const xj = pts[j][0], yj = pts[j][1];
+    const intersect = ((yi > y) !== (yj > y)) &&
+      (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function closePolygon() {
+  if (drawingVerts.length < 3) return;
+  polygons[selectedZoneId] = [...drawingVerts];
+  drawingVerts = [];
+  render();
+  updateSidePanel();
+}
+
+function selectZone(zoneId) {
+  // Save any in-progress drawing as partial
+  if (selectedZoneId && drawingVerts.length >= 3) {
+    polygons[selectedZoneId] = [...drawingVerts];
+  }
+  drawingVerts = [];
+  isDraggingVert = -1;
+  selectedZoneId = zoneId;
+
+  // Update label
+  const label = document.getElementById('activeZoneLabel');
+  if (zoneId) {
+    const zone = ALL_ZONES.find(z => z.id === zoneId);
+    label.textContent = zone ? zone.name : zoneId;
+  } else {
+    label.textContent = 'No zone selected';
+  }
+
+  render();
+  updateSidePanel();
+}
+
+function toggleTier(tier) {
+  showTiers[tier] = !showTiers[tier];
+  document.getElementById(`tog-${tier}s`).classList.toggle('active', showTiers[tier]);
+  render();
+}
+
+// ============================================================
+// Side panel
+// ============================================================
+const sidePanel = document.getElementById('sidePanel');
+const expandedGroups = new Set(['all']);  // track collapsed state
+
+function buildSidePanel() {
+  sidePanel.innerHTML = '';
+  const title = document.createElement('div');
+  title.className = 'panel-title';
+  title.textContent = `Zones (${ALL_ZONES.length})`;
+  sidePanel.appendChild(title);
+
+  for (const region of ZONE_TREE) {
+    const group = createZoneGroup(region, 'region');
+    sidePanel.appendChild(group);
+  }
+}
+
+function createZoneGroup(node, tier) {
+  const div = document.createElement('div');
+  div.className = 'zone-group';
+
+  if (node.children && node.children.length > 0) {
+    const header = document.createElement('div');
+    header.className = 'zone-group-header';
+    const isExpanded = expandedGroups.has(node.id);
+
+    const arrow = document.createElement('span');
+    arrow.className = 'arrow';
+    arrow.textContent = isExpanded ? '▾' : '▸';
+
+    const item = createZoneItem(node, tier);
+    item.style.flex = '1';
+
+    header.appendChild(arrow);
+    header.appendChild(item);
+
+    const children = document.createElement('div');
+    children.className = 'zone-group-children' + (isExpanded ? '' : ' collapsed');
+
+    for (const child of node.children) {
+      const childTier = tier === 'region' ? 'territory' : 'habitat';
+      const childEl = createZoneGroup(child, childTier);
+      children.appendChild(childEl);
+    }
+
+    header.addEventListener('click', (e) => {
+      if (e.target.closest('.zone-item')) return; // don't toggle when clicking the item itself
+      if (expandedGroups.has(node.id)) expandedGroups.delete(node.id);
+      else expandedGroups.add(node.id);
+      arrow.textContent = expandedGroups.has(node.id) ? '▾' : '▸';
+      children.classList.toggle('collapsed');
+    });
+
+    div.appendChild(header);
+    div.appendChild(children);
+  } else {
+    const item = createZoneItem(node, tier);
+    div.appendChild(item);
+  }
+
+  return div;
+}
+
+function createZoneItem(node, tier) {
+  const item = document.createElement('div');
+  item.className = 'zone-item' + (node.id === selectedZoneId ? ' selected' : '');
+  item.dataset.zoneId = node.id;
+
+  const dot = document.createElement('span');
+  dot.className = `dot ${tier}`;
+
+  const name = document.createElement('span');
+  name.className = 'name';
+  name.textContent = node.name;
+
+  const pts = polygons[node.id];
+  const vcount = document.createElement('span');
+  vcount.className = 'vcount';
+  vcount.textContent = pts ? `${pts.length}v` : '';
+
+  item.appendChild(dot);
+  item.appendChild(name);
+  item.appendChild(vcount);
+
+  if (pts && pts.length >= 3) {
+    const check = document.createElement('span');
+    check.className = 'check';
+    check.textContent = '✓';
+    item.appendChild(check);
+
+    const clearBtn = document.createElement('button');
+    clearBtn.className = 'clear-btn';
+    clearBtn.textContent = '✕';
+    clearBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      delete polygons[node.id];
+      if (selectedZoneId === node.id) drawingVerts = [];
+      render();
+      updateSidePanel();
+    });
+    item.appendChild(clearBtn);
+  }
+
+  item.addEventListener('click', (e) => {
+    e.stopPropagation();
+    selectZone(node.id);
+    // Expand parent groups
+    for (const region of ZONE_TREE) {
+      if (region.id === node.id) { expandedGroups.add(region.id); break; }
+      for (const terr of region.children) {
+        if (terr.id === node.id) { expandedGroups.add(region.id); expandedGroups.add(terr.id); break; }
+        for (const hab of terr.children) {
+          if (hab.id === node.id) { expandedGroups.add(region.id); expandedGroups.add(terr.id); break; }
+        }
+      }
+    }
+    buildSidePanel();
+  });
+
+  return item;
+}
+
+function updateSidePanel() {
+  buildSidePanel();
+}
+
+// ============================================================
+// Tier visibility toggles
+// ============================================================
+document.querySelectorAll('.toggle-btn[data-tier]').forEach(btn => {
+  btn.addEventListener('click', () => toggleTier(btn.dataset.tier));
+});
+
+// ============================================================
+// Save / Load
+// ============================================================
+async function loadPolygons() {
+  try {
+    const resp = await fetch('/data/zone-polygons.json');
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data && typeof data === 'object') {
+        polygons = data;
+        console.log(`Loaded ${Object.keys(polygons).length} zone polygons`);
+      }
+    }
+  } catch (e) {
+    console.warn('No zone polygons file found, starting fresh');
+  }
+  render();
+  buildSidePanel();
+}
+
+document.getElementById('btn-save').addEventListener('click', async () => {
+  const status = document.getElementById('saveStatus');
+  const jsonStr = JSON.stringify(polygons);
+  status.textContent = 'Saving...';
+  status.style.color = '#c4a265';
+  try {
+    const resp = await fetch('/api/save-zones', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: jsonStr,
+    });
+    if (resp.ok) {
+      status.textContent = 'Saved ✓';
+      status.style.color = '#6a6';
+    } else {
+      throw new Error('Server returned ' + resp.status);
+    }
+  } catch (e) {
+    console.warn('Server save failed, falling back to download:', e);
+    // Fallback: trigger browser download so data is never lost
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'zone-polygons.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    status.textContent = 'Server save failed — downloaded file instead';
+    status.style.color = '#c4a265';
+  }
+});
+
+// ============================================================
+// Init
+// ============================================================
+loadPolygons();
+</script>
+</body>
+</html>

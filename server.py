@@ -10,6 +10,7 @@ PORT = 8000
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
 ANCHOR_FILE = os.path.join(DATA_DIR, 'sprite-anchors.json')
 SPINE_FILE = os.path.join(DATA_DIR, 'spine-paths.json')
+ZONE_FILE = os.path.join(DATA_DIR, 'zone-polygons.json')
 
 
 class DevHandler(SimpleHTTPRequestHandler):
@@ -53,6 +54,23 @@ class DevHandler(SimpleHTTPRequestHandler):
                 self.send_error(400, 'Invalid JSON')
             except Exception as e:
                 self.send_error(500, str(e))
+        elif self.path == '/api/save-zones':
+            length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(length)
+            try:
+                data = json.loads(body)
+                os.makedirs(DATA_DIR, exist_ok=True)
+                with open(ZONE_FILE, 'w') as f:
+                    json.dump(data, f, indent=2, sort_keys=False)
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({'ok': True}).encode())
+                print(f'  Saved zones → {ZONE_FILE}')
+            except json.JSONDecodeError:
+                self.send_error(400, 'Invalid JSON')
+            except Exception as e:
+                self.send_error(500, str(e))
         else:
             self.send_error(404, 'Not found')
 
@@ -61,6 +79,10 @@ class DevHandler(SimpleHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        # Prevent browser caching — always serve fresh files
+        self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+        self.send_header('Pragma', 'no-cache')
+        self.send_header('Expires', '0')
         super().end_headers()
 
     def do_OPTIONS(self):

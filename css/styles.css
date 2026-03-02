@@ -530,6 +530,12 @@ header {
   display: block;
 }
 
+/* Map tab: minimal padding, no extra bottom space — map fills viewport */
+#tab-map.tab-panel {
+  padding: 8px;
+  padding-bottom: 8px;
+}
+
 /* ---- Buttons ---- */
 
 .btn {
@@ -1396,9 +1402,11 @@ header {
   grid-column: 1 / -1;
 }
 
-/* Dragon cards span full width — one per row on mobile */
+/* Dragon cards span full width but stay card-sized */
 .clutch-results .dragon-card {
   grid-column: 1 / -1;
+  max-width: 360px;
+  justify-self: center;
 }
 
 /* ---- Clutch Budget Bar ---- */
@@ -4919,6 +4927,14 @@ header {
 .shop-locked-title { font-family: var(--font-hand); font-size: var(--fs-title); font-weight: 600; text-transform: uppercase; color: var(--text-bright); margin-bottom: 4px; }
 .shop-locked-desc { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; }
 
+.shop-npc-flavor {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-style: italic;
+  line-height: 1.5;
+  margin: 12px 0;
+}
+
 .shop-rep-bar {
   height: 8px;
   background: var(--border);
@@ -5200,6 +5216,160 @@ header {
 
 .light-mode .almanac-hidden { opacity: 0.3; }
 .light-mode .trait-chip-hidden { opacity: 0.3; }
+
+/* ── Bestiary ──────────────────────────────────────────────── */
+
+.bestiary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing);
+}
+
+.bestiary-header .almanac-pane-header {
+  margin-bottom: 0;
+}
+
+.bestiary-count {
+  font-size: 13px;
+  color: var(--text-muted);
+  background: var(--bg);
+  padding: 3px 10px;
+  border-radius: 10px;
+}
+
+.bestiary-region {
+  margin-bottom: var(--spacing-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.bestiary-region-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px var(--spacing);
+  background: var(--surface);
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  font-family: var(--font-hand);
+  font-size: 15px;
+  text-transform: uppercase;
+  text-align: left;
+}
+
+.bestiary-region-header:hover {
+  background: var(--bg-card-alt);
+}
+
+.bestiary-arrow {
+  font-size: 10px;
+  color: var(--text-muted);
+  width: 12px;
+}
+
+.bestiary-region-name {
+  flex: 1;
+}
+
+.bestiary-region-count {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  text-transform: none;
+}
+
+.bestiary-territory {
+  padding: 8px var(--spacing) 12px;
+  border-top: 1px solid var(--border);
+}
+
+.bestiary-territory-name {
+  font-family: var(--font-hand);
+  font-size: 13px;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 8px;
+}
+
+.bestiary-species-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  margin-bottom: var(--spacing-xs);
+}
+
+.bestiary-species-card.discovered {
+  border-left: 3px solid var(--success);
+}
+
+.bestiary-species-card.undiscovered {
+  opacity: 0.5;
+  border-left: 3px solid var(--border);
+}
+
+.bestiary-species-name-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.bestiary-species-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-bright);
+}
+
+.bestiary-species-card.undiscovered .bestiary-species-name {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.bestiary-habitat-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.bestiary-species-traits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.bestiary-trait-chip {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: var(--text);
+}
+
+.bestiary-rate {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.bestiary-no-species {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  font-size: 12px;
+}
+
+.bestiary-none-text {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 11px;
+}
 
 /* ── Skill Tree ──────────────────────────────────────────────── */
 
@@ -5583,3 +5753,586 @@ header {
 .light-mode .skill-tier-done { background: var(--success); }
 .light-mode .skill-tome-owned { background: rgba(106, 159, 91, 0.15); }
 .light-mode .skill-tome-not-owned { background: rgba(107, 58, 74, 0.15); }
+
+/* ============================================================ */
+/* MAP / EXPLORE TAB                                            */
+/* ============================================================ */
+
+.map-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.map-header .section-title {
+  font-size: 16px;
+}
+
+.map-header .section-title {
+  margin: 0;
+}
+
+.map-debug-btn {
+  font-size: 12px;
+  padding: 4px 10px;
+}
+
+/* ── Illustrated map (img + canvas overlay) ── */
+.map-canvas-wrapper {
+  position: relative;
+  width: 100%;
+  /* Constrain width so the image (square) fits within viewport height */
+  max-width: calc(100vh - 130px);
+  max-width: calc(100dvh - 130px);
+  margin: 0 auto;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: #1a2a3a;
+}
+
+.map-bg-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.map-poly-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Zone info panel (popup overlay on map) ── */
+.map-info-panel {
+  display: none;
+  position: absolute;
+  z-index: 10;
+  width: 280px;
+  max-width: 85%;
+  max-height: 60%;
+  overflow-y: auto;
+  background: rgba(30, 26, 22, 0.95);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+  pointer-events: auto;
+}
+
+.map-info-panel.visible {
+  display: block;
+}
+
+.map-info-close {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  z-index: 1;
+}
+.map-info-close:hover {
+  color: var(--text-bright);
+}
+
+.map-info-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  padding-right: 20px; /* room for close button */
+}
+
+.map-info-name {
+  font-family: var(--font-hand);
+  font-size: 16px;
+  text-transform: uppercase;
+  color: var(--text-bright);
+  margin: 0;
+}
+
+.map-info-tier {
+  font-size: 9px;
+  color: var(--text-muted);
+  background: var(--bg);
+  padding: 2px 6px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.map-info-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.3;
+  margin-bottom: 8px;
+}
+
+.map-info-stats {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.map-info-locked-hint {
+  font-size: 11px;
+  color: var(--accent);
+  font-style: italic;
+  margin-bottom: 6px;
+}
+
+/* Compact explore button inside popup */
+.map-info-panel .map-explore-btn {
+  font-size: 12px;
+  padding: 6px 12px;
+  width: 100%;
+}
+
+/* Constrain dragon card inside the popup */
+.map-info-panel .map-encounter-slot {
+  margin-top: 8px;
+}
+
+.map-info-panel .map-encounter-slot .dragon-card {
+  padding: 8px;
+  margin-bottom: 0;
+}
+
+.map-info-panel .map-encounter-slot .sprite-box {
+  aspect-ratio: 16 / 10;
+}
+
+.map-info-panel .map-encounter-slot .card-actions {
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.map-info-panel .map-encounter-slot .card-actions .btn {
+  font-size: 10px;
+  padding: 4px 8px;
+}
+
+/* Smaller encounter badge in popup */
+.map-info-panel .map-encounter-badge {
+  font-size: 10px;
+  padding: 3px 8px;
+}
+
+/* Compact progress bar in popup */
+.map-info-panel .map-progress-wrapper {
+  margin-bottom: 6px;
+}
+.map-info-panel .map-progress-text {
+  font-size: 10px;
+}
+.map-info-panel .map-locked-hint {
+  font-size: 10px;
+}
+
+/* ── Region cards ── */
+.map-region-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.map-region-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--spacing);
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.map-region-card:hover {
+  border-color: var(--accent);
+  background: var(--bg-card-alt);
+}
+
+.map-region-card.locked {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.map-region-card.locked:hover {
+  border-color: var(--border);
+  background: var(--bg-card);
+}
+
+.map-region-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.map-region-name {
+  font-family: var(--font-hand);
+  font-size: 18px;
+  text-transform: uppercase;
+  color: var(--text);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.map-lock-icon {
+  font-size: 14px;
+}
+
+.map-region-badge {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.map-region-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0 0 8px;
+  line-height: 1.4;
+}
+
+.map-unlock-btn {
+  width: 100%;
+  margin-top: 8px;
+}
+
+/* ── Territory cards ── */
+.map-territory-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.map-territory-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--spacing);
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.map-territory-card:hover {
+  border-color: var(--accent);
+}
+
+.map-territory-name {
+  font-family: var(--font-hand);
+  font-size: 16px;
+  text-transform: uppercase;
+  color: var(--text);
+  margin: 0 0 4px;
+}
+
+.map-territory-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0 0 6px;
+  line-height: 1.4;
+}
+
+.map-territory-badge {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg);
+  padding: 2px 8px;
+  border-radius: 10px;
+  display: inline-block;
+}
+
+/* ── Habitat cards ── */
+.map-habitat-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing);
+}
+
+.map-habitat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--spacing);
+}
+
+.map-habitat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.map-habitat-name {
+  font-family: var(--font-hand);
+  font-size: 15px;
+  text-transform: uppercase;
+  color: var(--text);
+  margin: 0;
+}
+
+.map-habitat-visits {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.map-habitat-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0 0 8px;
+  line-height: 1.4;
+}
+
+.map-habitat-species-hint {
+  font-size: 12px;
+  margin-bottom: 8px;
+  padding: 4px 8px;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+}
+
+.map-species-label {
+  color: var(--text-muted);
+}
+
+.map-species-names {
+  color: var(--accent);
+  font-style: italic;
+}
+
+/* ── Explore section (action area) ── */
+.map-explore-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--spacing);
+  margin-bottom: var(--spacing);
+}
+
+.map-explore-hint {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0 0 10px;
+  line-height: 1.4;
+  font-style: italic;
+  padding-left: 10px;
+  border-left: 3px solid var(--accent);
+  opacity: 0.8;
+}
+
+.map-encounter-slot {
+  margin-top: var(--spacing-sm);
+}
+
+.map-encounter-slot:empty {
+  display: none;
+}
+
+.map-explore-btn {
+  width: 100%;
+}
+
+/* ── Locked territory / habitat cards ── */
+.map-territory-card.locked,
+.map-habitat-card.locked {
+  opacity: 0.65;
+  cursor: default;
+  border-style: dashed;
+}
+
+.map-territory-card.locked:hover,
+.map-habitat-card.locked:hover {
+  border-color: var(--border);
+}
+
+.map-lock-icon {
+  font-size: 12px;
+  margin-right: 6px;
+  opacity: 0.7;
+}
+
+.map-territory-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+/* ── Discovery progress bar ── */
+.map-progress-wrapper {
+  margin: 8px 0 4px;
+}
+
+.map-progress-text {
+  font-size: 11px;
+  color: var(--text-muted);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.map-progress-bar {
+  height: 6px;
+  background: var(--bg);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.map-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+  min-width: 0;
+}
+
+.map-locked-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 4px 0 0;
+  opacity: 0.7;
+}
+
+/* ── Just-unlocked animation ── */
+.map-territory-card.just-unlocked,
+.map-habitat-card.just-unlocked {
+  animation: zone-unlock 0.6s ease;
+  border-color: var(--accent);
+  border-style: solid;
+}
+
+@keyframes zone-unlock {
+  0% { border-color: var(--accent); box-shadow: 0 0 0 0 rgba(232, 168, 56, 0.4); }
+  50% { box-shadow: 0 0 12px 4px rgba(232, 168, 56, 0.3); }
+  100% { box-shadow: none; }
+}
+
+/* ── Encounter badges ── */
+.map-encounter-badge {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+  text-align: center;
+  background: var(--bg);
+  color: var(--text-muted);
+}
+
+.map-encounter-badge.rare {
+  background: rgba(168, 132, 56, 0.2);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+
+.map-encounter-badge.species {
+  background: rgba(106, 159, 91, 0.2);
+  color: var(--success);
+  border: 1px solid var(--success);
+}
+
+/* ── Dragon slot in habitat ── */
+.map-habitat-dragon-slot {
+  margin-top: 8px;
+}
+
+.map-habitat-dragon-slot:empty {
+  display: none;
+}
+
+/* ── Map toast ── */
+.map-toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--bg-card);
+  color: var(--text);
+  padding: 8px 20px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  opacity: 0;
+  transition: opacity 0.3s, transform 0.3s;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.map-toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.map-toast.discovery {
+  background: var(--surface);
+  border-color: var(--accent);
+  padding: 12px 24px;
+  font-size: 14px;
+  max-width: 340px;
+  text-align: center;
+  line-height: 1.4;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.map-toast.discovery strong {
+  color: var(--accent);
+}
+
+/* ── Debug capture ── */
+.map-debug-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0 0 var(--spacing);
+  line-height: 1.4;
+}
+
+.map-debug-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing);
+}
+
+.map-debug-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.map-debug-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-family: var(--font-hand);
+}
+
+.map-debug-select {
+  padding: 8px 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 14px;
+}
+
+.map-debug-select:disabled {
+  opacity: 0.5;
+}
+
+/* ── Light mode overrides for map ── */
+.light-mode .map-region-card { background: var(--bg-card); }
+.light-mode .map-territory-card { background: var(--bg-card); }
+.light-mode .map-habitat-card { background: var(--bg-card); }

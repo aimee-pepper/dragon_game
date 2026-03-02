@@ -22,6 +22,7 @@ let breedCycleCount = 0; // incremented each breeding
 let purchasedTomes = new Set();    // set of tome IDs already bought (one-time purchases)
 let purchasedItems = new Map();    // itemId → count of permanent items bought
 let eggSaleUnlocked = false;       // one-time talisman shop purchase
+let carpenterComplete = false;     // one-time carpenter visit complete
 
 // ── Rep tier helpers ─────────────────────────────────────────
 
@@ -97,10 +98,9 @@ export function getAvailableItems(shopKey) {
     // Skip already-purchased one-time items
     if (id === 'egg-sale-license' && eggSaleUnlocked) continue;
 
-    // Milestone items (one-time carpenter upgrades) — skip if already at target
+    // Carpenter one-off — skip if already complete
     if (item.milestone) {
-      if (item.milestone === 'nest' && getNestSlotCount() >= MILESTONE_NEST_SLOTS) continue;
-      if (item.milestone === 'den' && getDenSlotCount() >= MILESTONE_DEN_SLOTS) continue;
+      if (carpenterComplete) continue;
     }
 
     // Scaling items (nest/den/rack expansion)
@@ -192,10 +192,10 @@ export function purchaseItem(shopKey, itemId) {
 
 function applyPurchase(shopKey, itemId, item) {
   if (shopKey === 'carpenter') {
-    // Milestone upgrades — jump to milestone slot count
-    const def = CARPENTER_PRICES[itemId];
-    if (def?.milestone === 'nest') setNestSlotCount(MILESTONE_NEST_SLOTS);
-    if (def?.milestone === 'den') setDenSlotCount(MILESTONE_DEN_SLOTS);
+    // One-off carpenter upgrade — expand both nests and den at once
+    setNestSlotCount(MILESTONE_NEST_SLOTS);
+    setDenSlotCount(MILESTONE_DEN_SLOTS);
+    carpenterComplete = true;
     return;
   }
   if (itemId === 'egg-sale-license') {
@@ -259,6 +259,10 @@ export function isEggSaleUnlocked() {
   return eggSaleUnlocked;
 }
 
+export function isCarpenterComplete() {
+  return carpenterComplete;
+}
+
 // ── Save / Load ──────────────────────────────────────────────
 
 export function getShopSaveData() {
@@ -267,6 +271,7 @@ export function getShopSaveData() {
     purchasedTomes: [...purchasedTomes],
     purchasedItems: Object.fromEntries(purchasedItems),
     eggSaleUnlocked,
+    carpenterComplete,
   };
 }
 
@@ -281,5 +286,8 @@ export function restoreShopState(data) {
   }
   if (typeof data.eggSaleUnlocked === 'boolean') {
     eggSaleUnlocked = data.eggSaleUnlocked;
+  }
+  if (typeof data.carpenterComplete === 'boolean') {
+    carpenterComplete = data.carpenterComplete;
   }
 }

@@ -6,6 +6,8 @@ import { getStats } from './save-manager.js';
 import { getStabledDragons } from './ui-stables.js';
 import { getCompletedQuests } from './quest-engine.js';
 import { SPECIALTY_COMBOS, COLOR_NAMES, FINISH_NAMES, ELEMENT_NAMES } from './gene-config.js';
+import { getTraitDiscoveries } from './map-engine.js';
+import { REGIONS, TERRITORIES } from './map-config.js';
 
 // ── Achievement Definitions ──────────────────────────────────
 
@@ -734,6 +736,80 @@ ACHIEVEMENTS.push({
   progress: (ctx) => ({ current: ctx.stats.totalMutants || 0, target: 100 }),
 });
 
+// ── Exploration Achievements ──
+
+ACHIEVEMENTS.push({
+  id: 'territory_first_discover',
+  name: 'Keen Observer',
+  desc: 'Discover a territory by observing its defining traits in the wild',
+  icon: '🧭',
+  category: 'discovery',
+  rarity: 'uncommon',
+  check: (ctx) => {
+    const discoveries = ctx.traitDiscoveries;
+    for (const id of discoveries) {
+      if (TERRITORIES[id]) return true;
+    }
+    return false;
+  },
+});
+
+ACHIEVEMENTS.push({
+  id: 'territory_all_region',
+  name: 'Regional Expert',
+  desc: 'Discover all 3 territories in a single region via trait observation',
+  icon: '🗺️',
+  category: 'discovery',
+  rarity: 'rare',
+  check: (ctx) => {
+    const discoveries = ctx.traitDiscoveries;
+    for (const region of Object.values(REGIONS)) {
+      if (region.territories.every(tid => discoveries.has(tid))) return true;
+    }
+    return false;
+  },
+});
+
+ACHIEVEMENTS.push({
+  id: 'territory_all',
+  name: 'Master Naturalist',
+  desc: 'Discover all 9 territories via trait observation',
+  icon: '🌍',
+  category: 'discovery',
+  rarity: 'legendary',
+  check: (ctx) => {
+    const discoveries = ctx.traitDiscoveries;
+    let count = 0;
+    for (const id of discoveries) {
+      if (TERRITORIES[id]) count++;
+    }
+    return count >= 9;
+  },
+  progress: (ctx) => {
+    let count = 0;
+    for (const id of ctx.traitDiscoveries) {
+      if (TERRITORIES[id]) count++;
+    }
+    return { current: count, target: 9 };
+  },
+});
+
+ACHIEVEMENTS.push({
+  id: 'habitat_first_discover',
+  name: 'Deep Explorer',
+  desc: 'Discover a habitat by observing its defining traits in a territory',
+  icon: '🔭',
+  category: 'discovery',
+  rarity: 'uncommon',
+  check: (ctx) => {
+    const discoveries = ctx.traitDiscoveries;
+    for (const id of discoveries) {
+      if (!TERRITORIES[id] && !REGIONS[id]) return true; // it's a habitat
+    }
+    return false;
+  },
+});
+
 // ── State ──────────────────────────────────────────────────
 
 // Tracks which achievements are unlocked and when
@@ -830,6 +906,7 @@ function buildContext(registry) {
     discoveredElements,
     discoveredSpecialties,
     maxGeneration,
+    traitDiscoveries: getTraitDiscoveries(),
   };
 }
 

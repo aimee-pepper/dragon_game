@@ -14,6 +14,7 @@
     { label: 'Combat Sim',       href: '/combat-simulator.html' },
     { label: 'Breath Elements',  href: '/breath-elements.html' },
     { label: 'Finish Lab',       href: '/tools/finish-lab.html' },
+    { label: 'Map Editor',       href: '/map-editor.html' },
   ];
 
   // Determine which page we're on

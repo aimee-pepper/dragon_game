@@ -149,8 +149,8 @@
     <div class="tab-btn green" data-body="bulky">Bulky</div>
     <span class="sep"></span>
     <label>Length:</label>
-    <div class="tab-btn blue" data-length="short">Short</div>
-    <div class="tab-btn blue active" data-length="medium">Med</div>
+    <div class="tab-btn blue active" data-length="short">Short</div>
+    <div class="tab-btn blue" data-length="medium">Med</div>
     <div class="tab-btn blue" data-length="long">Long</div>
     <span class="sep"></span>
     <label>Tail:</label>
@@ -167,8 +167,8 @@
     <div class="tab-btn" data-spine="sail">Sail</div>
     <span class="sep"></span>
     <label>Height:</label>
-    <div class="tab-btn" data-height="low">Low</div>
-    <div class="tab-btn active" data-height="medium">Med</div>
+    <div class="tab-btn active" data-height="low">Low</div>
+    <div class="tab-btn" data-height="medium">Med</div>
     <div class="tab-btn" data-height="tall">Tall</div>
     <span class="sep"></span>
     <button id="btn-clear-path" class="danger">Clear Path</button>
@@ -182,6 +182,7 @@
     <span class="sep"></span>
     <button id="btn-copy-anchors">Copy Anchors</button>
     <button id="btn-copy-curve">Copy Curve</button>
+    <button id="btn-paste-curve" class="secondary">📥 Paste Curve</button>
     <span class="sep"></span>
     <button id="btn-copy-spine-curve" style="background:#5a6a3a;color:#e0e8d0;">📋 Spine Curve</button>
     <button id="btn-paste-spine-curve" class="secondary">📥 Paste</button>
@@ -246,6 +247,7 @@
           <kbd>Drag</kbd> points to adjust.
           <kbd>Shift+Click</kbd> curve to insert point.
           <kbd>Alt+Click</kbd> curve to delete nearest point.
+          <kbd>Ctrl+Click</kbd> curve to place <span style="color:#ff44ff;">split point</span>.
           <kbd>Right-click</kbd> point to delete.
           <kbd>Scroll</kbd> to zoom. <kbd>Space+drag</kbd> to pan.
           <br><span style="color:#aa77cc;">Purple line</span> = height envelope.
@@ -349,9 +351,9 @@ const ENDPOINT_COLOR_END = '#5588cc';
 // ── State ──
 let currentBody = 'standard';
 let currentTail = 'normal';
-let currentLength = 'medium';
+let currentLength = 'short';
 let currentSpine = 'ridge';
-let currentHeight = 'medium';
+let currentHeight = 'low';
 
 let controlPoints = [];   // Array of { x, y } in sprite-space coordinates
 let spineCount = 10;
@@ -369,8 +371,7 @@ let perSpineOverrides = {}; // legacy — kept for backwards compat with saved d
 let heightControlPoints = [{ t: 0, mul: 1.0, rot: 0, wid: 1.0, spc: 1.0 }, { t: 1, mul: 1.0, rot: 0, wid: 1.0, spc: 1.0 }];
 let heightOffset = 60;       // Visual distance from main curve at mul=1.0 (sprite-space px)
 let showHeightGuide = true;
-let splitIndex = -1;         // control point index where tail begins (-1 = no split, auto-midpoint)
-let isDraggingSplit = false;  // dragging the split marker
+let splitIndex = -1;         // control point index where tail begins (-1 = no split, use auto-midpoint for copy/paste)
 let isDraggingHeightCP = -1; // index of height control point being dragged
 let isDraggingHeightGuide = false;   // dragging the line itself (global offset)
 let heightGuideStartY = 0;
@@ -759,33 +760,50 @@ function drawCurve() {
   if (controlPoints.length < 2) return;
 
   const steps = controlPoints.length * 30;
-  const splitT = getEffectiveSplitT();
-  const splitStep = Math.round(splitT * steps);
 
-  // Draw spine section (body end → split) — blue/cyan
-  ctx.beginPath();
-  const first = catmullRomPoint(controlPoints, 0);
-  ctx.moveTo(first.x, first.y);
-  for (let i = 1; i <= splitStep; i++) {
-    const t = i / steps;
-    const pt = catmullRomPoint(controlPoints, t);
-    ctx.lineTo(pt.x, pt.y);
-  }
-  ctx.strokeStyle = '#66aadd';
-  ctx.lineWidth = 3;
-  ctx.stroke();
+  // Two-tone only when split is explicitly placed
+  if (splitIndex >= 0) {
+    const splitT = getEffectiveSplitT();
+    const splitStep = Math.round(splitT * steps);
 
-  // Draw tail section (split → tail end) — orange/red
-  if (splitStep < steps) {
+    // Draw tail section (index 0 → split) — orange
     ctx.beginPath();
-    const splitPt = catmullRomPoint(controlPoints, splitStep / steps);
-    ctx.moveTo(splitPt.x, splitPt.y);
-    for (let i = splitStep + 1; i <= steps; i++) {
+    const first = catmullRomPoint(controlPoints, 0);
+    ctx.moveTo(first.x, first.y);
+    for (let i = 1; i <= splitStep; i++) {
       const t = i / steps;
       const pt = catmullRomPoint(controlPoints, t);
       ctx.lineTo(pt.x, pt.y);
     }
     ctx.strokeStyle = '#dd8844';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // Draw body section (split → end) — blue
+    if (splitStep < steps) {
+      ctx.beginPath();
+      const splitPt = catmullRomPoint(controlPoints, splitStep / steps);
+      ctx.moveTo(splitPt.x, splitPt.y);
+      for (let i = splitStep + 1; i <= steps; i++) {
+        const t = i / steps;
+        const pt = catmullRomPoint(controlPoints, t);
+        ctx.lineTo(pt.x, pt.y);
+      }
+      ctx.strokeStyle = '#66aadd';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+  } else {
+    // No split — single color
+    ctx.beginPath();
+    const first = catmullRomPoint(controlPoints, 0);
+    ctx.moveTo(first.x, first.y);
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps;
+      const pt = catmullRomPoint(controlPoints, t);
+      ctx.lineTo(pt.x, pt.y);
+    }
+    ctx.strokeStyle = '#66aadd';
     ctx.lineWidth = 3;
     ctx.stroke();
   }
@@ -1014,9 +1032,8 @@ function drawControlPoints() {
       ctx.restore();
     }
 
-    // Draw split marker as a diamond
-    const si = getEffectiveSplitIndex();
-    if (i === si && !isEndpoint) {
+    // Draw split marker as a diamond (only if explicitly placed)
+    if (splitIndex >= 0 && i === splitIndex && !isEndpoint) {
       const r = POINT_RADIUS + 4;
       ctx.beginPath();
       ctx.moveTo(pt.x, pt.y - r);
@@ -1024,7 +1041,7 @@ function drawControlPoints() {
       ctx.lineTo(pt.x, pt.y + r);
       ctx.lineTo(pt.x - r, pt.y);
       ctx.closePath();
-      ctx.fillStyle = isDraggingSplit ? '#ffffff' : '#ff44ff';
+      ctx.fillStyle = (isDraggingPoint === splitIndex) ? '#ffffff' : '#ff44ff';
       ctx.fill();
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 2;
@@ -1411,6 +1428,11 @@ canvas.addEventListener('mousedown', (e) => {
     // Right-click: delete curve control point
     const idx = findPointAt(x, y);
     if (idx >= 0) {
+      if (idx === splitIndex) {
+        splitIndex = -1;
+      } else if (splitIndex > idx) {
+        splitIndex--;
+      }
       controlPoints.splice(idx, 1);
       render();
     }
@@ -1423,7 +1445,32 @@ canvas.addEventListener('mousedown', (e) => {
     const { idx, dist } = nearestControlPointIdx(x, y);
     const threshold = 50 / zoom; // generous threshold since we're using Alt
     if (idx >= 0 && dist < threshold) {
+      // If deleting the split point, clear splitIndex
+      if (idx === splitIndex) {
+        splitIndex = -1;
+      } else if (splitIndex > idx) {
+        splitIndex--; // adjust index since a point before it was removed
+      }
       controlPoints.splice(idx, 1);
+      render();
+      saveAll();
+    }
+    e.preventDefault();
+    return;
+  }
+
+  // Ctrl+Click (or Cmd+Click): place/move split point on the curve
+  if ((e.ctrlKey || e.metaKey) && controlPoints.length >= 2) {
+    const nearest = nearestCurvePoint(x, y);
+    const threshold = 50 / zoom;
+    if (nearest && nearest.dist < threshold) {
+      const insertIdx = segmentForT(nearest.t);
+      controlPoints.splice(insertIdx, 0, { x: nearest.x, y: nearest.y });
+      // Adjust old splitIndex if it shifted
+      if (splitIndex >= 0 && splitIndex >= insertIdx) splitIndex++;
+      splitIndex = insertIdx;
+      isDraggingPoint = insertIdx;
+      canvas.classList.add('dragging');
       render();
       saveAll();
     }
@@ -1438,6 +1485,8 @@ canvas.addEventListener('mousedown', (e) => {
     if (nearest && nearest.dist < threshold) {
       const insertIdx = segmentForT(nearest.t);
       controlPoints.splice(insertIdx, 0, { x: nearest.x, y: nearest.y });
+      // Adjust splitIndex if a point was inserted before it
+      if (splitIndex >= 0 && splitIndex >= insertIdx) splitIndex++;
       isDraggingPoint = insertIdx;
       canvas.classList.add('dragging');
       render();
@@ -1478,21 +1527,6 @@ canvas.addEventListener('mousedown', (e) => {
     }
   }
 
-  // Check for clicking on the split marker
-  if (controlPoints.length >= 3) {
-    const si = getEffectiveSplitIndex();
-    if (si > 0 && si < controlPoints.length - 1) {
-      const sp = controlPoints[si];
-      const dx = sp.x - x, dy = sp.y - y;
-      if (Math.sqrt(dx * dx + dy * dy) < (POINT_RADIUS + 6) / zoom) {
-        isDraggingSplit = true;
-        canvas.classList.add('dragging');
-        e.preventDefault();
-        return;
-      }
-    }
-  }
-
   // Left-click: drag existing point or add new one
   const hitIdx = findPointAt(x, y);
   if (hitIdx >= 0) {
@@ -1512,24 +1546,6 @@ canvas.addEventListener('mousemove', (e) => {
     panX = e.clientX - panStartX;
     panY = e.clientY - panStartY;
     updateCanvasTransform();
-    return;
-  }
-
-  if (isDraggingSplit) {
-    // Snap split marker to nearest control point (not endpoints)
-    const { x: mx, y: my } = canvasCoords(e);
-    let bestIdx = getEffectiveSplitIndex();
-    let bestDist = Infinity;
-    for (let i = 1; i < controlPoints.length - 1; i++) {
-      const dx = controlPoints[i].x - mx;
-      const dy = controlPoints[i].y - my;
-      const d = dx * dx + dy * dy;
-      if (d < bestDist) { bestDist = d; bestIdx = i; }
-    }
-    if (bestIdx !== splitIndex) {
-      splitIndex = bestIdx;
-      render();
-    }
     return;
   }
 
@@ -1588,12 +1604,6 @@ canvas.addEventListener('mouseup', () => {
   if (isPanning) {
     isPanning = false;
     canvas.classList.remove('dragging');
-    return;
-  }
-  if (isDraggingSplit) {
-    isDraggingSplit = false;
-    canvas.classList.remove('dragging');
-    saveAll();
     return;
   }
   if (isDraggingHeightCP >= 0) {
@@ -1784,6 +1794,44 @@ document.getElementById('btn-copy-curve').addEventListener('click', () => {
   const btn = document.getElementById('btn-copy-curve');
   btn.textContent = 'Copied!';
   setTimeout(() => { btn.textContent = 'Copy Curve'; }, 1200);
+});
+
+document.getElementById('btn-paste-curve').addEventListener('click', async () => {
+  const pasteBtn = document.getElementById('btn-paste-curve');
+  try {
+    const text = await navigator.clipboard.readText();
+    const data = JSON.parse(text);
+    if (!data.controlPoints || !Array.isArray(data.controlPoints) || data.controlPoints.length < 2) {
+      pasteBtn.textContent = '✗ Invalid';
+      setTimeout(() => { pasteBtn.textContent = '📥 Paste Curve'; }, 1500);
+      return;
+    }
+    controlPoints = data.controlPoints.map(p => ({ x: p.x, y: p.y }));
+    spineCount = data.spineCount ?? spineCount;
+    spineSpacing = data.spineSpacing ?? spineSpacing;
+    spineScale = data.spineScale ?? spineScale;
+    heightOffset = data.heightOffset ?? heightOffset;
+    globalRotation = data.globalRotation ?? 0;
+    perSpineOverrides = data.perSpineOverrides ? JSON.parse(JSON.stringify(data.perSpineOverrides)) : {};
+    heightControlPoints = data.heightControlPoints
+      ? data.heightControlPoints.map(p => ({ t: p.t, mul: p.mul, rot: p.rot || 0, wid: p.wid ?? 1.0, spc: p.spc ?? 1.0 }))
+      : [{ t: 0, mul: 1.0, rot: 0, wid: 1.0, spc: 1.0 }, { t: 1, mul: 1.0, rot: 0, wid: 1.0, spc: 1.0 }];
+    splitIndex = data.splitIndex ?? -1;
+
+    spineCountSlider.value = spineCount; spineCountVal.textContent = spineCount;
+    spineSpacingSlider.value = spineSpacing; spineSpacingVal.textContent = spineSpacing.toFixed(2);
+    spineScaleSlider.value = spineScale; spineScaleVal.textContent = spineScale.toFixed(2);
+    heightOffsetSlider.value = heightOffset; heightOffsetVal.textContent = Math.round(heightOffset);
+    globalRotSlider.value = globalRotation; globalRotVal.textContent = globalRotation + '°';
+
+    saveAll(); render();
+    pasteBtn.textContent = '✓ Pasted!';
+    setTimeout(() => { pasteBtn.textContent = '📥 Paste Curve'; }, 1500);
+  } catch (e) {
+    console.warn('Paste curve failed:', e);
+    pasteBtn.textContent = '✗ Failed';
+    setTimeout(() => { pasteBtn.textContent = '📥 Paste Curve'; }, 1500);
+  }
 });
 
 // ── Spine/Tail Copy-Paste Clipboards ──
@@ -2105,8 +2153,19 @@ document.getElementById('btn-save-file').addEventListener('click', () => {
     statusEl.innerHTML = '<strong style="color:#6a8a72;">✓ Saved to file!</strong>';
     setTimeout(() => { statusEl.textContent = ''; }, 3000);
   }).catch(e => {
-    statusEl.innerHTML = '<strong style="color:#a05050;">✗ Save failed</strong>';
-    console.warn('Spine server save failed:', e);
+    console.warn('Spine server save failed, falling back to download:', e);
+    // Fallback: download the file so the user can place it manually
+    const allPaths = loadAllPaths();
+    const json = JSON.stringify(allPaths, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'spine-paths.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    statusEl.innerHTML = '<strong style="color:#c4a265;">⬇ Downloaded spine-paths.json</strong><br><small>Move to data/ folder in project</small>';
+    setTimeout(() => { statusEl.textContent = ''; }, 6000);
   });
 });
 

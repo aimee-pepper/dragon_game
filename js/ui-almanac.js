@@ -26,6 +26,8 @@ import { getStats } from './save-manager.js';
 import { getAvailableXP } from './skill-engine.js';
 import { getStabledDragons } from './ui-stables.js';
 import { getSetting } from './settings.js';
+import { REGIONS, TERRITORIES, HABITATS, getRegionIds } from './map-config.js';
+import { getExplorationLog } from './map-engine.js';
 import {
   getAchievements,
   isUnlocked,
@@ -164,6 +166,7 @@ function render() {
   const topNav = el('div', 'almanac-top-nav');
   const topTabs = [
     { key: 'encyclopedia', label: 'Encyclopedia' },
+    { key: 'bestiary', label: 'Bestiary' },
     { key: 'achievements', label: 'Achievements' },
   ];
   topTabs.forEach(tab => {
@@ -179,6 +182,8 @@ function render() {
   // ── Render active top-level section ──
   if (activeTopTab === 'encyclopedia') {
     renderEncyclopedia();
+  } else if (activeTopTab === 'bestiary') {
+    renderBestiary();
   } else {
     renderAchievements();
   }
@@ -249,6 +254,151 @@ function renderEncyclopedia() {
   panesContainer.appendChild(traitsPane);
 
   containerEl.appendChild(panesContainer);
+}
+
+// ══════════════════════════════════════════════════════
+// BESTIARY SECTION
+// ══════════════════════════════════════════════════════
+
+let bestiaryExpandedRegions = new Set();
+
+function renderBestiary() {
+  const log = getExplorationLog();
+  const debugReveal = getSetting('debug-reveal-almanac');
+  const regionIds = getRegionIds();
+
+  // Count total / discovered species
+  let totalSpecies = 0;
+  let discoveredSpeciesCount = 0;
+  for (const regionId of regionIds) {
+    const region = REGIONS[regionId];
+    for (const territoryId of region.territories) {
+      const territory = TERRITORIES[territoryId];
+      for (const habitatId of territory.habitats) {
+        const habitat = HABITATS[habitatId];
+        if (!habitat.species) continue;
+        for (const species of habitat.species) {
+          totalSpecies++;
+          const habitatLog = log[habitatId];
+          if (debugReveal || (habitatLog && habitatLog.speciesFound && habitatLog.speciesFound.includes(species.id))) {
+            discoveredSpeciesCount++;
+          }
+        }
+      }
+    }
+  }
+
+  // Header
+  const header = el('div', 'bestiary-header');
+  header.appendChild(el('h3', 'almanac-pane-header', 'Bestiary'));
+  header.appendChild(el('span', 'bestiary-count', `${discoveredSpeciesCount}/${totalSpecies} Discovered`));
+  containerEl.appendChild(header);
+
+  // Region groups
+  for (const regionId of regionIds) {
+    const region = REGIONS[regionId];
+    const expanded = bestiaryExpandedRegions.has(regionId);
+
+    // Count species for this region
+    let regionTotal = 0;
+    let regionDiscovered = 0;
+    for (const territoryId of region.territories) {
+      const territory = TERRITORIES[territoryId];
+      for (const habitatId of territory.habitats) {
+        const habitat = HABITATS[habitatId];
+        if (!habitat.species) continue;
+        for (const species of habitat.species) {
+          regionTotal++;
+          const habitatLog = log[habitatId];
+          if (debugReveal || (habitatLog && habitatLog.speciesFound && habitatLog.speciesFound.includes(species.id))) {
+            regionDiscovered++;
+          }
+        }
+      }
+    }
+
+    const regionGroup = el('div', 'bestiary-region');
+
+    // Region header (clickable to expand/collapse)
+    const regionHeader = el('button', 'bestiary-region-header');
+    const arrow = el('span', 'bestiary-arrow', expanded ? '\u25bc' : '\u25b6');
+    regionHeader.appendChild(arrow);
+    regionHeader.appendChild(el('span', 'bestiary-region-name', region.name));
+    regionHeader.appendChild(el('span', 'bestiary-region-count', `${regionDiscovered}/${regionTotal}`));
+    regionHeader.addEventListener('click', () => {
+      if (bestiaryExpandedRegions.has(regionId)) {
+        bestiaryExpandedRegions.delete(regionId);
+      } else {
+        bestiaryExpandedRegions.add(regionId);
+      }
+      render();
+    });
+    regionGroup.appendChild(regionHeader);
+
+    if (expanded) {
+      for (const territoryId of region.territories) {
+        const territory = TERRITORIES[territoryId];
+
+        const territorySection = el('div', 'bestiary-territory');
+        territorySection.appendChild(el('h4', 'bestiary-territory-name', territory.name));
+
+        for (const habitatId of territory.habitats) {
+          const habitat = HABITATS[habitatId];
+          if (!habitat.species || habitat.species.length === 0) {
+            // No species in this habitat
+            const noSpecies = el('div', 'bestiary-no-species');
+            noSpecies.appendChild(el('span', 'bestiary-habitat-label', habitat.name));
+            noSpecies.appendChild(el('span', 'bestiary-none-text', '(no rare species)'));
+            territorySection.appendChild(noSpecies);
+            continue;
+          }
+
+          for (const species of habitat.species) {
+            const habitatLog = log[habitatId];
+            const found = debugReveal || (habitatLog && habitatLog.speciesFound && habitatLog.speciesFound.includes(species.id));
+
+            const card = el('div', `bestiary-species-card ${found ? 'discovered' : 'undiscovered'}`);
+
+            const nameRow = el('div', 'bestiary-species-name-row');
+            nameRow.appendChild(el('span', 'bestiary-species-name', found ? species.name : '???'));
+            nameRow.appendChild(el('span', 'bestiary-habitat-label', habitat.name));
+            card.appendChild(nameRow);
+
+            if (found) {
+              // Show key genetic traits
+              const traitsRow = el('div', 'bestiary-species-traits');
+              const geneEntries = Object.entries(species.genes);
+              for (const [geneName, allelePair] of geneEntries) {
+                const def = GENE_DEFS[geneName];
+                if (!def) continue;
+                let expressed;
+                if (def.inheritanceType === 'categorical') {
+                  expressed = Math.max(allelePair[0], allelePair[1]);
+                } else {
+                  expressed = Math.round((allelePair[0] + allelePair[1]) / 2);
+                }
+                const phenoName = def.phenotypeMap ? def.phenotypeMap[expressed] : String(expressed);
+                if (phenoName) {
+                  const chip = el('span', 'bestiary-trait-chip', `${def.label}: ${phenoName}`);
+                  traitsRow.appendChild(chip);
+                }
+              }
+              card.appendChild(traitsRow);
+
+              const rateText = `${habitat.encounterRate.species}% encounter rate`;
+              card.appendChild(el('span', 'bestiary-rate', rateText));
+            }
+
+            territorySection.appendChild(card);
+          }
+        }
+
+        regionGroup.appendChild(territorySection);
+      }
+    }
+
+    containerEl.appendChild(regionGroup);
+  }
 }
 
 // ══════════════════════════════════════════════════════
