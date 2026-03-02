@@ -43,6 +43,7 @@ import {
   getFinishEffect,
   getAnchor,
   spineStorageReady,
+  anchorStorageReady,
 } from './sprite-config.js';
 import { classifyLevel } from './gene-config.js';
 
@@ -304,8 +305,8 @@ function isRedOutline(r, g, b) {
 const inflightRenders = new Map();
 
 export async function renderDragonSprite(phenotype, options = {}) {
-  // Ensure spine placement data is loaded from IndexedDB before first render
-  await spineStorageReady();
+  // Ensure storage data is loaded before first render
+  await Promise.all([spineStorageReady(), anchorStorageReady()]);
 
   const { compact = false, animated = false } = options;
 

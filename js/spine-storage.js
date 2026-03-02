@@ -88,12 +88,32 @@ function idbClear(db) {
 // ── Init: load everything into cache ──
 
 async function _init() {
+  // Primary source: server JSON file
+  try {
+    const resp = await fetch('/data/spine-paths.json');
+    if (resp.ok) {
+      const fileData = await resp.json();
+      if (Object.keys(fileData).length > 0) {
+        _cache = fileData;
+        console.log(`Loaded ${Object.keys(fileData).length} spine paths from server file`);
+      }
+    }
+  } catch (e) {
+    console.warn('Server spine file load failed:', e);
+  }
+
+  // Also init IndexedDB (for tool edits before explicit save)
   try {
     _db = await openDB();
-    _cache = await idbGetAll(_db);
+    const idbData = await idbGetAll(_db);
+
+    // Merge: IndexedDB overrides file data (tool edits win)
+    if (Object.keys(idbData).length > 0) {
+      _cache = { ..._cache, ...idbData };
+    }
 
     // One-time migration from localStorage → IndexedDB
-    if (Object.keys(_cache).length === 0) {
+    if (Object.keys(idbData).length === 0) {
       try {
         const lsData = JSON.parse(localStorage.getItem(LS_KEY)) || {};
         if (Object.keys(lsData).length > 0) {
@@ -107,8 +127,7 @@ async function _init() {
             tx.oncomplete = resolve;
             tx.onerror = (e) => reject(e.target.error);
           });
-          _cache = { ...lsData };
-          // Clear localStorage to free space (keep a tiny marker)
+          _cache = { ..._cache, ...lsData };
           localStorage.removeItem(LS_KEY);
           localStorage.setItem('dragon-spine-migrated-to-idb', 'true');
           console.log('Migration complete — localStorage freed.');
@@ -117,17 +136,13 @@ async function _init() {
         console.warn('localStorage migration failed (non-fatal):', e);
       }
     } else {
-      // Already in IndexedDB — clean up localStorage if still there
       if (localStorage.getItem(LS_KEY)) {
         localStorage.removeItem(LS_KEY);
         localStorage.setItem('dragon-spine-migrated-to-idb', 'true');
       }
     }
   } catch (e) {
-    console.error('IndexedDB init failed, falling back to localStorage:', e);
-    try {
-      _cache = JSON.parse(localStorage.getItem(LS_KEY)) || {};
-    } catch { _cache = {}; }
+    console.error('IndexedDB init failed, falling back to cache:', e);
   }
   _ready = true;
 }
@@ -171,6 +186,18 @@ export function saveAllPaths(allPaths) {
     }
     tx.onerror = (e) => console.error('IndexedDB bulk save failed:', e.target.error);
   }
+}
+
+/** Save all paths to the server JSON file. Returns a promise. */
+export function saveAllToServer() {
+  return fetch('/api/save-spines', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(_cache),
+  }).then(resp => {
+    if (!resp.ok) throw new Error('Server save failed: ' + resp.status);
+    return resp.json();
+  });
 }
 
 /** Promise that resolves when storage is ready. */

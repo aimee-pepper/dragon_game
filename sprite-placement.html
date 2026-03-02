@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dragon Sprite Placement Tool</title>
+  <script src="js/tool-nav.js" defer></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -227,7 +228,11 @@
     <label><input type="checkbox" id="showGhost" checked> Ghost body</label>
     <label><input type="checkbox" id="showAllLayers" checked> Show all</label>
     <span class="sep"></span>
-    <button id="copyAnchorsBtn">📋 Copy All</button>
+    <button id="saveBatchBtn" style="background:#5a8a3a;color:#e0e8d0;font-size:13px;">💾 Save Part</button>
+    <button id="saveAllBtn" style="background:#3a6a8a;color:#e0e8d0;font-size:13px;">💾 Save All</button>
+    <span id="saveStatus" style="font-size:12px;color:#8a7e72;min-width:60px;"></span>
+    <span class="sep"></span>
+    <button id="copyAnchorsBtn" class="secondary">📋 Copy All</button>
     <button id="exportPartsBtn" class="secondary">💾 Export by Part</button>
     <button id="resetBtn" class="secondary">↩ Reset Batch</button>
     <button id="importBtn" class="secondary" style="background:#5a6a3a;color:#e0e8d0;">⬇ Import from sprite-config</button>
@@ -283,7 +288,17 @@
   </div>
 
   <script type="module">
-    import { ANCHORS as IMPORTED_ANCHORS } from './js/sprite-config.js';
+    // Flat anchors loaded on demand for Import button
+    async function loadImportedAnchors() {
+      try {
+        const resp = await fetch('/data/sprite-anchors.json');
+        if (resp.ok) {
+          const data = await resp.json();
+          return data.anchors || {};
+        }
+      } catch (e) {}
+      return {};
+    }
 
     // ============================================================
     // PLACEMENT TOOL v5
@@ -626,7 +641,25 @@
 
     // ── Storage ──
     const STORAGE_KEY = 'dragon-sprite-anchors-v5';
-    function loadSavedAnchors() {
+    async function loadSavedAnchors() {
+      // Try server file first (primary store)
+      try {
+        const resp = await fetch('/data/sprite-anchors.json');
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.toolFormat) {
+            Object.assign(groupAnchors, data.toolFormat.groupAnchors || {});
+            Object.assign(modelOffsets, data.toolFormat.modelOffsets || {});
+            Object.assign(layerOffsets, data.toolFormat.layerOffsets || {});
+            console.log('Loaded anchors from server file');
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('Server file load failed, falling back to localStorage:', e);
+      }
+
+      // Fall back to localStorage
       try {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
@@ -649,7 +682,6 @@
         // Try v3 → v5 (skip v4)
         const v3 = localStorage.getItem('dragon-sprite-anchors-v3');
         if (v3) {
-          // First migrate to v4 format in temp, then v4 → v5
           migrateFromV3ToV5(JSON.parse(v3));
           console.log('Migrated v3 → v5 anchors');
           saveAnchors();
@@ -810,6 +842,91 @@
       // This is a minimal migration — main path is v4→v5
     }
 
+    function flattenAnchors() {
+      const flat = {};
+
+      // Body layers
+      for (const layer of LAYERS.body || []) {
+        const off = layerOffsets[layer.id] || { x: 0, y: 0 };
+        flat[layer.id] = { x: off.x, y: off.y };
+      }
+
+      // Head, tail, vestigial (body-type-dependent)
+      for (const batchName of ['head', 'tail', 'vestigial']) {
+        for (const bt of BODY_TYPES) {
+          for (const layer of (LAYERS[batchName] || [])) {
+            const group = getLinkGroup(layer.id);
+            const off = layerOffsets[layer.id] || { x: 0, y: 0 };
+            let gx = 0, gy = 0, rot = 0;
+            if (group) {
+              const gKey = groupAnchorKeyFor(group, batchName, bt, currentWingCount, currentLimbCount);
+              const gPos = groupAnchors[gKey] || { x: 0, y: 0, rot: 0 };
+              gx = gPos.x; gy = gPos.y; rot = gPos.rot || 0;
+            }
+            const key = layer.id + ':' + bt;
+            flat[key] = { x: gx + off.x, y: gy + off.y };
+            if (rot) flat[key].rot = rot;
+          }
+        }
+      }
+
+      // Horns and head spines
+      for (const batchName of ['horns', 'headspines']) {
+        for (const layer of (LAYERS[batchName] || [])) {
+          const group = getLinkGroup(layer.id);
+          const off = layerOffsets[layer.id] || { x: 0, y: 0 };
+          let gx = 0, gy = 0;
+          if (group) {
+            const gPos = groupAnchors[group] || { x: 0, y: 0 };
+            gx = gPos.x; gy = gPos.y;
+          }
+          flat[layer.id] = { x: gx + off.x, y: gy + off.y };
+        }
+      }
+
+      // Wings + wingfade (config-dependent)
+      for (const [models, batchName] of [[WING_MODELS, 'wings'], [WINGFADE_MODELS, 'wingfade']]) {
+        for (const wc of [2, 4, 6]) {
+          const maxPair = wingCountToMaxPair(wc);
+          for (const bt of BODY_TYPES) {
+            for (const [modelName, model] of Object.entries(models)) {
+              for (let p = 1; p <= maxPair; p++) {
+                const gKey = groupAnchorKeyFor(modelName + ':p' + p, batchName, bt, wc, currentLimbCount);
+                const gPos = groupAnchors[gKey] || { x: 0, y: 0, rot: 0 };
+                for (const ml of model.layers) {
+                  const mOff = modelOffsets[ml.modelId] || { x: 0, y: 0 };
+                  const exportKey = `${ml.file}:p${p}:${bt}:${wc}w`;
+                  flat[exportKey] = { x: gPos.x + mOff.x, y: gPos.y + mOff.y };
+                  if (gPos.rot) flat[exportKey].rot = gPos.rot;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Legs (config-dependent)
+      for (const lc of [2, 4, 6]) {
+        const maxPair = limbCountToMaxPair(lc);
+        for (const bt of BODY_TYPES) {
+          for (const [modelName, model] of Object.entries(LEG_MODELS)) {
+            for (let p = 1; p <= maxPair; p++) {
+              const gKey = groupAnchorKeyFor(modelName + ':p' + p, 'legs', bt, currentWingCount, lc);
+              const gPos = groupAnchors[gKey] || { x: 0, y: 0 };
+              for (const ml of model.layers) {
+                const mOff = modelOffsets[ml.modelId] || { x: 0, y: 0 };
+                const exportKey = `${ml.file}:p${p}:${bt}:${lc}l`;
+                flat[exportKey] = { x: gPos.x + mOff.x, y: gPos.y + mOff.y };
+              }
+            }
+          }
+        }
+      }
+
+      return flat;
+    }
+
+    // localStorage backup — called automatically on every drag/edit
     function saveAnchors() {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify({
@@ -818,6 +935,32 @@
           layerOffsets,
         }));
       } catch (e) {}
+    }
+
+    // Server file save — called ONLY by explicit Save buttons
+    function saveToServer(statusMsg) {
+      const statusEl = document.getElementById('saveStatus');
+      const payload = {
+        toolFormat: { groupAnchors, modelOffsets, layerOffsets },
+        anchors: flattenAnchors(),
+      };
+      statusEl.textContent = 'Saving...';
+      statusEl.style.color = '#c4a265';
+      return fetch('/api/save-anchors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }).then(resp => {
+        if (resp.ok) {
+          statusEl.innerHTML = '<strong style="color:#6a8a72;">✓ ' + (statusMsg || 'Saved!') + '</strong>';
+          setTimeout(() => { statusEl.textContent = ''; }, 3000);
+        } else {
+          statusEl.innerHTML = '<strong style="color:#a05050;">✗ Save failed</strong>';
+        }
+      }).catch(e => {
+        statusEl.innerHTML = '<strong style="color:#a05050;">✗ Server error</strong>';
+        console.warn('Server save failed:', e);
+      });
     }
 
     // ── DOM ──
@@ -2069,6 +2212,18 @@
       });
     });
 
+    // ── Save Part (current batch only) ──
+    document.getElementById('saveBatchBtn').addEventListener('click', () => {
+      saveAnchors(); // localStorage backup
+      saveToServer('Saved ' + currentBatch + '!');
+    });
+
+    // ── Save All ──
+    document.getElementById('saveAllBtn').addEventListener('click', () => {
+      saveAnchors(); // localStorage backup
+      saveToServer('All saved!');
+    });
+
     // ── Copy Anchors — flatten to absolute positions ──
     document.getElementById('copyAnchorsBtn').addEventListener('click', () => {
       const fmt = (a) => {
@@ -2548,11 +2703,11 @@
       buildLayerList(); render();
     });
 
-    // ── Import from sprite-config ANCHORS ──
-    document.getElementById('importBtn').addEventListener('click', () => {
-      if (!confirm('Import all positions from sprite-config.js ANCHORS?\nThis will overwrite any unsaved changes.')) return;
+    // ── Import from sprite-anchors.json flat ANCHORS ──
+    document.getElementById('importBtn').addEventListener('click', async () => {
+      if (!confirm('Import all positions from sprite-anchors.json?\nThis will overwrite any unsaved changes.')) return;
 
-      const A = IMPORTED_ANCHORS;
+      const A = await loadImportedAnchors();
       let count = 0;
 
       // Body layers: flat layerOffsets (no group)
@@ -2701,7 +2856,7 @@
       saveAnchors();
       buildLayerList();
       render();
-      statusBar.innerHTML = `<strong style="color:#6a8a72;">✓ Imported ${count} anchor positions from sprite-config.js</strong>`;
+      statusBar.innerHTML = `<strong style="color:#6a8a72;">✓ Imported ${count} anchor positions from sprite-anchors.json</strong>`;
       setTimeout(buildLayerList, 3000);
     });
 
@@ -2712,8 +2867,8 @@
     document.getElementById('showGhost').addEventListener('change', render);
 
     // ── Init ──
-    loadSavedAnchors();
     async function init() {
+      await loadSavedAnchors();
       const rect = container.getBoundingClientRect();
       zoom = Math.min(rect.width / SPRITE_WIDTH, rect.height / SPRITE_HEIGHT) * 0.9;
       panX = (rect.width - SPRITE_WIDTH * zoom) / 2;

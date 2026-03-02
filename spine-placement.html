@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dragon Spine Placement Tool</title>
+  <script src="js/tool-nav.js" defer></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -147,15 +148,15 @@
     <div class="tab-btn green" data-body="sinuous">Sinuous</div>
     <div class="tab-btn green" data-body="bulky">Bulky</div>
     <span class="sep"></span>
-    <label>Tail:</label>
-    <div class="tab-btn purple active" data-tail="normal">Normal</div>
-    <div class="tab-btn purple" data-tail="whip">Whip</div>
-    <div class="tab-btn purple" data-tail="heavy">Heavy</div>
-    <span class="sep"></span>
     <label>Length:</label>
-    <div class="tab-btn blue active" data-length="medium">Med</div>
     <div class="tab-btn blue" data-length="short">Short</div>
+    <div class="tab-btn blue active" data-length="medium">Med</div>
     <div class="tab-btn blue" data-length="long">Long</div>
+    <span class="sep"></span>
+    <label>Tail:</label>
+    <div class="tab-btn purple" data-tail="whip">Whip</div>
+    <div class="tab-btn purple active" data-tail="normal">Normal</div>
+    <div class="tab-btn purple" data-tail="heavy">Heavy</div>
   </div>
 
   <!-- Toolbar Row 2: Spine type + actions -->
@@ -166,12 +167,14 @@
     <div class="tab-btn" data-spine="sail">Sail</div>
     <span class="sep"></span>
     <label>Height:</label>
-    <div class="tab-btn active" data-height="medium">Med</div>
     <div class="tab-btn" data-height="low">Low</div>
+    <div class="tab-btn active" data-height="medium">Med</div>
     <div class="tab-btn" data-height="tall">Tall</div>
     <span class="sep"></span>
     <button id="btn-clear-path" class="danger">Clear Path</button>
     <button id="btn-save" class="secondary">Save</button>
+    <button id="btn-save-file" style="background:#3a6a8a;color:#e0e8d0;font-weight:bold;">💾 Save All to File</button>
+    <span id="spinesSaveStatus" style="font-size:12px;color:#8a7e72;min-width:60px;"></span>
     <label id="done-label" style="display:inline-flex;align-items:center;gap:3px;cursor:pointer;margin-left:4px;font-size:12px;color:#8a7e72;">
       <input type="checkbox" id="chk-done" style="accent-color:#6a9f5b;cursor:pointer;">
       <span id="done-text">Done</span>
@@ -179,8 +182,22 @@
     <span class="sep"></span>
     <button id="btn-copy-anchors">Copy Anchors</button>
     <button id="btn-copy-curve">Copy Curve</button>
+    <span class="sep"></span>
+    <button id="btn-copy-spine-curve" style="background:#5a6a3a;color:#e0e8d0;">📋 Spine Curve</button>
+    <button id="btn-paste-spine-curve" class="secondary">📥 Paste</button>
+    <button id="btn-copy-spine-env" style="background:#5a6a3a;color:#e0e8d0;">📋 Spine Envelope</button>
+    <button id="btn-paste-spine-env" class="secondary">📥 Paste</button>
+    <span class="sep"></span>
+    <button id="btn-copy-tail-curve" style="background:#3a5a6a;color:#e0e8d0;">📋 Tail Curve</button>
+    <button id="btn-paste-tail-curve" class="secondary">📥 Paste</button>
+    <button id="btn-copy-tail-env" style="background:#3a5a6a;color:#e0e8d0;">📋 Tail Envelope</button>
+    <button id="btn-paste-tail-env" class="secondary">📥 Paste</button>
+    <span class="sep"></span>
     <button id="btn-export-renderer" style="background:#6a9f5b;">Export for Renderer</button>
     <button id="btn-backup" style="background:#557799;">💾 Backup All</button>
+    <button id="btn-import-json" style="background:#997744;">📥 Import JSON</button>
+    <button id="btn-export-js" style="background:#448877;">📤 Export JS</button>
+    <input type="file" id="import-file-input" accept=".json" style="display:none;">
   </div>
 
   <div class="main-layout">
@@ -270,7 +287,8 @@
 
 <script type="module">
 import {
-  ANCHORS,
+  getAnchor,
+  anchorStorageReady,
   SPRITE_WIDTH,
   SPRITE_HEIGHT,
 } from './js/sprite-config.js';
@@ -278,6 +296,7 @@ import {
   loadAllPaths as idbLoadAllPaths,
   savePath as idbSavePath,
   saveAllPaths as idbSaveAllPaths,
+  saveAllToServer as spineSaveToServer,
   whenReady as storageReady,
 } from './js/spine-storage.js';
 
@@ -350,6 +369,8 @@ let perSpineOverrides = {}; // legacy — kept for backwards compat with saved d
 let heightControlPoints = [{ t: 0, mul: 1.0, rot: 0, wid: 1.0, spc: 1.0 }, { t: 1, mul: 1.0, rot: 0, wid: 1.0, spc: 1.0 }];
 let heightOffset = 60;       // Visual distance from main curve at mul=1.0 (sprite-space px)
 let showHeightGuide = true;
+let splitIndex = -1;         // control point index where tail begins (-1 = no split, auto-midpoint)
+let isDraggingSplit = false;  // dragging the split marker
 let isDraggingHeightCP = -1; // index of height control point being dragged
 let isDraggingHeightGuide = false;   // dragging the line itself (global offset)
 let heightGuideStartY = 0;
@@ -409,10 +430,8 @@ function loadImage(filename) {
   });
 }
 
-function getAnchor(filename, bodyType) {
-  const keyed = ANCHORS[`${filename}:${bodyType}`];
-  if (keyed) return keyed;
-  return ANCHORS[filename] || { x: 0, y: 0 };
+function getAnchorLocal(filename, bodyType) {
+  return getAnchor(filename, { bodyType });
 }
 
 // ── Bézier Math ──
@@ -684,7 +703,7 @@ async function drawReferenceLayers() {
 
   // Helper: draw a single layer at its own anchor position
   async function drawLayer(filename, bodyType) {
-    const anchor = getAnchor(filename, bodyType);
+    const anchor = getAnchorLocal(filename, bodyType);
     const img = await loadImage(filename);
     if (img) ctx.drawImage(img, anchor.x, anchor.y);
   }
@@ -711,9 +730,9 @@ async function drawReferenceLayers() {
   const headSpineEntry = HEAD_SPINE_FILENAMES[currentSpine]?.[currentHeight];
   if (headSpineEntry) {
     const headSpineFiles = Array.isArray(headSpineEntry) ? headSpineEntry : [headSpineEntry];
-    const headOAnchor = getAnchor('head_o', currentBody);
+    const headOAnchor = getAnchorLocal('head_o', currentBody);
     for (const hsFile of headSpineFiles) {
-      const spineAnchor = ANCHORS[hsFile] || { x: 0, y: 0 };
+      const spineAnchor = getAnchor(hsFile);
       const ax = headOAnchor.x + spineAnchor.x;
       const ay = headOAnchor.y + spineAnchor.y;
       const hsImg = await loadImage(hsFile);
@@ -724,24 +743,52 @@ async function drawReferenceLayers() {
   ctx.restore();
 }
 
+function getEffectiveSplitIndex() {
+  if (controlPoints.length < 2) return 0;
+  if (splitIndex >= 0 && splitIndex < controlPoints.length) return splitIndex;
+  return Math.floor(controlPoints.length / 2);
+}
+
+function getEffectiveSplitT() {
+  const si = getEffectiveSplitIndex();
+  if (controlPoints.length < 2) return 0.5;
+  return si / (controlPoints.length - 1);
+}
+
 function drawCurve() {
   if (controlPoints.length < 2) return;
 
-  // Draw the smooth curve
+  const steps = controlPoints.length * 30;
+  const splitT = getEffectiveSplitT();
+  const splitStep = Math.round(splitT * steps);
+
+  // Draw spine section (body end → split) — blue/cyan
   ctx.beginPath();
   const first = catmullRomPoint(controlPoints, 0);
   ctx.moveTo(first.x, first.y);
-
-  const steps = controlPoints.length * 30;
-  for (let i = 1; i <= steps; i++) {
+  for (let i = 1; i <= splitStep; i++) {
     const t = i / steps;
     const pt = catmullRomPoint(controlPoints, t);
     ctx.lineTo(pt.x, pt.y);
   }
-
-  ctx.strokeStyle = CURVE_COLOR;
+  ctx.strokeStyle = '#66aadd';
   ctx.lineWidth = 3;
   ctx.stroke();
+
+  // Draw tail section (split → tail end) — orange/red
+  if (splitStep < steps) {
+    ctx.beginPath();
+    const splitPt = catmullRomPoint(controlPoints, splitStep / steps);
+    ctx.moveTo(splitPt.x, splitPt.y);
+    for (let i = splitStep + 1; i <= steps; i++) {
+      const t = i / steps;
+      const pt = catmullRomPoint(controlPoints, t);
+      ctx.lineTo(pt.x, pt.y);
+    }
+    ctx.strokeStyle = '#dd8844';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }
 }
 
 // Compute a point on the parallel height guide curve at parameter t
@@ -966,6 +1013,30 @@ function drawControlPoints() {
       ctx.fillText(i === 0 ? 'TAIL' : 'BODY', pt.x, pt.y - POINT_RADIUS - 6);
       ctx.restore();
     }
+
+    // Draw split marker as a diamond
+    const si = getEffectiveSplitIndex();
+    if (i === si && !isEndpoint) {
+      const r = POINT_RADIUS + 4;
+      ctx.beginPath();
+      ctx.moveTo(pt.x, pt.y - r);
+      ctx.lineTo(pt.x + r, pt.y);
+      ctx.lineTo(pt.x, pt.y + r);
+      ctx.lineTo(pt.x - r, pt.y);
+      ctx.closePath();
+      ctx.fillStyle = isDraggingSplit ? '#ffffff' : '#ff44ff';
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      // Label
+      ctx.save();
+      ctx.font = 'bold 10px sans-serif';
+      ctx.fillStyle = '#ff88ff';
+      ctx.textAlign = 'center';
+      ctx.fillText('SPLIT', pt.x, pt.y - r - 4);
+      ctx.restore();
+    }
   }
 }
 
@@ -1143,6 +1214,7 @@ function saveAll() {
     heightControlPoints: heightControlPoints.map(p => ({ t: p.t, mul: p.mul, rot: p.rot || 0, wid: p.wid ?? 1.0, spc: p.spc ?? 1.0 })),
     spineType: currentSpine,
     spineHeight: currentHeight,
+    splitIndex,
   };
   idbSavePath(currentPathKey(), data);
 }
@@ -1211,7 +1283,9 @@ function restorePath(seedFrom) {
     globalRotation = data.globalRotation || 0;
     perSpineOverrides = data.perSpineOverrides || {};
     heightControlPoints = data.heightControlPoints || [{ t: 0, mul: 1.0, rot: 0, wid: 1.0, spc: 1.0 }, { t: 1, mul: 1.0, rot: 0, wid: 1.0, spc: 1.0 }];
-    // Non-exact match (old key or prefix fallback) — reset width like seedFrom does
+    splitIndex = data.splitIndex ?? Math.floor(controlPoints.length / 2);
+    // Non-exact match (old key or prefix fallback) — reset widths since different
+    // spine types need their own width tuning
     if (!isExactMatch) {
       for (const cp of heightControlPoints) cp.wid = 1.0;
     }
@@ -1227,12 +1301,14 @@ function restorePath(seedFrom) {
     heightControlPoints = JSON.parse(JSON.stringify(seedFrom.heightControlPoints || [{ t: 0, mul: 1.0, rot: 0, wid: 1.0, spc: 1.0 }, { t: 1, mul: 1.0, rot: 0, wid: 1.0, spc: 1.0 }]));
     // Reset width to default — different spine types need their own width tuning
     for (const cp of heightControlPoints) cp.wid = 1.0;
+    splitIndex = seedFrom.splitIndex ?? Math.floor(controlPoints.length / 2);
   } else {
     // No saved path, no seed — blank
     controlPoints = [];
     perSpineOverrides = {};
     heightControlPoints = [{ t: 0, mul: 1.0, rot: 0, wid: 1.0, spc: 1.0 }, { t: 1, mul: 1.0, rot: 0, wid: 1.0, spc: 1.0 }];
     globalRotation = 0;
+    splitIndex = -1;
   }
   // Restore sliders to match loaded/seeded state
   spineCountSlider.value = spineCount;
@@ -1402,6 +1478,21 @@ canvas.addEventListener('mousedown', (e) => {
     }
   }
 
+  // Check for clicking on the split marker
+  if (controlPoints.length >= 3) {
+    const si = getEffectiveSplitIndex();
+    if (si > 0 && si < controlPoints.length - 1) {
+      const sp = controlPoints[si];
+      const dx = sp.x - x, dy = sp.y - y;
+      if (Math.sqrt(dx * dx + dy * dy) < (POINT_RADIUS + 6) / zoom) {
+        isDraggingSplit = true;
+        canvas.classList.add('dragging');
+        e.preventDefault();
+        return;
+      }
+    }
+  }
+
   // Left-click: drag existing point or add new one
   const hitIdx = findPointAt(x, y);
   if (hitIdx >= 0) {
@@ -1421,6 +1512,24 @@ canvas.addEventListener('mousemove', (e) => {
     panX = e.clientX - panStartX;
     panY = e.clientY - panStartY;
     updateCanvasTransform();
+    return;
+  }
+
+  if (isDraggingSplit) {
+    // Snap split marker to nearest control point (not endpoints)
+    const { x: mx, y: my } = canvasCoords(e);
+    let bestIdx = getEffectiveSplitIndex();
+    let bestDist = Infinity;
+    for (let i = 1; i < controlPoints.length - 1; i++) {
+      const dx = controlPoints[i].x - mx;
+      const dy = controlPoints[i].y - my;
+      const d = dx * dx + dy * dy;
+      if (d < bestDist) { bestDist = d; bestIdx = i; }
+    }
+    if (bestIdx !== splitIndex) {
+      splitIndex = bestIdx;
+      render();
+    }
     return;
   }
 
@@ -1479,6 +1588,12 @@ canvas.addEventListener('mouseup', () => {
   if (isPanning) {
     isPanning = false;
     canvas.classList.remove('dragging');
+    return;
+  }
+  if (isDraggingSplit) {
+    isDraggingSplit = false;
+    canvas.classList.remove('dragging');
+    saveAll();
     return;
   }
   if (isDraggingHeightCP >= 0) {
@@ -1671,6 +1786,107 @@ document.getElementById('btn-copy-curve').addEventListener('click', () => {
   setTimeout(() => { btn.textContent = 'Copy Curve'; }, 1200);
 });
 
+// ── Spine/Tail Copy-Paste Clipboards ──
+// 4 independent clipboard slots for flexible workflow
+const _clipboard = { spineCurve: null, spineEnv: null, tailCurve: null, tailEnv: null };
+
+function flashBtn(id, msg, origText) {
+  const b = document.getElementById(id);
+  b.textContent = msg;
+  setTimeout(() => { b.textContent = origText; }, 1500);
+}
+
+// ── Split-aware copy/paste ──
+// Index 0 = TAIL end, last = BODY end
+// Spine section = from split to end (body side): controlPoints[splitIdx..]
+// Tail section = from start to split (tail side): controlPoints[0..splitIdx]
+
+// Copy Spine Curve (body side: split → end)
+document.getElementById('btn-copy-spine-curve').addEventListener('click', () => {
+  const si = getEffectiveSplitIndex();
+  _clipboard.spineCurve = controlPoints.slice(si).map(p => ({ x: Math.round(p.x), y: Math.round(p.y) }));
+  flashBtn('btn-copy-spine-curve', `✓ ${_clipboard.spineCurve.length} pts`, '📋 Spine Curve');
+});
+// Paste Spine Curve — replace body side, keep tail side
+document.getElementById('btn-paste-spine-curve').addEventListener('click', () => {
+  if (!_clipboard.spineCurve || _clipboard.spineCurve.length < 1) { flashBtn('btn-paste-spine-curve', '✗ Empty', '📥 Paste'); return; }
+  const si = getEffectiveSplitIndex();
+  const tailPart = controlPoints.slice(0, si);
+  controlPoints = [...tailPart, ..._clipboard.spineCurve.map(p => ({ ...p }))];
+  splitIndex = tailPart.length;
+  saveAll(); render();
+  flashBtn('btn-paste-spine-curve', '✓ Pasted!', '📥 Paste');
+});
+
+// Copy Spine Envelope (envelope points in spine section: t >= splitT)
+document.getElementById('btn-copy-spine-env').addEventListener('click', () => {
+  const splitT = getEffectiveSplitT();
+  _clipboard.spineEnv = {
+    heightControlPoints: heightControlPoints.filter(p => p.t >= splitT).map(p => ({ ...p })),
+    splitT,
+    spineCount, spineSpacing, spineScale, heightOffset, globalRotation,
+  };
+  flashBtn('btn-copy-spine-env', `✓ ${_clipboard.spineEnv.heightControlPoints.length} pts`, '📋 Spine Envelope');
+});
+// Paste Spine Envelope — replace envelope points in spine section
+document.getElementById('btn-paste-spine-env').addEventListener('click', () => {
+  if (!_clipboard.spineEnv) { flashBtn('btn-paste-spine-env', '✗ Empty', '📥 Paste'); return; }
+  const e = _clipboard.spineEnv;
+  const splitT = getEffectiveSplitT();
+  // Keep tail-side envelope points, replace spine-side
+  const tailEnvPts = heightControlPoints.filter(p => p.t < splitT);
+  heightControlPoints = [...tailEnvPts, ...e.heightControlPoints.map(p => ({ ...p }))];
+  heightControlPoints.sort((a, b) => a.t - b.t);
+  spineCount = e.spineCount; spineSpacing = e.spineSpacing; spineScale = e.spineScale;
+  heightOffset = e.heightOffset; globalRotation = e.globalRotation;
+  spineCountSlider.value = spineCount; spineCountVal.textContent = spineCount;
+  spineSpacingSlider.value = spineSpacing; spineSpacingVal.textContent = spineSpacing.toFixed(2);
+  spineScaleSlider.value = spineScale; spineScaleVal.textContent = spineScale.toFixed(2);
+  heightOffsetSlider.value = heightOffset; heightOffsetVal.textContent = Math.round(heightOffset);
+  saveAll(); render();
+  flashBtn('btn-paste-spine-env', '✓ Pasted!', '📥 Paste');
+});
+
+// Copy Tail Curve (tail side: start → split)
+document.getElementById('btn-copy-tail-curve').addEventListener('click', () => {
+  const si = getEffectiveSplitIndex();
+  _clipboard.tailCurve = controlPoints.slice(0, si + 1).map(p => ({ x: Math.round(p.x), y: Math.round(p.y) }));
+  flashBtn('btn-copy-tail-curve', `✓ ${_clipboard.tailCurve.length} pts`, '📋 Tail Curve');
+});
+// Paste Tail Curve — replace tail side, keep spine side
+document.getElementById('btn-paste-tail-curve').addEventListener('click', () => {
+  if (!_clipboard.tailCurve || _clipboard.tailCurve.length < 1) { flashBtn('btn-paste-tail-curve', '✗ Empty', '📥 Paste'); return; }
+  const si = getEffectiveSplitIndex();
+  const spinePart = controlPoints.slice(si);
+  controlPoints = [..._clipboard.tailCurve.map(p => ({ ...p })), ...spinePart];
+  splitIndex = _clipboard.tailCurve.length;
+  saveAll(); render();
+  flashBtn('btn-paste-tail-curve', '✓ Pasted!', '📥 Paste');
+});
+
+// Copy Tail Envelope (envelope points in tail section: t < splitT)
+document.getElementById('btn-copy-tail-env').addEventListener('click', () => {
+  const splitT = getEffectiveSplitT();
+  _clipboard.tailEnv = {
+    heightControlPoints: heightControlPoints.filter(p => p.t <= splitT).map(p => ({ ...p })),
+    splitT,
+    spineCount, spineSpacing, spineScale, heightOffset, globalRotation,
+  };
+  flashBtn('btn-copy-tail-env', `✓ ${_clipboard.tailEnv.heightControlPoints.length} pts`, '📋 Tail Envelope');
+});
+// Paste Tail Envelope — replace envelope points in tail section
+document.getElementById('btn-paste-tail-env').addEventListener('click', () => {
+  if (!_clipboard.tailEnv) { flashBtn('btn-paste-tail-env', '✗ Empty', '📥 Paste'); return; }
+  const e = _clipboard.tailEnv;
+  const splitT = getEffectiveSplitT();
+  // Keep spine-side envelope points, replace tail-side
+  const spineEnvPts = heightControlPoints.filter(p => p.t > splitT);
+  heightControlPoints = [...e.heightControlPoints.map(p => ({ ...p })), ...spineEnvPts];
+  heightControlPoints.sort((a, b) => a.t - b.t);
+  saveAll(); render();
+  flashBtn('btn-paste-tail-env', '✓ Pasted!', '📥 Paste');
+});
+
 document.getElementById('btn-export-renderer').addEventListener('click', () => {
   const btn = document.getElementById('btn-export-renderer');
   const allPaths = loadAllPaths();
@@ -1715,6 +1931,68 @@ document.getElementById('btn-backup').addEventListener('click', () => {
   URL.revokeObjectURL(url);
   btn.textContent = '✓ Saved!';
   setTimeout(() => { btn.textContent = '💾 Backup All'; }, 1500);
+});
+
+// ── Import JSON into IndexedDB ──
+document.getElementById('btn-import-json').addEventListener('click', () => {
+  document.getElementById('import-file-input').click();
+});
+document.getElementById('import-file-input').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      const imported = JSON.parse(ev.target.result);
+      const keys = Object.keys(imported);
+      if (keys.length === 0) { alert('No paths found in file.'); return; }
+      const existingPaths = loadAllPaths();
+      let added = 0, updated = 0;
+      for (const [key, data] of Object.entries(imported)) {
+        if (!data.controlPoints || data.controlPoints.length < 2) continue;
+        if (existingPaths[key]) { updated++; } else { added++; }
+        idbSavePath(key, data);
+      }
+      alert(`Imported ${added} new + ${updated} updated paths (${keys.length} total in file).`);
+      restorePath();
+      render();
+    } catch (err) {
+      alert('Failed to parse JSON: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';  // allow re-import of same file
+});
+
+// ── Export to JS file (for spine-paths-data.js) ──
+document.getElementById('btn-export-js').addEventListener('click', () => {
+  const btn = document.getElementById('btn-export-js');
+  const allPaths = loadAllPaths();
+  const pathCount = Object.keys(allPaths).length;
+  if (pathCount === 0) { alert('No paths to export.'); return; }
+
+  const header = [
+    '// ============================================================',
+    '// Spine path data — committed to repo for permanence',
+    '// ============================================================',
+    '// Generated from spine-placement tool data.',
+    '// Key format: "body:tail_length_spine_height" → path data',
+    '// The renderer uses "body:tail_length" (first match wins).',
+    '//',
+    '// To update: use the Export JS button in spine-placement.html,',
+    '// then save as js/spine-paths-data.js in the project.',
+    '',
+  ].join('\n');
+  const jsContent = header + 'export const SPINE_PATHS = ' + JSON.stringify(allPaths, null, 2) + ';\n';
+  const blob = new Blob([jsContent], { type: 'text/javascript' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'spine-paths-data.js';
+  a.click();
+  URL.revokeObjectURL(url);
+  btn.textContent = '✓ Exported!';
+  setTimeout(() => { btn.textContent = '📤 Export JS'; }, 2000);
 });
 
 // ── Copy / Paste ──
@@ -1811,11 +2089,25 @@ envPasteBtn.addEventListener('click', () => {
 // Clean up stale keys
 localStorage.removeItem('dragon-spine-positions-v1');
 
-// ── Init: wait for IndexedDB to be ready, then restore ──
-storageReady().then(() => {
+// ── Init: wait for storage to be ready, then restore ──
+Promise.all([storageReady(), anchorStorageReady()]).then(() => {
   console.log(`Storage ready: ${Object.keys(loadAllPaths()).length} paths loaded`);
   restorePath();
   render();
+});
+
+// ── Save All to File button ──
+document.getElementById('btn-save-file').addEventListener('click', () => {
+  const statusEl = document.getElementById('spinesSaveStatus');
+  statusEl.textContent = 'Saving...';
+  statusEl.style.color = '#c4a265';
+  spineSaveToServer().then(() => {
+    statusEl.innerHTML = '<strong style="color:#6a8a72;">✓ Saved to file!</strong>';
+    setTimeout(() => { statusEl.textContent = ''; }, 3000);
+  }).catch(e => {
+    statusEl.innerHTML = '<strong style="color:#a05050;">✗ Save failed</strong>';
+    console.warn('Spine server save failed:', e);
+  });
 });
 
 </script>
