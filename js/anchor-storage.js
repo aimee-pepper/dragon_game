@@ -5,7 +5,7 @@
 // Provides sync getAnchor() lookups via an in-memory cache populated on init.
 // The sprite-placement tool POSTs updates; this module just reads.
 
-const ANCHOR_FILE = '/data/sprite-anchors.json';
+const ANCHOR_FILE = 'data/sprite-anchors.json';
 
 let _anchors = {};      // flat anchors: key → { x, y, rot? }
 let _toolFormat = null;  // 3-level format for the placement tool

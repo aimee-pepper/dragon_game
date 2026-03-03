@@ -90,7 +90,7 @@ function idbClear(db) {
 async function _init() {
   // Primary source: server JSON file
   try {
-    const resp = await fetch('/data/spine-paths.json');
+    const resp = await fetch('data/spine-paths.json');
     if (resp.ok) {
       const fileData = await resp.json();
       if (Object.keys(fileData).length > 0) {
