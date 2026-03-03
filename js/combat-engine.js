@@ -50,7 +50,7 @@ function getBreathHeightMod(atkHeight, defHeight) {
 function getDistanceMeleeMod(atkDistance, defDistance) {
   const gap = Math.abs((atkDistance ?? 0) - (defDistance ?? 0));
   if (gap <= 0) return { canMelee: true, meleeMult: 1.0, details: '' };
-  if (gap === 1) return { canMelee: true, meleeMult: 0.75, details: ' (distance -25%)' };
+  if (gap === 1) return { canMelee: true, meleeMult: 0.50, details: ' (distance -50%)' };
   return { canMelee: false, meleeMult: 0, details: ' (too far for melee)' };
 }
 
@@ -58,7 +58,8 @@ function getDistanceMeleeMod(atkDistance, defDistance) {
  * Get breath modifier based on distance gap vs dragon's breath range.
  * breathRange: 1=Close, 2=Mid, 3=Far
  * Optimal gap ranges: Close→[0,1], Mid→[1,2], Far→[2,3]
- * Each tier outside optimal: -15% acc, -10% dmg
+ * Too close (gap < optimal): -15% accuracy per tier (hard to aim up close)
+ * Too far (gap > optimal): -15% damage per tier (breath dissipates)
  * Returns { accMod, dmgMod, details }
  */
 function getDistanceBreathMod(atkDistance, defDistance, breathRange) {
@@ -67,17 +68,26 @@ function getDistanceBreathMod(atkDistance, defDistance, breathRange) {
   // Optimal gap band: [range-1, range] clamped to [0,3]
   const optLo = Math.max(0, range - 1);
   const optHi = range;
-  let tiersOut = 0;
-  if (gap < optLo) tiersOut = optLo - gap;
-  else if (gap > optHi) tiersOut = gap - optHi;
-  if (tiersOut <= 0) return { accMod: 0, dmgMod: 0, details: '' };
-  const accPen = tiersOut * -15;
-  const dmgPen = tiersOut * -10;
-  return {
-    accMod: accPen,
-    dmgMod: dmgPen,
-    details: ` (dist ${tiersOut > 1 ? tiersOut + ' tiers' : '1 tier'} off-range: ${accPen}% Acc, ${dmgPen}% dmg)`,
-  };
+
+  if (gap < optLo) {
+    // Target too CLOSE → accuracy penalty only
+    const tiersOut = optLo - gap;
+    const accPen = tiersOut * -15;
+    return {
+      accMod: accPen, dmgMod: 0,
+      details: ` (${tiersOut > 1 ? tiersOut + ' tiers' : '1 tier'} too close: ${accPen}% Acc)`,
+    };
+  }
+  if (gap > optHi) {
+    // Target too FAR → damage penalty only
+    const tiersOut = gap - optHi;
+    const dmgPen = tiersOut * -15;
+    return {
+      accMod: 0, dmgMod: dmgPen,
+      details: ` (${tiersOut > 1 ? tiersOut + ' tiers' : '1 tier'} too far: ${dmgPen}% dmg)`,
+    };
+  }
+  return { accMod: 0, dmgMod: 0, details: '' };
 }
 
 // ── Breath Shape Damage Multiplier (1v1) ─────────────────────
@@ -146,12 +156,15 @@ function chooseBestAttack(attacker, defender) {
     expectedMelee = Math.max(1, attacker.stats.meleeDamage - armor) * meleeHM.meleeMult * meleeDM.meleeMult;
   }
 
-  // Expected breath damage
+  // Expected breath damage (factor in both accuracy and damage distance penalties)
   const breathBase = attacker.stats.breathDamage || 0;
   const shapeMult = getBreathShapeMult(attacker.stats.breathShape);
   const resist = attacker.stats.isVoid ? 0 : getElementResistance(defender.stats, attacker.stats.breathType);
   const distBM = getDistanceBreathMod(attacker.stats.distance, defender.stats.distance, attacker.stats.breathRange);
-  const expectedBreath = breathBase * shapeMult * (1 - resist / 100) * (1 + distBM.dmgMod / 100);
+  const baseAcc = getEffectiveAccuracy(attacker);
+  const hitChance = Math.max(0.05, (baseAcc + distBM.accMod) / 100);
+  const dmgMult = 1 + distBM.dmgMod / 100;
+  const expectedBreath = breathBase * shapeMult * (1 - resist / 100) * dmgMult * hitChance;
 
   // Prefer breath if it does more damage, or if we can't melee
   if (!canMelee || expectedBreath > expectedMelee) {

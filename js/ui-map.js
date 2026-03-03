@@ -707,17 +707,16 @@ function renderEncounterCards(screen, zone) {
   for (const dragon of currentEncounterDragons) {
     const cardWrapper = el('div', 'zone-encounter-card-wrapper');
 
-    // Encounter badge
-    const badge = el('div', `zone-encounter-badge ${dragon.encounterType || 'common'}`);
+    // Encounter badge (only show for rare/species — skip generic tier labels)
     if (dragon.originSpeciesName) {
+      const badge = el('div', 'zone-encounter-badge species');
       badge.textContent = `Species: ${dragon.originSpeciesName}`;
-      badge.className = 'zone-encounter-badge species';
+      cardWrapper.appendChild(badge);
     } else if (dragon.encounterType === 'rare') {
+      const badge = el('div', 'zone-encounter-badge rare');
       badge.textContent = 'Rare Encounter';
-    } else {
-      badge.textContent = `${(dragon.encounterLevel || 'habitat').charAt(0).toUpperCase() + (dragon.encounterLevel || 'habitat').slice(1)} Encounter`;
+      cardWrapper.appendChild(badge);
     }
-    cardWrapper.appendChild(badge);
 
     // Dragon card — no stable/parent buttons (must win encounter first)
     const card = renderDragonCard(dragon, {
@@ -862,27 +861,47 @@ function computeDistanceHeatmap(stats, opponentStats) {
     }
 
     // --- My breath output at this distance ---
+    // Too close → accuracy penalty, too far → damage penalty
     const myBreathDist = getDistanceBreathMod(d, oppDist, stats.breathRange || 1);
-    const breathEff = 1 + (myBreathDist.accMod + myBreathDist.dmgMod) / 200; // normalized
-    score += 0.25 * breathEff;
+    const myHitPct = Math.max(5, (stats.accuracy || 85) + myBreathDist.accMod) / 100;
+    const myDmgMult = 1 + myBreathDist.dmgMod / 100;
+    const breathEff = myHitPct * myDmgMult; // ~0.85 at optimal for 85% acc
+    score += 0.25 * (breathEff / 0.85); // normalize so optimal ≈ 0.25 contribution
 
     // --- Opponent's breath risk ---
     const oppBreathDist = getDistanceBreathMod(oppDist, d, opponentStats.breathRange || 1);
-    const oppBreathEff = 1 + (oppBreathDist.accMod + oppBreathDist.dmgMod) / 200;
-    score -= 0.25 * oppBreathEff;
+    const oppHitPct = Math.max(5, (opponentStats.accuracy || 85) + oppBreathDist.accMod) / 100;
+    const oppDmgMult = 1 + oppBreathDist.dmgMod / 100;
+    const oppBreathEff = oppHitPct * oppDmgMult;
+    score -= 0.25 * (oppBreathEff / 0.85);
 
-    scores.push(Math.max(-1, Math.min(1, score)));
+    scores.push(score);
   }
-  return scores;
+
+  // Normalize: spread scores across [-1, 1] so there's always a visible gradient
+  const min = Math.min(...scores);
+  const max = Math.max(...scores);
+  const range = max - min;
+  if (range > 0.001) {
+    return scores.map(s => ((s - min) / range) * 2 - 1);
+  }
+  return scores.map(() => 0); // all ~equal → neutral
 }
 
 /**
  * Map a score [-1, 1] to an rgba color string for heatmap.
+ * Smooth gradient: -1 = deep red, 0 = faint yellow, +1 = deep green.
+ * @param {number} opacity - multiplier for alpha (default 1.0, use <1 for dimmed rows)
  */
-function heatmapColor(score) {
-  if (score > 0.1)  return `rgba(60, 180, 60, ${0.15 + score * 0.35})`;
-  if (score < -0.1) return `rgba(180, 60, 60, ${0.15 + Math.abs(score) * 0.35})`;
-  return 'rgba(180, 180, 60, 0.15)';
+function heatmapColor(score, opacity = 1.0) {
+  if (score >= 0) {
+    const r = Math.round(180 - 120 * score); // 180 → 60
+    const a = (0.15 + score * 0.35) * opacity;
+    return `rgba(${r}, 180, 60, ${a.toFixed(3)})`;
+  }
+  const g = Math.round(180 + 120 * score); // 180 → 60  (score is negative)
+  const a = (0.15 + Math.abs(score) * 0.35) * opacity;
+  return `rgba(180, ${g}, 60, ${a.toFixed(3)})`;
 }
 
 /**
@@ -977,6 +996,7 @@ function renderPlacementGrid(stats, dragon, opponentStats, opts = {}) {
         }
       } else {
         cell.classList.add('dimmed');
+        cell.style.background = heatmapColor(heatmap[distCol], 0.35);
       }
 
       cells.push(cell);
