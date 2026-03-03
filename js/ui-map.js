@@ -820,72 +820,131 @@ const DIST_LABELS = ['Melee', 'Short', 'Medium', 'Long'];
  * Priority: no breath → Melee; melee > breath → Melee; else from breathRange.
  * Returns { distance, heightOverride? }
  */
-function getWildPosition(stats) {
-  if (stats.breathDamage === 0) {
-    return { distance: 0, heightOverride: 0 };
+/**
+ * Pick a distance for the wild dragon.
+ * Wild picks blind (before the player), so it averages scores over all
+ * possible player distances to find its generally-best position, then
+ * uses softmax weighted random so it usually picks well but sometimes
+ * makes a poor choice.
+ */
+function getWildPosition(stats, playerStats) {
+  const myHeight = stats.height ?? 0;
+  const oppHeight = playerStats.height ?? 0;
+
+  // For each possible wild distance, compute average effectiveness
+  // across all possible player distances (0-3).
+  const avgScores = [];
+  for (let wd = 0; wd <= 3; wd++) {
+    let sum = 0;
+    for (let pd = 0; pd <= 3; pd++) {
+      const fakeOpp = { ...playerStats, distance: pd };
+      const fakeMe = { ...stats, distance: wd };
+      // Lightweight inline score (same formula as heatmap)
+      let s = 0;
+      const mDist = getDistanceMeleeMod(wd, pd);
+      const mH = getMeleeHeightMod(myHeight, oppHeight);
+      if (mDist.canMelee && mH.canMelee) s += 0.25 * mDist.meleeMult * mH.meleeMult;
+      const oDist = getDistanceMeleeMod(pd, wd);
+      const oH = getMeleeHeightMod(oppHeight, myHeight);
+      if (oDist.canMelee && oH.canMelee) s -= 0.25 * oDist.meleeMult * oH.meleeMult;
+      const bDist = getDistanceBreathMod(wd, pd, stats.breathRange || 1);
+      const bH = getBreathHeightMod(myHeight, oppHeight);
+      const hit = Math.max(5, (stats.accuracy || 85) + bDist.accMod + bH.accMod) / 100;
+      const dmg = (1 + bDist.dmgMod / 100) * (1 + bH.dmgMod / 100);
+      s += 0.25 * (hit * dmg / 0.85);
+      const obDist = getDistanceBreathMod(pd, wd, playerStats.breathRange || 1);
+      const obH = getBreathHeightMod(oppHeight, myHeight);
+      const oHit = Math.max(5, (playerStats.accuracy || 85) + obDist.accMod + obH.accMod) / 100;
+      const oDmg = (1 + obDist.dmgMod / 100) * (1 + obH.dmgMod / 100);
+      s -= 0.25 * (oHit * oDmg / 0.85);
+      sum += s;
+    }
+    avgScores.push(sum / 4);
   }
-  if (stats.meleeDamage > stats.breathDamage) {
-    return { distance: 0 };
+
+  // Softmax weighted random: temp=3 means usually picks well, sometimes bad
+  const temp = 3.0;
+  // Normalize scores to [0, 1] range before softmax to avoid overflow
+  const sMin = Math.min(...avgScores);
+  const sMax = Math.max(...avgScores);
+  const sRange = sMax - sMin;
+  const normalized = sRange > 0.001
+    ? avgScores.map(s => (s - sMin) / sRange)       // [0, 1]
+    : avgScores.map(() => 0.5);
+  const weights = normalized.map(s => Math.exp(s * temp));
+  const total = weights.reduce((a, b) => a + b, 0);
+
+  let roll = Math.random() * total;
+  let picked = 0;
+  for (let i = 0; i < weights.length; i++) {
+    roll -= weights[i];
+    if (roll <= 0) { picked = i; break; }
   }
-  const range = stats.breathRange || 1;
-  // Close(1)→Short(1), Mid(2)→Medium(2), Far(3)→Long(3)
-  return { distance: Math.min(3, range) };
+
+  return { distance: picked };
 }
 
 /**
- * Compute heatmap scores for each distance column (0-3) for a dragon at
- * its height row vs the opponent. Returns array of 4 numbers in [-1, 1]
- * where positive = favorable, negative = unfavorable.
+ * Compute a 4×4 heatmap: scores[height][distance], each in [-1, 1].
+ * Accounts for distance penalties AND height-based melee/breath mods.
  */
 function computeDistanceHeatmap(stats, opponentStats) {
-  const scores = [];
-  const myHeight = stats.height ?? 0;
   const oppHeight = opponentStats.height ?? 0;
   const oppDist = opponentStats.distance ?? 0;
+  const raw = []; // flat array of 16 scores, row-major [h0d0, h0d1, ..., h3d3]
 
-  for (let d = 0; d <= 3; d++) {
-    let score = 0;
+  for (let h = 0; h <= 3; h++) {
+    for (let d = 0; d <= 3; d++) {
+      let score = 0;
 
-    // --- My melee output at this distance ---
-    const myMeleeDist = getDistanceMeleeMod(d, oppDist);
-    const myMeleeHeight = getMeleeHeightMod(myHeight, oppHeight);
-    if (myMeleeDist.canMelee && myMeleeHeight.canMelee) {
-      score += 0.25 * myMeleeDist.meleeMult * myMeleeHeight.meleeMult;
+      // --- My melee output at this (distance, height) ---
+      const myMeleeDist = getDistanceMeleeMod(d, oppDist);
+      const myMeleeHeight = getMeleeHeightMod(h, oppHeight);
+      if (myMeleeDist.canMelee && myMeleeHeight.canMelee) {
+        score += 0.25 * myMeleeDist.meleeMult * myMeleeHeight.meleeMult;
+      }
+
+      // --- Opponent's melee risk to me ---
+      const oppMeleeDist = getDistanceMeleeMod(oppDist, d);
+      const oppMeleeHeight = getMeleeHeightMod(oppHeight, h);
+      if (oppMeleeDist.canMelee && oppMeleeHeight.canMelee) {
+        score -= 0.25 * oppMeleeDist.meleeMult * oppMeleeHeight.meleeMult;
+      }
+
+      // --- My breath output ---
+      const myBreathDist = getDistanceBreathMod(d, oppDist, stats.breathRange || 1);
+      const myBreathHeight = getBreathHeightMod(h, oppHeight);
+      const myHitPct = Math.max(5, (stats.accuracy || 85) + myBreathDist.accMod + myBreathHeight.accMod) / 100;
+      const myDmgMult = (1 + myBreathDist.dmgMod / 100) * (1 + myBreathHeight.dmgMod / 100);
+      const breathEff = myHitPct * myDmgMult;
+      score += 0.25 * (breathEff / 0.85);
+
+      // --- Opponent's breath risk ---
+      const oppBreathDist = getDistanceBreathMod(oppDist, d, opponentStats.breathRange || 1);
+      const oppBreathHeight = getBreathHeightMod(oppHeight, h);
+      const oppHitPct = Math.max(5, (opponentStats.accuracy || 85) + oppBreathDist.accMod + oppBreathHeight.accMod) / 100;
+      const oppDmgMult = (1 + oppBreathDist.dmgMod / 100) * (1 + oppBreathHeight.dmgMod / 100);
+      const oppBreathEff = oppHitPct * oppDmgMult;
+      score -= 0.25 * (oppBreathEff / 0.85);
+
+      raw.push(score);
     }
-
-    // --- Opponent's melee risk to me from their position ---
-    const oppMeleeDist = getDistanceMeleeMod(oppDist, d);
-    const oppMeleeHeight = getMeleeHeightMod(oppHeight, myHeight);
-    if (oppMeleeDist.canMelee && oppMeleeHeight.canMelee) {
-      score -= 0.25 * oppMeleeDist.meleeMult * oppMeleeHeight.meleeMult;
-    }
-
-    // --- My breath output at this distance ---
-    // Too close → accuracy penalty, too far → damage penalty
-    const myBreathDist = getDistanceBreathMod(d, oppDist, stats.breathRange || 1);
-    const myHitPct = Math.max(5, (stats.accuracy || 85) + myBreathDist.accMod) / 100;
-    const myDmgMult = 1 + myBreathDist.dmgMod / 100;
-    const breathEff = myHitPct * myDmgMult; // ~0.85 at optimal for 85% acc
-    score += 0.25 * (breathEff / 0.85); // normalize so optimal ≈ 0.25 contribution
-
-    // --- Opponent's breath risk ---
-    const oppBreathDist = getDistanceBreathMod(oppDist, d, opponentStats.breathRange || 1);
-    const oppHitPct = Math.max(5, (opponentStats.accuracy || 85) + oppBreathDist.accMod) / 100;
-    const oppDmgMult = 1 + oppBreathDist.dmgMod / 100;
-    const oppBreathEff = oppHitPct * oppDmgMult;
-    score -= 0.25 * (oppBreathEff / 0.85);
-
-    scores.push(score);
   }
 
-  // Normalize: spread scores across [-1, 1] so there's always a visible gradient
-  const min = Math.min(...scores);
-  const max = Math.max(...scores);
+  // Normalize all 16 cells to [-1, 1]
+  const min = Math.min(...raw);
+  const max = Math.max(...raw);
   const range = max - min;
-  if (range > 0.001) {
-    return scores.map(s => ((s - min) / range) * 2 - 1);
+  const norm = range > 0.001
+    ? raw.map(s => ((s - min) / range) * 2 - 1)
+    : raw.map(() => 0);
+
+  // Return as 2D array: scores[height][distance]
+  const grid = [];
+  for (let h = 0; h <= 3; h++) {
+    grid.push(norm.slice(h * 4, h * 4 + 4));
   }
-  return scores.map(() => 0); // all ~equal → neutral
+  return grid;
 }
 
 /**
@@ -968,19 +1027,22 @@ function renderPlacementGrid(stats, dragon, opponentStats, opts = {}) {
   }
   spriteEl = miniSprite;
 
-  // Compute heatmap
+  // Compute 2D heatmap: scores[height][distance]
   const heatmap = computeDistanceHeatmap(stats, opponentStats);
 
   for (let row = 0; row < 4; row++) {
+    // Visual row 0 = height 3, row 3 = height 0
+    const heightIdx = 3 - row;
     for (let col = 0; col < 4; col++) {
       // When mirrored, visual column 0 (leftmost) = distance 3 (Long)
       const distCol = mirror ? 3 - col : col;
       const cell = el('div', 'grid-cell');
       const isHeightRow = row === heightRow;
+      const score = heatmap[heightIdx][distCol];
 
       if (isHeightRow) {
         cell.classList.add('height-row');
-        cell.style.background = heatmapColor(heatmap[distCol]);
+        cell.style.background = heatmapColor(score);
 
         if (interactive) {
           cell.classList.add('selectable');
@@ -996,7 +1058,7 @@ function renderPlacementGrid(stats, dragon, opponentStats, opts = {}) {
         }
       } else {
         cell.classList.add('dimmed');
-        cell.style.background = heatmapColor(heatmap[distCol], 0.35);
+        cell.style.background = heatmapColor(score, 0.35);
       }
 
       cells.push(cell);
@@ -1063,9 +1125,8 @@ function renderCombatView(wildDragon, playerDragon, zoneId) {
   const playerStats = deriveCombatStats(playerDragon.phenotype);
 
   // Wild dragon auto-positioning
-  const wildPos = getWildPosition(wildStats);
+  const wildPos = getWildPosition(wildStats, playerStats);
   wildStats.distance = wildPos.distance;
-  if (wildPos.heightOverride !== undefined) wildStats.height = wildPos.heightOverride;
 
   // Player distance (set when they click a grid cell)
   let playerDistance = null;
