@@ -476,6 +476,7 @@ function renderNodeCard(node, registry, treeOverlay) {
   const spriteSize = node.depth === 0 ? 52 : (node.isPrimary ? 38 : 28);
   const spriteWrap = el('div', 'ped-sprite-wrap');
   spriteWrap.style.cssText = `width:${spriteSize}px;margin:0 auto;`;
+  if (node.dragon.parentIds || node.dragon.generation > 0) spriteWrap.classList.add('sprite-flip');
 
   const usePixelArt = getSetting('art-style') === 'pixel';
   const pixelSprite = renderDragonSprite(node.dragon.phenotype, true);
@@ -703,7 +704,7 @@ function openAncestorDetail(dragon, registry, parentOverlay) {
 
   panel.appendChild(el('div', 'picker-title', `${dragon.name} — Details`));
 
-  const card = renderDragonCard(dragon, { showGenotype: true });
+  const card = renderDragonCard(dragon, { showGenotype: true, flipSprite: true });
   panel.appendChild(card);
 
   if (dragon.parentIds) {

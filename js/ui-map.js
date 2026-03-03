@@ -921,6 +921,7 @@ function renderPlacementGrid(stats, dragon, opponentStats, opts = {}) {
   const p = dragon.phenotype;
   const miniSprite = renderLegacySprite(p, false);
   miniSprite.classList.add('grid-sprite');
+  if (mirror) miniSprite.classList.add('sprite-flip');
   miniSprite.style.width = '24px';
   miniSprite.style.height = '24px';
 
@@ -935,6 +936,7 @@ function renderPlacementGrid(stats, dragon, opponentStats, opts = {}) {
       }
       if (hasPixels) {
         canvas.classList.add('grid-sprite');
+        if (mirror) canvas.classList.add('sprite-flip');
         canvas.style.width = '24px';
         canvas.style.height = '24px';
         canvas.style.imageRendering = 'pixelated';
@@ -1054,7 +1056,7 @@ function renderCombatView(wildDragon, playerDragon, zoneId) {
   // ── Panel A (player side): dragon card + stats column ──
   const panelA = el('div', 'zone-combat-panel panel-a');
 
-  const dragonCardA = renderDragonCard(playerDragon, { showGenotype: false });
+  const dragonCardA = renderDragonCard(playerDragon, { showGenotype: false, flipSprite: true });
   dragonCardA.classList.add('combat-dragon-card');
   panelA.appendChild(dragonCardA);
 

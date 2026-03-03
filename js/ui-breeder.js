@@ -178,7 +178,7 @@ function renderParentSummary(container, which, dragon) {
 
   // Compact sprite — show legacy immediately, swap in PNG asynchronously
   const sprite = renderDragonSprite(p, true);
-  sprite.classList.add('parent-sprite');
+  sprite.classList.add('parent-sprite', 'sprite-flip');
   wrapper.appendChild(sprite);
 
   // Async PNG sprite swap (unless pixel art mode is preferred)
@@ -191,7 +191,7 @@ function renderParentSummary(container, which, dragon) {
         if (imageData.data[i] > 0) { hasPixels = true; break; }
       }
       if (hasPixels) {
-        canvas.className = 'parent-sprite-canvas';
+        canvas.className = 'parent-sprite-canvas sprite-flip';
         sprite.replaceWith(canvas);
       }
     });
@@ -670,6 +670,7 @@ function renderHatchedEgg(egg, index, parentNames, highlightGenes, desiredAllele
     parentNames,
     highlightGenes,
     desiredAlleles,
+    flipSprite: true,
   });
   card.dataset.dragonId = child.id;
   applyQuestHalo(card, child);
@@ -702,6 +703,7 @@ function showRackHatchedDragon(dragon) {
     onViewLineage: (d) => openFamilyTree(d, dragonRegistry),
     highlightGenes,
     desiredAlleles,
+    flipSprite: true,
   });
   card.dataset.dragonId = dragon.id;
   applyQuestHalo(card, dragon);

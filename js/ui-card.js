@@ -41,14 +41,14 @@ export function uiImg(assetFile, className) {
 }
 
 // Render a dragon as a card DOM element
-// Options: { compact, showGenotype, onUseAsParentA, onUseAsParentB, parentNames, onSaveToStables, onViewLineage, highlightGenes, desiredAlleles, hideSprite }
+// Options: { compact, showGenotype, onUseAsParentA, onUseAsParentB, parentNames, onSaveToStables, onViewLineage, highlightGenes, desiredAlleles, hideSprite, flipSprite }
 // parentNames: { A: 'DragonName', B: 'DragonName' } — used for color-coding allele origins
 // onViewLineage: (dragon) => {} — callback to open family tree popup
 // highlightGenes: Set<string> — gene names to highlight for quest tracking
 // desiredAlleles: Map<geneName, Set<alleleLabel>> — specific allele labels to bold
 // hideSprite: boolean — skip sprite rendering (used when sprite already shown above)
 export function renderDragonCard(dragon, options = {}) {
-  const { compact = false, showGenotype = true, onUseAsParentA, onUseAsParentB, parentNames, onSaveToStables, onViewLineage, highlightGenes, desiredAlleles, hideSprite } = options;
+  const { compact = false, showGenotype = true, onUseAsParentA, onUseAsParentB, parentNames, onSaveToStables, onViewLineage, highlightGenes, desiredAlleles, hideSprite, flipSprite } = options;
   const p = dragon.phenotype;
   const debugRevealAll = getSetting('debug-show-genotype');
   const dragonReveals = dragon.revealedGenes || {};
@@ -135,6 +135,7 @@ export function renderDragonCard(dragon, options = {}) {
   if (!hideSprite) {
     // Fixed-size sprite container — all dragons render in a standardized box
     const spriteBox = el('div', compact ? 'sprite-box compact' : 'sprite-box');
+    if (flipSprite) spriteBox.classList.add('sprite-flip');
 
     // Show legacy pixel-art sprite immediately (no async delay)
     const legacySprite = renderLegacySprite(p, compact);
@@ -508,7 +509,7 @@ export function renderShowcaseCard(dragon) {
   card.appendChild(header);
 
   // --- Sprite ---
-  const spriteBox = el('div', 'sprite-box');
+  const spriteBox = el('div', 'sprite-box sprite-flip');
   const legacySprite = renderLegacySprite(p, false);
   spriteBox.appendChild(legacySprite);
 

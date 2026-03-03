@@ -955,6 +955,9 @@ header {
   object-fit: contain;
 }
 
+/* Flip owned dragon sprites to face right */
+.sprite-flip { transform: scaleX(-1); }
+
 /* Legacy pixel sprite inside the box */
 .sprite-box .legacy-sprite,
 .sprite-box table {

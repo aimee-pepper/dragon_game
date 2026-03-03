@@ -197,6 +197,7 @@ function refreshDen() {
         onViewLineage: (d) => openFamilyTree(d, dragonRegistry),
         highlightGenes,
         desiredAlleles,
+        flipSprite: true,
       });
       card.dataset.dragonId = dragon.id;
       applyQuestHalo(card, dragon);
@@ -224,7 +225,7 @@ function refreshDen() {
 
         // Compact sprite
         const sprite = renderDragonSprite(dragon.phenotype, true);
-        sprite.classList.add('den-sprite');
+        sprite.classList.add('den-sprite', 'sprite-flip');
         slot.appendChild(sprite);
 
         // Async PNG sprite swap (skip if user prefers pixel art)
@@ -237,7 +238,7 @@ function refreshDen() {
               if (imageData.data[j] > 0) { hasPixels = true; break; }
             }
             if (hasPixels) {
-              canvas.className = 'den-sprite-canvas';
+              canvas.className = 'den-sprite-canvas sprite-flip';
               sprite.replaceWith(canvas);
             }
           });
@@ -390,6 +391,7 @@ function refreshStablesList() {
       onViewLineage: (d) => openFamilyTree(d, dragonRegistry),
       highlightGenes,
       desiredAlleles,
+      flipSprite: true,
     });
     card.dataset.dragonId = dragon.id;
     applyQuestHalo(card, dragon);
