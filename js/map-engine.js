@@ -8,7 +8,6 @@
 
 import {
   REGIONS, TERRITORIES, HABITATS, STARTER_REGION,
-  TERRITORY_UNLOCK_VISITS, HABITAT_UNLOCK_VISITS,
   buildConstraintsForRegion, buildConstraintsForTerritory, buildConstraintsForHabitat,
 } from './map-config.js';
 import { createConstrainedGenotype, createRandomGenotype } from './genetics-engine.js';
@@ -79,55 +78,89 @@ export function getTraitDiscoveries() {
 }
 
 /**
- * Get discovery progress for a locked territory (called by UI for progress hints).
+ * Check stabled dragons' expressed traits against a set of gene constraints.
+ * Returns { covered, total } — how many constraints are satisfied.
  */
-export function getTerritoryDiscoveryProgress(regionId, territoryId) {
-  const log = explorationLog[regionId];
-  const territory = TERRITORIES[territoryId];
-  if (!territory) return { covered: 0, total: 0, visits: 0, visitsNeeded: TERRITORY_UNLOCK_VISITS };
-
-  const genes = Object.entries(territory.geneConstraints);
+export function getStabledTraitProgress(geneConstraints, stabledDragons) {
+  const genes = Object.entries(geneConstraints);
   let covered = 0;
 
-  if (log && log.observedTraits) {
-    for (const [gene, range] of genes) {
-      const observed = log.observedTraits[gene] || [];
-      if (observed.some(v => v >= range.min && v <= range.max)) covered++;
-    }
+  for (const [gene, range] of genes) {
+    const matched = stabledDragons.some(dragon => {
+      const pair = dragon.genotype?.[gene];
+      if (!pair) return false;
+      const expressed = getExpressedValue(gene, pair);
+      return expressed >= range.min && expressed <= range.max;
+    });
+    if (matched) covered++;
   }
 
-  return {
-    covered,
-    total: genes.length,
-    visits: log?.visits || 0,
-    visitsNeeded: TERRITORY_UNLOCK_VISITS,
-  };
+  return { covered, total: genes.length };
 }
 
 /**
- * Get discovery progress for a locked habitat.
+ * Check all locked zones against stabled dragons and unlock qualifying ones.
+ * Called when stables contents change (dragon added/removed/denned).
+ * Returns array of { id, name, level } for newly unlocked zones.
  */
-export function getHabitatDiscoveryProgress(territoryId, habitatId) {
-  const log = explorationLog[territoryId];
-  const habitat = HABITATS[habitatId];
-  if (!habitat) return { covered: 0, total: 0, visits: 0, visitsNeeded: HABITAT_UNLOCK_VISITS };
+export function checkStabledUnlocks(stabledDragons) {
+  const newlyUnlocked = [];
 
-  const genes = Object.entries(habitat.geneConstraints);
-  let covered = 0;
+  // Check locked territories in each unlocked region
+  for (const regionId of unlockedRegions) {
+    const region = REGIONS[regionId];
+    if (!region) continue;
 
-  if (log && log.observedTraits) {
-    for (const [gene, range] of genes) {
-      const observed = log.observedTraits[gene] || [];
-      if (observed.some(v => v >= range.min && v <= range.max)) covered++;
+    for (const territoryId of region.territories) {
+      if (unlockedTerritories.has(territoryId)) continue;
+
+      const territory = TERRITORIES[territoryId];
+      if (!territory) continue;
+
+      const { covered, total } = getStabledTraitProgress(
+        territory.geneConstraints, stabledDragons
+      );
+
+      if (covered >= total) {
+        unlockedTerritories.add(territoryId);
+        traitDiscoveries.add(territoryId);
+        newlyUnlocked.push({
+          id: territoryId,
+          name: territory.name,
+          level: 'territory',
+        });
+      }
     }
   }
 
-  return {
-    covered,
-    total: genes.length,
-    visits: log?.visits || 0,
-    visitsNeeded: HABITAT_UNLOCK_VISITS,
-  };
+  // Check locked habitats in each unlocked territory
+  for (const territoryId of unlockedTerritories) {
+    const territory = TERRITORIES[territoryId];
+    if (!territory) continue;
+
+    for (const habitatId of territory.habitats) {
+      if (unlockedHabitats.has(habitatId)) continue;
+
+      const habitat = HABITATS[habitatId];
+      if (!habitat) continue;
+
+      const { covered, total } = getStabledTraitProgress(
+        habitat.geneConstraints, stabledDragons
+      );
+
+      if (covered >= total) {
+        unlockedHabitats.add(habitatId);
+        traitDiscoveries.add(habitatId);
+        newlyUnlocked.push({
+          id: habitatId,
+          name: habitat.name,
+          level: 'habitat',
+        });
+      }
+    }
+  }
+
+  return newlyUnlocked;
 }
 
 // ── Encounter: Region level (Tier 1 only) ────────────────────
@@ -149,23 +182,13 @@ export function encounterAtRegion(regionId) {
     subordination: built.subordination,
   });
 
-  // Track observed traits and check for territory unlocks
-  trackObservedTraits(regionId, genotype);
-  const newlyUnlocked = checkTerritoryUnlocks(regionId);
-
-  const dragon = Dragon.fromConstrained(genotype, {
+  return Dragon.fromConstrained(genotype, {
     habitatId: null,
     encounterType: roll,
     encounterLevel: 'region',
     encounterZoneId: regionId,
     encounterZoneName: REGIONS[regionId].name,
   });
-
-  if (newlyUnlocked.length > 0) {
-    dragon._newlyUnlockedZones = newlyUnlocked;
-  }
-
-  return dragon;
 }
 
 // ── Encounter: Territory level (Tier 1 + 2) ──────────────────
@@ -187,23 +210,13 @@ export function encounterAtTerritory(territoryId) {
     subordination: built.subordination,
   });
 
-  // Track observed traits and check for habitat unlocks
-  trackObservedTraits(territoryId, genotype);
-  const newlyUnlocked = checkHabitatUnlocks(territoryId);
-
-  const dragon = Dragon.fromConstrained(genotype, {
+  return Dragon.fromConstrained(genotype, {
     habitatId: null,
     encounterType: roll,
     encounterLevel: 'territory',
     encounterZoneId: territoryId,
     encounterZoneName: TERRITORIES[territoryId].name,
   });
-
-  if (newlyUnlocked.length > 0) {
-    dragon._newlyUnlockedZones = newlyUnlocked;
-  }
-
-  return dragon;
 }
 
 // ── Encounter: Habitat level (Tier 1 + 2 + 3) ───────────────

@@ -181,6 +181,7 @@
     </label>
     <span class="sep"></span>
     <button id="btn-copy-anchors">Copy Anchors</button>
+    <button id="btn-paste-anchors" class="secondary">📥 Paste Anchors</button>
     <button id="btn-copy-curve">Copy Curve</button>
     <button id="btn-paste-curve" class="secondary">📥 Paste Curve</button>
     <span class="sep"></span>
@@ -1778,6 +1779,48 @@ document.getElementById('btn-copy-anchors').addEventListener('click', () => {
   const btn = document.getElementById('btn-copy-anchors');
   btn.textContent = 'Copied!';
   setTimeout(() => { btn.textContent = 'Copy Anchors'; }, 1200);
+});
+
+document.getElementById('btn-paste-anchors').addEventListener('click', async () => {
+  try {
+    const text = await navigator.clipboard.readText();
+    // Parse anchor format:  'spine_N:pathKey': { x: NNN, y: NNN, rot: N.N },
+    const regex = /'spine_(\d+):[^']*':\s*\{\s*x:\s*(-?\d+),\s*y:\s*(-?\d+),\s*rot:\s*(-?[\d.]+)/g;
+    const anchors = [];
+    let m;
+    while ((m = regex.exec(text)) !== null) {
+      anchors.push({ idx: parseInt(m[1]), x: parseInt(m[2]), y: parseInt(m[3]), rot: parseFloat(m[4]) });
+    }
+    if (anchors.length === 0) {
+      alert('No valid spine anchors found in clipboard.\nExpected format: \'spine_N:key\': { x: NNN, y: NNN, rot: N.N }');
+      return;
+    }
+    anchors.sort((a, b) => a.idx - b.idx);
+
+    // Use anchor positions as control points (approximate curve reconstruction)
+    controlPoints.length = 0;
+    for (const a of anchors) {
+      controlPoints.push({ x: a.x, y: a.y });
+    }
+    // Ensure at least 2 control points
+    if (controlPoints.length < 2) {
+      controlPoints.push({ x: controlPoints[0].x + 50, y: controlPoints[0].y });
+    }
+    spineCount = anchors.length;
+    document.getElementById('spineCount').value = spineCount;
+
+    // Reset overrides and save
+    perSpineOverrides = {};
+    savePath();
+    render();
+    updateUI();
+
+    const btn = document.getElementById('btn-paste-anchors');
+    btn.textContent = 'Pasted!';
+    setTimeout(() => { btn.textContent = '📥 Paste Anchors'; }, 1200);
+  } catch (e) {
+    alert('Failed to read clipboard: ' + e.message);
+  }
 });
 
 document.getElementById('btn-copy-curve').addEventListener('click', () => {

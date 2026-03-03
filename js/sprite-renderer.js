@@ -42,6 +42,7 @@ import {
   SPRITE_HEIGHT_COMPACT,
   getFinishEffect,
   getAnchor,
+  getGroupAnchor,
   spineStorageReady,
   anchorStorageReady,
 } from './sprite-config.js';
@@ -439,36 +440,40 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
   const actualLimbCount = LIMB_COUNT_MAP[limbGeneVal] || 4;
 
   // ── Pre-scan: build rotation pivot map for wing/leg groups ──
-  // For groups with rotation (wings, legs), all layers rotate around the
-  // group anchor point. The group anchor is the _o (outline) layer position,
-  // which has model offset (0,0) — i.e. the true attachment point.
-  // We use outer_o as the canonical pivot for each (layerGroup, pair) combo.
+  // For groups with rotation (wings), all layers rotate around the GROUP
+  // ANCHOR point — the true attachment point set in the placement tool.
+  // This is NOT the same as any individual layer's flat anchor position;
+  // layers have model offsets relative to the group anchor.
+  // We read group anchors from toolFormat.groupAnchors via getGroupAnchor().
+  const LAYER_GROUP_TO_MODEL = {
+    'back wing': 'wing_bg', 'front wing': 'wing_fg',
+    'back leg': 'leg_bg', 'front leg': 'leg_fg',
+  };
   const groupPivots = {};
+  const seenGroups = new Set();
   for (const asset of matchedAssets) {
     if (!asset.pair) continue;
-    // Build the same anchor context that the render loop will use
-    const pivotCtx = {};
+    // Vestigial wings are a separate model with their own group anchors
+    // (all rot=0). They must NOT pick up normal wing group pivots.
+    if (asset.variant === 'vestigial') continue;
+    const groupKey = `${asset.layerGroup}:p${asset.pair}`;
+    if (seenGroups.has(groupKey)) continue;
+    seenGroups.add(groupKey);
+
+    const modelName = LAYER_GROUP_TO_MODEL[asset.layerGroup];
+    if (!modelName) continue;
+
+    let ga = null;
     if (asset.gene === 'wing') {
-      pivotCtx.pair = asset.pair;
-      pivotCtx.bodyType = bodyVariant;
-      pivotCtx.wingCount = actualWingCount;
+      ga = getGroupAnchor(modelName, asset.pair, bodyVariant, actualWingCount, 'w');
     } else if (asset.gene === 'leg') {
-      pivotCtx.pair = asset.pair;
-      pivotCtx.bodyType = bodyVariant;
-      pivotCtx.limbCount = actualLimbCount;
+      ga = getGroupAnchor(modelName, asset.pair, bodyVariant, actualLimbCount, 'l');
     }
-    const pivotAnchor = getAnchor(asset.filename, pivotCtx);
-    const rot = pivotAnchor.rot || 0;
+    if (!ga) continue;
+    const rot = ga.rot || 0;
     if (Math.abs(rot) < 0.01) continue;
 
-    const groupKey = `${asset.layerGroup}:p${asset.pair}`;
-    // Use _o layers as pivot (they have 0,0 model offset = true group position)
-    if (!groupPivots[groupKey] && asset.filename.endsWith('_o')) {
-      let px = pivotAnchor.x;
-      let py = pivotAnchor.y;
-      // Horn chaining would apply here too, but horns don't have pairs/rotation
-      groupPivots[groupKey] = { x: px, y: py, rot };
-    }
+    groupPivots[groupKey] = { x: ga.x, y: ga.y, rot };
   }
 
   // ── Pre-process all layers: draw raw PNGs, compute anchors ──
@@ -570,6 +575,8 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
   // ── Pre-process fade layers: wing/leg fade variants ──
   // These load the fade PNG (which has painted-in transparency gradients).
   // No per-asset color processing — same raw approach as base layers.
+  // IMPORTANT: Wingfade layers have their OWN anchor positions and group
+  // pivots in the placement tool — they are NOT clones of the base wing.
   const fadeLayers = [];
   for (const asset of matchedAssets) {
     const fadeName = getFadeFilename(asset.filename);
@@ -586,15 +593,44 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     const offCtx = offscreen.getContext('2d');
     offCtx.drawImage(img, 0, 0);
 
-    // Reuse anchor + rotation from the matching base processedLayer
     const baseLayer = processedLayers.find(pl => pl.asset === asset);
+
+    // Look up wingfade-specific flat anchor (different from base wing positions)
+    let fadeAnchorX = baseLayer.anchorX;
+    let fadeAnchorY = baseLayer.anchorY;
+    let fadeRotation = baseLayer.rotation;
+    let fadeGroupPivot = null;
+
+    if (asset.gene === 'wing' && fadeName.startsWith('wingfade_')) {
+      const fadeAnchorCtx = {
+        pair: asset.pair,
+        bodyType: bodyVariant,
+        wingCount: actualWingCount,
+      };
+      const fadeAnchor = getAnchor(fadeName, fadeAnchorCtx);
+      fadeAnchorX = fadeAnchor.x;
+      fadeAnchorY = fadeAnchor.y;
+      fadeRotation = fadeAnchor.rot || 0;
+
+      // Look up wingfade-specific group pivot (separate from wing group anchor)
+      const modelName = LAYER_GROUP_TO_MODEL[asset.layerGroup];
+      if (modelName && asset.pair) {
+        const fadeModelName = modelName.replace('wing_', 'wingfade_');
+        const ga = getGroupAnchor(fadeModelName, asset.pair, bodyVariant, actualWingCount, 'w');
+        if (ga && Math.abs(ga.rot || 0) > 0.01) {
+          fadeGroupPivot = { x: ga.x, y: ga.y, rot: ga.rot };
+        }
+      }
+    }
+
     fadeLayers.push({
       asset,
       offscreen,
-      anchorX: baseLayer.anchorX,
-      anchorY: baseLayer.anchorY,
-      rotation: baseLayer.rotation,
+      anchorX: fadeAnchorX,
+      anchorY: fadeAnchorY,
+      rotation: fadeRotation,
       isFixedDetail: baseLayer.isFixedDetail,
+      _groupPivot: fadeGroupPivot,
     });
   }
 
@@ -625,7 +661,7 @@ async function _renderDragonSpriteImpl(phenotype, options = {}) {
     }
 
     const groupKey = asset.pair ? `${asset.layerGroup}:p${asset.pair}` : null;
-    const groupPivot = groupKey ? groupPivots[groupKey] : null;
+    const groupPivot = layer._groupPivot || (groupKey ? groupPivots[groupKey] : null);
     const hasRot = Math.abs(rotation) > 0.01;
 
     targetCtx.save();

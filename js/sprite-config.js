@@ -1,6 +1,6 @@
 import { computeSpinePositions as _computeSpinePos } from './spine-math.js';
 import { loadAllPaths as _loadSpinePaths, whenReady as _spineStorageReady } from './spine-storage.js';
-import { getAnchor, whenReady as anchorStorageReady } from './anchor-storage.js';
+import { getAnchor, getGroupAnchor, whenReady as anchorStorageReady } from './anchor-storage.js';
 
 // Sprite layer configuration for the dragon renderer
 // ============================================================
@@ -615,7 +615,7 @@ export function invalidateSpinePlacementCache() {
 export { _spineStorageReady as spineStorageReady };
 
 // Re-export anchor storage (reads from data/sprite-anchors.json)
-export { getAnchor, anchorStorageReady };
+export { getAnchor, getGroupAnchor, anchorStorageReady };
 
 // ANCHORS removed — now loaded from data/sprite-anchors.json via anchor-storage.js
 // (see getAnchor and anchorStorageReady re-exports above)

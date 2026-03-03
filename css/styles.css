@@ -1383,7 +1383,7 @@ header {
 .clutch-results {
   margin-top: var(--spacing);
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 1fr;
   gap: var(--spacing-sm);
 }
 
@@ -1402,11 +1402,8 @@ header {
   grid-column: 1 / -1;
 }
 
-/* Dragon cards span full width but stay card-sized */
+/* Dragon cards fill their grid column */
 .clutch-results .dragon-card {
-  grid-column: 1 / -1;
-  max-width: 360px;
-  justify-self: center;
 }
 
 /* ---- Clutch Budget Bar ---- */
@@ -4376,7 +4373,7 @@ header {
 
 .quest-widget {
   position: fixed;
-  bottom: calc(56px + env(safe-area-inset-bottom));
+  bottom: calc(100px + env(safe-area-inset-bottom));
   right: 12px;
   z-index: 150;
   max-width: 280px;
@@ -4500,7 +4497,8 @@ header {
 @media (min-width: 768px) {
   /* Dragon list containers: 3 cards per row */
   .dragon-list,
-  .clutch-results {
+  .clutch-results,
+  .zone-screen-cards {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: var(--spacing);
@@ -4658,7 +4656,7 @@ header {
   /* Quest widget: smaller on mobile */
   .quest-widget {
     max-width: 220px;
-    bottom: calc(52px + env(safe-area-inset-bottom));
+    bottom: calc(100px + env(safe-area-inset-bottom));
     right: 8px;
   }
 
@@ -5940,6 +5938,418 @@ header {
   font-size: 10px;
 }
 
+/* ── Zone Screen (full-screen explore view) ── */
+
+.zone-screen {
+  padding: 0 var(--spacing);
+  padding-bottom: 80px;
+}
+
+.zone-screen-topbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.zone-back-btn {
+  font-size: 12px;
+  padding: 4px 10px;
+  flex-shrink: 0;
+}
+
+.zone-screen-name {
+  font-family: var(--font-hand);
+  font-size: 22px;
+  text-transform: uppercase;
+  color: var(--text-bright);
+  margin: 0;
+  line-height: 1;
+}
+
+.zone-screen-tier {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg);
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-transform: uppercase;
+}
+
+.zone-screen-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1;
+  margin: 0;
+}
+
+.zone-screen-stats-inline {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1;
+  margin: 0;
+}
+.zone-screen-stats {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.zone-screen-stats em {
+  color: var(--accent);
+}
+
+.zone-locked-hint {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-style: italic;
+  margin: 12px 0;
+  line-height: 1.4;
+}
+
+.zone-screen-cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--spacing);
+  margin-top: var(--spacing);
+}
+
+@media (min-width: 768px) {
+  .zone-screen-cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.zone-encounter-card-wrapper {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--spacing-sm);
+}
+
+.zone-encounter-card-wrapper .dragon-card {
+  max-width: 100%;
+}
+
+.zone-encounter-badge {
+  font-family: var(--font-hand);
+  font-size: 11px;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 10px;
+  display: inline-block;
+  margin-bottom: 6px;
+  background: var(--bg);
+  color: var(--text-muted);
+}
+.zone-encounter-badge.rare {
+  background: rgba(180, 120, 255, 0.2);
+  color: #d4a0ff;
+}
+.zone-encounter-badge.species {
+  background: rgba(255, 200, 60, 0.2);
+  color: #ffd070;
+}
+
+.zone-fight-btn {
+  width: 100%;
+  margin-top: 6px;
+  font-size: 14px;
+  padding: 8px;
+}
+
+.btn-danger {
+  background: rgba(200, 60, 60, 0.3);
+  color: #ff9090;
+  border: 1px solid rgba(200, 60, 60, 0.5);
+}
+.btn-danger:hover {
+  background: rgba(200, 60, 60, 0.5);
+  color: #ffffff;
+}
+
+.zone-screen-actions {
+  margin-top: var(--spacing);
+  padding-bottom: var(--spacing);
+}
+
+.zone-explore-again-btn {
+  width: 100%;
+  font-size: 15px;
+  padding: 10px;
+}
+
+/* ── Stables Picker Overlay ── */
+
+.zone-picker-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing);
+}
+
+.zone-picker-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 12px;
+  max-width: 500px;
+  width: 100%;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.zone-picker-title {
+  font-family: var(--font-hand);
+  font-size: 15px;
+  text-transform: uppercase;
+  color: var(--text-bright);
+  margin: 0 0 12px;
+}
+
+.zone-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.zone-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.zone-picker-swatch {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  flex-shrink: 0;
+}
+
+.zone-picker-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.zone-picker-name {
+  font-family: var(--font-hand);
+  font-size: 12px;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.zone-picker-stats {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.zone-picker-select-btn {
+  flex-shrink: 0;
+  font-size: 11px;
+  padding: 4px 10px;
+}
+
+.zone-picker-cancel {
+  width: 100%;
+}
+
+/* ── Combat View ── */
+
+.zone-combat-screen {
+  padding: 0 var(--spacing);
+  padding-bottom: 80px;
+}
+
+.zone-combat-title {
+  font-family: var(--font-hand);
+  font-size: 22px;
+  text-transform: uppercase;
+  color: var(--text-bright);
+  text-align: center;
+  margin: 0 0 var(--spacing);
+}
+
+.zone-combat-fighters {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: stretch;
+  margin-bottom: var(--spacing);
+}
+
+.zone-fighter-card {
+  flex: 1;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--spacing-sm);
+  text-align: center;
+}
+
+.zone-fighter-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.zone-fighter-name {
+  font-family: var(--font-hand);
+  font-size: 16px;
+  text-transform: uppercase;
+  color: var(--text-bright);
+  margin-bottom: 6px;
+}
+
+.zone-fighter-swatch {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  margin: 0 auto 8px;
+}
+
+.zone-fighter-stat {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+/* HP bar inside fighter card */
+.zone-fighter-hp {
+  width: 100%;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.zone-fighter-hp-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.zone-fighter-hp-text {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+  margin-top: 2px;
+}
+
+/* Stable capture button after combat win */
+.zone-combat-stable-btn {
+  width: 100%;
+  margin-bottom: var(--spacing);
+  font-size: 16px;
+}
+
+.zone-combat-vs {
+  display: flex;
+  align-items: center;
+  font-family: var(--font-hand);
+  font-size: 20px;
+  color: var(--text-muted);
+  padding: 0 4px;
+}
+
+.zone-combat-banner {
+  text-align: center;
+  font-family: var(--font-hand);
+  font-size: 20px;
+  text-transform: uppercase;
+  padding: 12px;
+  border-radius: var(--radius);
+  margin-bottom: var(--spacing);
+}
+.zone-combat-banner.win {
+  background: rgba(60, 180, 60, 0.2);
+  color: #90ff90;
+  border: 1px solid rgba(60, 180, 60, 0.4);
+}
+.zone-combat-banner.lose {
+  background: rgba(200, 60, 60, 0.2);
+  color: #ff9090;
+  border: 1px solid rgba(200, 60, 60, 0.4);
+}
+
+.zone-combat-fight-btn {
+  width: 100%;
+  font-size: 18px;
+  padding: 12px;
+  margin-bottom: var(--spacing);
+}
+
+.zone-combat-results {
+  margin-bottom: var(--spacing);
+}
+
+.zone-combat-log-content {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: var(--spacing);
+  padding: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+  font-size: 11px;
+  font-family: monospace;
+}
+
+.zone-combat-entry {
+  padding: 2px 4px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.zone-combat-entry.log-side-a { color: #e0a030; }
+.zone-combat-entry.log-side-b { color: #5588cc; }
+.zone-combat-entry.log-system { justify-content: center; font-style: italic; color: var(--accent); }
+.zone-combat-entry.log-miss { color: #888; font-style: italic; }
+.zone-combat-entry.log-reflect { color: #aa88dd; }
+.zone-combat-entry.log-status { color: #cc6666; }
+.zone-combat-entry.log-dot { color: #cc6666; }
+.zone-combat-entry.log-hit.log-side-a { color: #e0a030; }
+.zone-combat-entry.log-hit.log-side-b { color: #5588cc; }
+
+.zone-combat-turn-badge {
+  display: inline-block;
+  min-width: 24px;
+  text-align: center;
+  background: var(--bg-card);
+  border-radius: 3px;
+  font-size: 10px;
+  padding: 1px 3px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.zone-combat-log-text {
+  flex: 1;
+}
+
+.zone-combat-log-hp-inline {
+  font-size: 10px;
+  margin-left: 4px;
+}
+
+.zone-combat-log-hp-val {
+  font-weight: bold;
+}
+
 /* ── Region cards ── */
 .map-region-list {
   display: flex;
@@ -6256,7 +6666,7 @@ header {
 /* ── Map toast ── */
 .map-toast {
   position: fixed;
-  bottom: 80px;
+  bottom: 110px;
   left: 50%;
   transform: translateX(-50%) translateY(20px);
   background: var(--bg-card);

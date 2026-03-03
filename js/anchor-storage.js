@@ -89,3 +89,22 @@ export function getAnchor(filename, context = {}) {
   // Fall back to bare filename (backward compatible)
   return _anchors[filename] || { x: 0, y: 0 };
 }
+
+/**
+ * Get the group anchor (rotation pivot) for a wing or leg group.
+ * Reads from toolFormat.groupAnchors — the 3-level data exported by the
+ * sprite-placement tool. This is the TRUE rotation pivot that the tool
+ * uses; it is NOT the same as any individual layer's flat anchor.
+ *
+ * @param {string} modelName - e.g. 'wing_bg', 'wing_fg', 'leg_bg', 'leg_fg'
+ * @param {number} pair - pair number (1, 2, 3)
+ * @param {string} bodyType - 'standard'|'sinuous'|'bulky'
+ * @param {number} count - wing count (2,4,6) or limb count
+ * @param {string} suffix - 'w' for wings, 'l' for legs
+ * @returns {{ x: number, y: number, rot?: number } | null}
+ */
+export function getGroupAnchor(modelName, pair, bodyType, count, suffix = 'w') {
+  if (!_toolFormat || !_toolFormat.groupAnchors) return null;
+  const key = `${modelName}:p${pair}:${bodyType}:${count}${suffix}`;
+  return _toolFormat.groupAnchors[key] || null;
+}
