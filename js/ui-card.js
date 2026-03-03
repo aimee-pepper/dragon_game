@@ -697,7 +697,26 @@ function buildGenotypeContent(dragon, parentNames, highlightGenes, desiredAllele
 
     // Categorical genes (horn_style, horn_direction, spine_style) are always visible
     const isCategorical = def?.inheritanceType === 'categorical';
-    const geneVisible = isGeneRevealed(geneName) || isCategorical;
+    let geneVisible = isGeneRevealed(geneName) || isCategorical;
+
+    // Linear genes with only partial reveal: hide unless the phenotype is at an
+    // absolute extreme (min or max). Mid-range phenotypes could result from many
+    // allele combos, so the player must breed/use items to discover alleles.
+    if (geneVisible && !debugRevealAll && def?.inheritanceType === 'linear') {
+      const revLevel = getRevealLevel(geneName);
+      if (revLevel === 'partial') {
+        let resolved;
+        if (def.system === 'triangle') {
+          const avg = (alleles[0] + alleles[1]) / 2;
+          resolved = avg < 0.5 ? 0 : avg < 1.5 ? 1 : avg < 2.5 ? 2 : 3;
+        } else {
+          resolved = Math.round((alleles[0] + alleles[1]) / 2);
+        }
+        if (resolved !== def.min && resolved !== def.max) {
+          geneVisible = false;
+        }
+      }
+    }
 
     const row = el('div', 'genotype-row');
     const isMutated = dragon.mutations.includes(geneName);

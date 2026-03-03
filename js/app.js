@@ -1,6 +1,6 @@
 // App initialization, tab switching, settings, and shared dragon registry
 import { initGenerateTab, getCapturedDragonIds, restoreCapturedDragons } from './ui-generator.js';
-import { initBreedTab, getParentAId, getParentBId, restoreBreedParents, refreshPendingEffectsBar } from './ui-breeder.js';
+import { initBreedTab, getParentAId, getParentBId, restoreBreedParents, getClutchSaveData, restoreClutch, refreshPendingEffectsBar } from './ui-breeder.js';
 import { initStablesTab, addToStables } from './ui-stables.js';
 import { onStablesChange } from './ui-stables.js';
 import { initQuestsTab } from './ui-quests.js';
@@ -10,7 +10,7 @@ import { initSettings, getSetting, setSetting, onSettingChange } from './setting
 import { initQuestWidget } from './ui-quest-widget.js';
 import { restoreHighlightedQuest } from './quest-highlight.js';
 import { getActiveQuests } from './quest-engine.js';
-import { loadGame, saveGame, triggerSave, onStatChange, getStats, getHotbar, setHotbarSlot, clearHotbarSlot, registerAchievementHooks, registerBreedHooks, applyPendingBreedRestore, registerCaptureHooks, applyPendingCapturedRestore, registerShopHooks, registerSkillHooks, registerMapHooks } from './save-manager.js';
+import { loadGame, saveGame, triggerSave, onStatChange, getStats, getHotbar, setHotbarSlot, clearHotbarSlot, registerAchievementHooks, registerBreedHooks, applyPendingBreedRestore, registerClutchHooks, applyPendingClutchRestore, registerCaptureHooks, applyPendingCapturedRestore, registerShopHooks, registerSkillHooks, registerMapHooks } from './save-manager.js';
 import { uiImg } from './ui-card.js';
 import { checkAchievements, onAchievementUnlock, getAchievementSaveData, restoreAchievements } from './achievements.js';
 import { decodeDragonParams } from './dragon-url.js';
@@ -637,6 +637,7 @@ async function init() {
   // Register hooks (breaks circular dependencies: save-manager <-> UI modules)
   registerAchievementHooks(getAchievementSaveData, restoreAchievements);
   registerBreedHooks(getParentAId, getParentBId, restoreBreedParents);
+  registerClutchHooks(getClutchSaveData, restoreClutch);
   registerCaptureHooks(getCapturedDragonIds, restoreCapturedDragons);
   registerShopHooks(getShopSaveData, restoreShopState);
   registerSkillHooks(getSkillSaveData, restoreSkillState);
@@ -665,6 +666,7 @@ async function init() {
   // Apply deferred restores (breed parents + captured dragons) after UI init
   applyPendingCapturedRestore(registry);
   applyPendingBreedRestore(registry);
+  applyPendingClutchRestore(registry);
 
   // Restore pinned quest from saved setting (after quests + widget are initialized)
   restoreHighlightedQuest(getActiveQuests());

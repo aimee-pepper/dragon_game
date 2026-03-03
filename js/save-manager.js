@@ -148,6 +148,25 @@ export function applyPendingBreedRestore(registry) {
   _pendingBreedParentBId = null;
 }
 
+// ── Clutch hooks (set by app.js) ──
+
+let _getClutchSaveData = () => null;
+let _restoreClutch = () => {};
+let _pendingClutchData = null;
+
+export function registerClutchHooks(getSaveData, restore) {
+  _getClutchSaveData = getSaveData;
+  _restoreClutch = restore;
+}
+
+/** Call from app.js after initBreedTab() to restore the current clutch */
+export function applyPendingClutchRestore(registry) {
+  if (_pendingClutchData) {
+    _restoreClutch(_pendingClutchData, registry);
+    _pendingClutchData = null;
+  }
+}
+
 // ── Captured dragon hooks (set by app.js) ──
 
 let _getCapturedDragonIds = () => [];
@@ -319,6 +338,7 @@ export function saveGame(registry) {
       breedParentBId: _getBreedParentBId(),
       capturedDragonIds: _getCapturedDragonIds(),
       eggRack: getEggRackSaveData(),
+      clutch: _getClutchSaveData(),
       dragons: {},
       quests: getAllQuests(),
       stats: { ...stats },
@@ -367,6 +387,13 @@ function collectReachableDragons() {
   }
   for (const did of getDenDragonIds()) {
     seedIds.add(did);
+  }
+  // Clutch dragons: include in save so they survive reload
+  const clutchData = _getClutchSaveData();
+  if (clutchData?.eggs) {
+    for (const egg of clutchData.eggs) {
+      if (egg.dragonId != null) seedIds.add(egg.dragonId);
+    }
   }
   // Egg rack dragons: add their parent IDs to seed set
   // (egg rack dragon data is saved inline, but their ancestors need persisting)
@@ -536,6 +563,9 @@ export function loadGame(registry) {
     // Deferred restore: breed parents (applied after initBreedTab)
     _pendingBreedParentAId = saveData.breedParentAId ?? null;
     _pendingBreedParentBId = saveData.breedParentBId ?? null;
+
+    // Deferred restore: clutch (applied after initBreedTab)
+    _pendingClutchData = saveData.clutch ?? null;
 
     // Deferred restore: captured dragons (applied after initGenerateTab)
     _pendingCapturedDragonIds = saveData.capturedDragonIds ?? [];

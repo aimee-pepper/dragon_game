@@ -76,6 +76,7 @@ export function initBreedTab(container, registry) {
     renderEmptySlot(parentBContainer, 'B');
     clutchContainer.innerHTML = '';
     updateBreedButton();
+    triggerSave();
   });
   breedActions.appendChild(clearAllBtn);
 
@@ -422,6 +423,7 @@ function doBreed() {
     unlimitedHatch,
   };
 
+  triggerSave();
   renderClutch();
 }
 
@@ -598,6 +600,7 @@ function renderUnhatchedEgg(egg, index, instantRemaining, timedRemaining) {
     discardBtn.style.opacity = '0.6';
     discardBtn.addEventListener('click', () => {
       egg.status = 'discarded';
+      triggerSave();
       renderClutch();
     });
     actions.appendChild(discardBtn);
@@ -611,6 +614,7 @@ function renderUnhatchedEgg(egg, index, instantRemaining, timedRemaining) {
       hatchBtn.addEventListener('click', () => {
         egg.status = 'hatched';
         currentClutch.instantUsed++;
+        triggerSave();
         renderClutch();
       });
       actions.appendChild(hatchBtn);
@@ -625,6 +629,7 @@ function renderUnhatchedEgg(egg, index, instantRemaining, timedRemaining) {
         if (added) {
           egg.status = 'racked';
           currentClutch.timedUsed++;
+          triggerSave();
           renderClutch();
         }
       });
@@ -636,6 +641,7 @@ function renderUnhatchedEgg(egg, index, instantRemaining, timedRemaining) {
     discardBtn.style.opacity = '0.6';
     discardBtn.addEventListener('click', () => {
       egg.status = 'discarded';
+      triggerSave();
       renderClutch();
     });
     actions.appendChild(discardBtn);
@@ -886,6 +892,37 @@ export function getParentBId() {
 export function restoreBreedParents(dragonA, dragonB) {
   if (dragonA) setParent('A', dragonA);
   if (dragonB) setParent('B', dragonB);
+}
+
+// ── Clutch persistence ──
+
+export function getClutchSaveData() {
+  if (!currentClutch) return null;
+  return {
+    eggs: currentClutch.eggs.map(e => ({ dragonId: e.dragon.id, status: e.status })),
+    instantUsed: currentClutch.instantUsed,
+    timedUsed: currentClutch.timedUsed,
+    budget: currentClutch.budget,
+    unlimitedHatch: currentClutch.unlimitedHatch,
+  };
+}
+
+export function restoreClutch(savedClutch, registry) {
+  if (!savedClutch || !Array.isArray(savedClutch.eggs)) return;
+  const eggs = [];
+  for (const e of savedClutch.eggs) {
+    const dragon = registry.get(e.dragonId);
+    if (dragon) eggs.push({ dragon, status: e.status });
+  }
+  if (eggs.length === 0) return;
+  currentClutch = {
+    eggs,
+    instantUsed: savedClutch.instantUsed || 0,
+    timedUsed: savedClutch.timedUsed || 0,
+    budget: savedClutch.budget || { instantCount: 0, timedCount: 0 },
+    unlimitedHatch: savedClutch.unlimitedHatch || false,
+  };
+  renderClutch();
 }
 
 // ── Pending breed effects indicator ──

@@ -4,6 +4,7 @@ import { exportDragonPNG, importDragonPNG } from './dragon-io.js';
 import { getStabledDragons, addToStables } from './ui-stables.js';
 import { renderPickerItem, renderShowcaseCard } from './ui-card.js';
 import { triggerSave, addToStat, getStats, listBackups, restoreFromBackup } from './save-manager.js';
+import { resetMapProgress } from './map-engine.js';
 import { decodeDragonParams } from './dragon-url.js';
 import { Dragon } from './dragon.js';
 
@@ -277,6 +278,15 @@ export function initOptionsTab(container, registry) {
   });
   resetBtns.appendChild(resetGoldBtn);
 
+  const resetMapBtn = el('button', 'btn btn-danger btn-small', 'Reset Map');
+  resetMapBtn.addEventListener('click', () => {
+    if (!confirm('Reset all map unlocks and exploration progress?')) return;
+    resetMapProgress();
+    triggerSave();
+    showToast('Map progress reset', 'info');
+  });
+  resetBtns.appendChild(resetMapBtn);
+
   wrapper.appendChild(resetBtns);
 
   const resetAllBtn = el('button', 'btn btn-danger', 'Reset All Progress');
@@ -288,6 +298,8 @@ export function initOptionsTab(container, registry) {
     addToStat('gold', -s.gold);
     addToStat('exp', -s.exp);
     addToStat('rep', -s.rep);
+    resetMapProgress();
+    triggerSave();
     showToast('All progress reset', 'info');
   });
   wrapper.appendChild(resetAllBtn);

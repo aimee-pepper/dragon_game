@@ -492,6 +492,14 @@ export function getMapSaveData() {
   };
 }
 
+export function resetMapProgress() {
+  unlockedRegions = new Set(Object.keys(REGIONS));
+  unlockedTerritories = new Set();
+  unlockedHabitats = new Set();
+  traitDiscoveries = new Set();
+  explorationLog = {};
+}
+
 export function restoreMapState(data) {
   if (!data) return;
   if (data.unlockedRegions) {

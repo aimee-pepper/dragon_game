@@ -21,7 +21,7 @@ import { getGenesForQuest, getDesiredAllelesForQuest } from './quest-gene-map.js
 import { incrementStat } from './save-manager.js';
 import { getSetting, onSettingChange } from './settings.js';
 import { deriveCombatStats } from './stat-config.js';
-import { simulateCombat } from './combat-engine.js';
+import { simulateCombat, getDistanceMeleeMod, getDistanceBreathMod, getMeleeHeightMod, getBreathHeightMod } from './combat-engine.js';
 import { renderDragonSprite as renderLegacySprite } from './ui-dragon-sprite.js';
 import { renderDragon } from './sprite-renderer.js';
 import { SPRITE_WIDTH, SPRITE_HEIGHT } from './sprite-config.js';
@@ -719,11 +719,8 @@ function renderEncounterCards(screen, zone) {
     }
     cardWrapper.appendChild(badge);
 
-    // Dragon card with actions
+    // Dragon card — no stable/parent buttons (must win encounter first)
     const card = renderDragonCard(dragon, {
-      onSaveToStables: (d) => addToStables(d),
-      onUseAsParentA: (d) => { setParentExternal('A', d); showMapToast(`Parent A set: ${d.name}`); },
-      onUseAsParentB: (d) => { setParentExternal('B', d); showMapToast(`Parent B set: ${d.name}`); },
       highlightGenes,
       desiredAlleles,
     });
@@ -814,6 +811,213 @@ function renderStablesPicker(wildDragon, zoneId) {
   document.body.appendChild(overlay);
 }
 
+// ── Placement grid (4×4 height × distance) ─────────────────
+
+const HEIGHT_LABELS = ['Ground', 'Low', 'Mid', 'High'];
+const DIST_LABELS = ['Melee', 'Short', 'Medium', 'Long'];
+
+/**
+ * Compute wild dragon's auto-chosen distance.
+ * Priority: no breath → Melee; melee > breath → Melee; else from breathRange.
+ * Returns { distance, heightOverride? }
+ */
+function getWildPosition(stats) {
+  if (stats.breathDamage === 0) {
+    return { distance: 0, heightOverride: 0 };
+  }
+  if (stats.meleeDamage > stats.breathDamage) {
+    return { distance: 0 };
+  }
+  const range = stats.breathRange || 1;
+  // Close(1)→Short(1), Mid(2)→Medium(2), Far(3)→Long(3)
+  return { distance: Math.min(3, range) };
+}
+
+/**
+ * Compute heatmap scores for each distance column (0-3) for a dragon at
+ * its height row vs the opponent. Returns array of 4 numbers in [-1, 1]
+ * where positive = favorable, negative = unfavorable.
+ */
+function computeDistanceHeatmap(stats, opponentStats) {
+  const scores = [];
+  const myHeight = stats.height ?? 0;
+  const oppHeight = opponentStats.height ?? 0;
+  const oppDist = opponentStats.distance ?? 0;
+
+  for (let d = 0; d <= 3; d++) {
+    let score = 0;
+
+    // --- My melee output at this distance ---
+    const myMeleeDist = getDistanceMeleeMod(d, oppDist);
+    const myMeleeHeight = getMeleeHeightMod(myHeight, oppHeight);
+    if (myMeleeDist.canMelee && myMeleeHeight.canMelee) {
+      score += 0.25 * myMeleeDist.meleeMult * myMeleeHeight.meleeMult;
+    }
+
+    // --- Opponent's melee risk to me from their position ---
+    const oppMeleeDist = getDistanceMeleeMod(oppDist, d);
+    const oppMeleeHeight = getMeleeHeightMod(oppHeight, myHeight);
+    if (oppMeleeDist.canMelee && oppMeleeHeight.canMelee) {
+      score -= 0.25 * oppMeleeDist.meleeMult * oppMeleeHeight.meleeMult;
+    }
+
+    // --- My breath output at this distance ---
+    const myBreathDist = getDistanceBreathMod(d, oppDist, stats.breathRange || 1);
+    const breathEff = 1 + (myBreathDist.accMod + myBreathDist.dmgMod) / 200; // normalized
+    score += 0.25 * breathEff;
+
+    // --- Opponent's breath risk ---
+    const oppBreathDist = getDistanceBreathMod(oppDist, d, opponentStats.breathRange || 1);
+    const oppBreathEff = 1 + (oppBreathDist.accMod + oppBreathDist.dmgMod) / 200;
+    score -= 0.25 * oppBreathEff;
+
+    scores.push(Math.max(-1, Math.min(1, score)));
+  }
+  return scores;
+}
+
+/**
+ * Map a score [-1, 1] to an rgba color string for heatmap.
+ */
+function heatmapColor(score) {
+  if (score > 0.1)  return `rgba(60, 180, 60, ${0.15 + score * 0.35})`;
+  if (score < -0.1) return `rgba(180, 60, 60, ${0.15 + Math.abs(score) * 0.35})`;
+  return 'rgba(180, 180, 60, 0.15)';
+}
+
+/**
+ * Build a 4×4 placement grid DOM element.
+ * @param {Object} stats - dragon's combat stats (including .height)
+ * @param {Object} dragon - Dragon object (for sprite rendering)
+ * @param {Object} opponentStats - opponent's stats (including .distance for heatmap)
+ * @param {Object} opts - { interactive, onSelect, initialDistance }
+ * @returns {HTMLElement}
+ */
+function renderPlacementGrid(stats, dragon, opponentStats, opts = {}) {
+  const { interactive = false, onSelect = null, initialDistance = null, mirror = false } = opts;
+  const myHeight = stats.height ?? 0;
+  // Row index: top row = High (3), bottom row = Ground (0)
+  // So row 0 in grid = height 3, row 3 in grid = height 0
+  const heightRow = 3 - myHeight;
+
+  const wrapper = el('div', 'placement-grid-wrapper');
+
+  // Y-axis ticks (top=High, bottom=Ground)
+  const yTicks = el('div', 'grid-y-ticks');
+  for (let i = 3; i >= 0; i--) {
+    const tick = el('span', 'grid-tick');
+    tick.dataset.tooltip = HEIGHT_LABELS[i];
+    yTicks.appendChild(tick);
+  }
+  wrapper.appendChild(yTicks);
+
+  // 4×4 grid
+  const grid = el('div', 'placement-grid');
+  const cells = [];
+  let selectedCell = null;
+  let spriteEl = null;
+
+  // Build mini sprite
+  const p = dragon.phenotype;
+  const miniSprite = renderLegacySprite(p, false);
+  miniSprite.classList.add('grid-sprite');
+  miniSprite.style.width = '24px';
+  miniSprite.style.height = '24px';
+
+  // Try fancy sprite too
+  if (getSetting('art-style') !== 'pixel') {
+    renderDragon(p, { compact: false, fallbackToTest: false }).then(canvas => {
+      const ctx = canvas.getContext('2d');
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      let hasPixels = false;
+      for (let i2 = 3; i2 < imageData.data.length; i2 += 4) {
+        if (imageData.data[i2] > 0) { hasPixels = true; break; }
+      }
+      if (hasPixels) {
+        canvas.classList.add('grid-sprite');
+        canvas.style.width = '24px';
+        canvas.style.height = '24px';
+        canvas.style.imageRendering = 'pixelated';
+        if (spriteEl && spriteEl.parentElement) {
+          spriteEl.replaceWith(canvas);
+        }
+        spriteEl = canvas;
+      }
+    });
+  }
+  spriteEl = miniSprite;
+
+  // Compute heatmap
+  const heatmap = computeDistanceHeatmap(stats, opponentStats);
+
+  for (let row = 0; row < 4; row++) {
+    for (let col = 0; col < 4; col++) {
+      // When mirrored, visual column 0 (leftmost) = distance 3 (Long)
+      const distCol = mirror ? 3 - col : col;
+      const cell = el('div', 'grid-cell');
+      const isHeightRow = row === heightRow;
+
+      if (isHeightRow) {
+        cell.classList.add('height-row');
+        cell.style.background = heatmapColor(heatmap[distCol]);
+
+        if (interactive) {
+          cell.classList.add('selectable');
+          cell.addEventListener('click', () => {
+            if (selectedCell) selectedCell.classList.remove('selected');
+            cell.classList.add('selected');
+            selectedCell = cell;
+            // Move sprite
+            if (spriteEl.parentElement) spriteEl.parentElement.removeChild(spriteEl);
+            cell.appendChild(spriteEl);
+            if (onSelect) onSelect(distCol);
+          });
+        }
+      } else {
+        cell.classList.add('dimmed');
+      }
+
+      cells.push(cell);
+      grid.appendChild(cell);
+    }
+  }
+
+  wrapper.appendChild(grid);
+
+  // X-axis ticks (reversed when mirrored so labels read Long→Melee left-to-right)
+  const xTicks = el('div', 'grid-x-ticks');
+  for (let i = 0; i < 4; i++) {
+    const distIdx = mirror ? 3 - i : i;
+    const tick = el('span', 'grid-tick');
+    tick.dataset.tooltip = DIST_LABELS[distIdx];
+    xTicks.appendChild(tick);
+  }
+
+  // Wrap grid+xticks vertically
+  const gridCol = el('div', '');
+  gridCol.style.display = 'flex';
+  gridCol.style.flexDirection = 'column';
+  gridCol.appendChild(grid);
+  gridCol.appendChild(xTicks);
+
+  // grid was re-parented into gridCol by appendChild above, just add gridCol to wrapper
+  wrapper.appendChild(gridCol);
+
+  // Place sprite in initial position
+  if (initialDistance !== null) {
+    const visualCol = mirror ? 3 - initialDistance : initialDistance;
+    const targetIdx = heightRow * 4 + visualCol;
+    const targetCell = cells[targetIdx];
+    if (targetCell) {
+      targetCell.appendChild(spriteEl);
+      targetCell.classList.add('selected');
+      selectedCell = targetCell;
+    }
+  }
+
+  return wrapper;
+}
+
 // ── Combat view ─────────────────────────────────────────────
 
 function renderCombatView(wildDragon, playerDragon, zoneId) {
@@ -830,47 +1034,148 @@ function renderCombatView(wildDragon, playerDragon, zoneId) {
 
   screen.appendChild(el('h2', 'zone-combat-title', '\u2694\uFE0F Combat'));
 
-  // Fighter cards side by side
-  const fighters = el('div', 'zone-combat-fighters');
+  // Arena wrapper (5-column on desktop)
+  const arena = el('div', 'zone-combat-arena');
 
   const wildStats = deriveCombatStats(wildDragon.phenotype);
   const playerStats = deriveCombatStats(playerDragon.phenotype);
 
-  fighters.appendChild(renderFighterCard(wildDragon, wildStats, 'Wild'));
+  // Wild dragon auto-positioning
+  const wildPos = getWildPosition(wildStats);
+  wildStats.distance = wildPos.distance;
+  if (wildPos.heightOverride !== undefined) wildStats.height = wildPos.heightOverride;
+
+  // Player distance (set when they click a grid cell)
+  let playerDistance = null;
+
+  // Fighters wrapper (display:contents on desktop → children become grid items)
+  const fighters = el('div', 'zone-combat-fighters');
+
+  // ── Panel A (player side): dragon card + stats column ──
+  const panelA = el('div', 'zone-combat-panel panel-a');
+
+  const dragonCardA = renderDragonCard(playerDragon, { showGenotype: false });
+  dragonCardA.classList.add('combat-dragon-card');
+  panelA.appendChild(dragonCardA);
+
+  const statsColA = el('div', 'zone-combat-stats stats-a');
+  statsColA.appendChild(el('div', 'zone-fighter-label', 'Yours'));
+  const statLinesA = [
+    `HP: ${playerStats.hp}`,
+    `Melee: ${playerStats.meleeDamage}`,
+    `Breath: ${playerStats.breathDamage}`,
+    `Armor: ${playerStats.armor}`,
+    `Speed: ${playerStats.speed}`,
+    `Evasion: ${playerStats.evasion}%`,
+    `Accuracy: ${playerStats.accuracy}%`,
+  ];
+  for (const line of statLinesA) {
+    statsColA.appendChild(el('div', 'zone-fighter-stat', line));
+  }
+  const badgesA = el('div', 'zone-combat-status-badges badges-a');
+  statsColA.appendChild(badgesA);
+
+  // Placement grid (player — interactive, mirrored so melee faces center)
+  const playerGrid = renderPlacementGrid(playerStats, playerDragon, wildStats, {
+    interactive: true,
+    mirror: true,
+    onSelect: (distIdx) => {
+      playerDistance = distIdx;
+      playerStats.distance = distIdx;
+      fightBtn.disabled = false;
+      fightBtn.textContent = '\u2694\uFE0F Fight!';
+    },
+  });
+  statsColA.appendChild(playerGrid);
+  panelA.appendChild(statsColA);
+
+  fighters.appendChild(panelA);
   fighters.appendChild(el('div', 'zone-combat-vs', 'VS'));
-  fighters.appendChild(renderFighterCard(playerDragon, playerStats, 'Yours'));
-  screen.appendChild(fighters);
 
-  // HP bars at max (pre-fight)
-  const wildCard = fighters.querySelector('.zone-fighter-card:first-child');
-  const playerCard = fighters.querySelector('.zone-fighter-card:last-child');
-  const wildHp = createHpBar(wildCard, wildStats.hp, wildStats.hp);
-  const playerHp = createHpBar(playerCard, playerStats.hp, playerStats.hp);
+  // ── Panel B (wild side): stats column + dragon card ──
+  const panelB = el('div', 'zone-combat-panel panel-b');
 
-  // Combat log (always visible, below fighters)
+  const statsColB = el('div', 'zone-combat-stats stats-b');
+  statsColB.appendChild(el('div', 'zone-fighter-label', 'Wild'));
+  const statLinesB = [
+    `HP: ${wildStats.hp}`,
+    `Melee: ${wildStats.meleeDamage}`,
+    `Breath: ${wildStats.breathDamage}`,
+    `Armor: ${wildStats.armor}`,
+    `Speed: ${wildStats.speed}`,
+    `Evasion: ${wildStats.evasion}%`,
+    `Accuracy: ${wildStats.accuracy}%`,
+  ];
+  for (const line of statLinesB) {
+    statsColB.appendChild(el('div', 'zone-fighter-stat', line));
+  }
+  const badgesB = el('div', 'zone-combat-status-badges badges-b');
+  statsColB.appendChild(badgesB);
+
+  // Placement grid (wild — auto-positioned)
+  const wildGrid = renderPlacementGrid(wildStats, wildDragon, playerStats, {
+    interactive: false,
+    initialDistance: wildStats.distance,
+  });
+  statsColB.appendChild(wildGrid);
+  panelB.appendChild(statsColB);
+
+  const dragonCardB = renderDragonCard(wildDragon, { showGenotype: false });
+  dragonCardB.classList.add('combat-dragon-card');
+  panelB.appendChild(dragonCardB);
+
+  fighters.appendChild(panelB);
+  arena.appendChild(fighters);
+
+  // ── HP bars spanning card + stats column ──
+  const hpSpanA = el('div', 'zone-combat-hp-span hp-span-a');
+  const playerHp = createHpBar(hpSpanA, playerStats.hp, playerStats.hp);
+  arena.appendChild(hpSpanA);
+
+  const hpSpanB = el('div', 'zone-combat-hp-span hp-span-b');
+  const wildHp = createHpBar(hpSpanB, wildStats.hp, wildStats.hp);
+  arena.appendChild(hpSpanB);
+
+  // ── Center column: fight button, combat log, results ──
+  const center = el('div', 'zone-combat-center');
+
+  const fightBtn = el('button', 'btn btn-primary zone-combat-fight-btn', 'Choose Position');
+  fightBtn.disabled = true;
+  center.appendChild(fightBtn);
+
   const logContent = el('div', 'zone-combat-log-content');
-  screen.appendChild(logContent);
+  center.appendChild(logContent);
 
-  // Results area (banner + stable button, hidden until fight ends)
   const resultsArea = el('div', 'zone-combat-results');
   resultsArea.style.display = 'none';
-  screen.appendChild(resultsArea);
+  center.appendChild(resultsArea);
 
-  // Fight button
-  const fightBtn = el('button', 'btn btn-primary zone-combat-fight-btn', '\u2694\uFE0F Fight!');
-  screen.appendChild(fightBtn);
+  arena.appendChild(center);
+  screen.appendChild(arena);
 
   // Combat state
   let autoPlayTimer = null;
   const maxHpA = playerStats.hp;
   const maxHpB = wildStats.hp;
 
+  // Status badge tracking (populated during combat playback)
+  const activeStatusesA = []; // { type, label, emoji, remaining }
+  const activeStatusesB = [];
+
+  function renderBadges(container, statuses) {
+    container.innerHTML = '';
+    for (const s of statuses) {
+      const badge = el('span', 'status-badge', `${s.emoji} ${s.label} (${s.remaining}t)`);
+      container.appendChild(badge);
+    }
+  }
+
   fightBtn.addEventListener('click', () => {
     fightBtn.style.display = 'none';
 
     // Run simulation (instant, but we'll play back step-by-step)
     const result = simulateCombat(
-      { ...playerStats, name: playerDragon.name },
+      { ...playerStats, name: playerDragon.name, distance: playerDistance },
       { ...wildStats, name: wildDragon.name },
     );
 
@@ -904,11 +1209,40 @@ function renderCombatView(wildDragon, playerDragon, zoneId) {
         else if (entry.attacker === 'B') runningHpB = Math.max(0, runningHpB - entry.reflectEntry.damage);
       }
 
+      // ── Track status badges ──
+      if (entry.statusApplied) {
+        // Status was applied — figure out which side got it
+        // attacker applied it to defender: attacker=A → defender B, attacker=B → defender A
+        const targetStatuses = entry.attacker === 'A' ? activeStatusesB : activeStatusesA;
+        targetStatuses.push({
+          type: entry.statusApplied,
+          label: entry.statusLabel || entry.statusApplied,
+          emoji: entry.statusEmoji || '💥',
+          remaining: entry.statusDuration || 3,
+        });
+      }
+      if (entry.statusExpired) {
+        // Status expired — side field tells us which fighter
+        const targetStatuses = entry.side === 'A' ? activeStatusesA : activeStatusesB;
+        const idx = targetStatuses.findIndex(s => s.type === entry.statusExpired);
+        if (idx !== -1) targetStatuses.splice(idx, 1);
+      }
+      if (entry.statusTick && entry.statusTick === 'burn') {
+        // DOT tick — decrement remaining turns for display
+        const targetStatuses = entry.side === 'A' ? activeStatusesA : activeStatusesB;
+        const s = targetStatuses.find(st => st.type === 'burn');
+        if (s && s.remaining > 0) s.remaining--;
+      }
+
       // Update HP bars
       updateHpBar(playerHp, runningHpA, maxHpA);
       updateHpBar(wildHp, runningHpB, maxHpB);
 
-      // Append log entry (tester-style)
+      // Render status badges
+      renderBadges(badgesA, activeStatusesA);
+      renderBadges(badgesB, activeStatusesB);
+
+      // Append log entry
       appendCombatLogEntry(logContent, entry, runningHpA, maxHpA, runningHpB, maxHpB, playerDragon.name, wildDragon.name);
 
       stepIndex++;
@@ -992,57 +1326,117 @@ function hpColor(current, max) {
   return '#F44336';
 }
 
-// ── Combat log entry (matches combat tester format) ──
+// ── Combat log entry (two-line per attack: attacker line + defender line) ──
 
 function appendCombatLogEntry(container, entry, hpA, maxA, hpB, maxB, nameA, nameB) {
-  const line = el('div', 'zone-combat-entry');
+  const atkName = entry.attacker === 'A' ? nameA : entry.attacker === 'B' ? nameB : '';
+  const defName = entry.attacker === 'A' ? nameB : entry.attacker === 'B' ? nameA : '';
+  const atkSide = entry.attacker; // 'A' or 'B'
+  const defSide = atkSide === 'A' ? 'B' : 'A';
 
-  // Side alignment
-  if (entry.attacker === 'A') line.classList.add('log-side-a');
-  else if (entry.attacker === 'B') line.classList.add('log-side-b');
-  else if (entry.attacker === 'system') line.classList.add('log-system');
-  else if (entry.attacker === 'status') {
-    line.classList.add(entry.side === 'A' ? 'log-side-a' : 'log-side-b');
-    line.classList.add('log-status');
+  // ── Status applied: prominent banner-style entry with attacker's side bar ──
+  if (entry.statusApplied) {
+    const sideClass = entry.attacker === 'A' || entry.attacker === 'B'
+      ? ` log-side-${entry.attacker.toLowerCase()}` : '';
+    const line = el('div', `zone-combat-entry log-status-applied${sideClass}`);
+    line.appendChild(el('span', 'zone-combat-log-text', entry.details || ''));
+    container.appendChild(line);
+    container.scrollTop = container.scrollHeight;
+    return;
   }
 
-  // Color-code by result
-  if (entry.dodged) line.classList.add('log-miss');
-  else if (entry.statusTick === 'thorns' || entry.statusTick === 'breathReflect') line.classList.add('log-reflect');
-  else if (entry.statusTick) line.classList.add('log-dot');
-  else if (entry.damage > 0) line.classList.add('log-hit');
+  // ── Status DOT tick: red-ish styling with affected side's bar ──
+  if (entry.statusTick && entry.attacker === 'status') {
+    let cls = 'zone-combat-entry log-status-tick';
+    if (entry.statusExpired) cls = 'zone-combat-entry log-status-expired';
+    if (entry.side) cls += ` log-side-${entry.side.toLowerCase()}`;
+    const line = el('div', cls);
+    line.appendChild(el('span', 'zone-combat-log-text', entry.details || ''));
+    container.appendChild(line);
+    container.scrollTop = container.scrollHeight;
+    return;
+  }
 
-  // Turn badge
+  // ── Status expired: muted italic with affected side's bar ──
+  if (entry.statusExpired && entry.attacker === 'status') {
+    let cls = 'zone-combat-entry log-status-expired';
+    if (entry.side) cls += ` log-side-${entry.side.toLowerCase()}`;
+    const line = el('div', cls);
+    line.appendChild(el('span', 'zone-combat-log-text', entry.details || ''));
+    container.appendChild(line);
+    container.scrollTop = container.scrollHeight;
+    return;
+  }
+
+  // System messages and other status entries — single centered line
+  if (entry.attacker === 'status' || entry.attacker === 'system') {
+    const line = el('div', 'zone-combat-entry log-system');
+    line.appendChild(el('span', 'zone-combat-log-text', entry.details || ''));
+    container.appendChild(line);
+    container.scrollTop = container.scrollHeight;
+    return;
+  }
+
+  // Determine attacker/defender HP
+  let defHpNow, defHpMax;
+  if (atkSide === 'A') { defHpNow = hpB; defHpMax = maxB; }
+  else { defHpNow = hpA; defHpMax = maxA; }
+
+  // ── Line 1: Attacker action (aligned to attacker's side) ──
+  const atkLine = el('div', `zone-combat-entry log-side-${atkSide.toLowerCase()}`);
   if (entry.turn > 0) {
-    line.appendChild(el('span', 'zone-combat-turn-badge', `T${entry.turn}`));
+    atkLine.appendChild(el('span', 'zone-combat-turn-badge', `T${entry.turn}`));
   }
 
-  // Main text
-  const textSpan = el('span', 'zone-combat-log-text', entry.details || '');
+  let atkText = '';
+  if (entry.dodged) {
+    atkText = `${atkName} uses ${entry.attackType} attack — miss!`;
+    atkLine.classList.add('log-miss');
+  } else if (entry.damage > 0) {
+    const atkType = entry.attackType === 'breath'
+      ? `${entry.details.match(/\w+ breath/)?.[0] || 'breath'} attack`
+      : 'melee attack';
+    // Extract mitigation info from details parenthetical
+    const mitigationMatch = entry.details.match(/\(([^)]+)\)/);
+    const mitigationNote = mitigationMatch ? mitigationMatch[1] : '';
+    atkText = `${atkName} uses ${atkType} for ${entry.damage} dmg`;
+    if (mitigationNote) atkText += ` (${mitigationNote})`;
+    atkLine.classList.add('log-hit');
+  } else {
+    atkText = entry.details || `${atkName} attacks`;
+  }
+  atkLine.appendChild(el('span', 'zone-combat-log-text', atkText));
+  container.appendChild(atkLine);
 
-  // Inline HP for damage entries
-  if (entry.damage && maxA) {
-    let defHpNow, defHpMax;
-    if (entry.attacker === 'A') { defHpNow = hpB; defHpMax = maxB; }
-    else if (entry.attacker === 'B') { defHpNow = hpA; defHpMax = maxA; }
-    else if (entry.attacker === 'status') {
-      if (entry.side === 'A') { defHpNow = hpA; defHpMax = maxA; }
-      else { defHpNow = hpB; defHpMax = maxB; }
-    }
-    if (defHpMax) {
-      const hpInline = el('span', 'zone-combat-log-hp-inline');
-      const hpVal = el('span', 'zone-combat-log-hp-val');
-      hpVal.textContent = `${Math.round(defHpNow)}`;
-      hpVal.style.color = hpColor(defHpNow, defHpMax);
-      hpInline.appendChild(document.createTextNode(' ['));
-      hpInline.appendChild(hpVal);
-      hpInline.appendChild(document.createTextNode(`/${Math.round(defHpMax)}]`));
-      textSpan.appendChild(hpInline);
-    }
+  // ── Line 2: Defender takes damage (aligned to defender's side) ──
+  if (entry.damage > 0 && !entry.dodged) {
+    const defLine = el('div', `zone-combat-entry log-side-${defSide.toLowerCase()} log-defender`);
+    const defText = el('span', 'zone-combat-log-text');
+    defText.appendChild(document.createTextNode(`${defName} takes ${entry.damage} damage | `));
+
+    const hpVal = el('span', 'zone-combat-log-hp-val');
+    hpVal.textContent = Math.round(defHpNow);
+    hpVal.style.color = hpColor(defHpNow, defHpMax);
+    defText.appendChild(hpVal);
+    defText.appendChild(document.createTextNode(`/${Math.round(defHpMax)}`));
+    defLine.appendChild(defText);
+    container.appendChild(defLine);
   }
 
-  line.appendChild(textSpan);
-  container.appendChild(line);
+  // ── Thorns/reflect sub-entries (bar matches the side taking damage) ──
+  if (entry.thornsEntry) {
+    // Thorns damage goes back to attacker — use attacker's side bar
+    const tLine = el('div', `zone-combat-entry log-reflect log-side-${atkSide.toLowerCase()}`);
+    tLine.appendChild(el('span', 'zone-combat-log-text', entry.thornsEntry.details));
+    container.appendChild(tLine);
+  }
+  if (entry.reflectEntry) {
+    // Reflect damage goes back to attacker — use attacker's side bar
+    const rLine = el('div', `zone-combat-entry log-reflect log-side-${atkSide.toLowerCase()}`);
+    rLine.appendChild(el('span', 'zone-combat-log-text', entry.reflectEntry.details));
+    container.appendChild(rLine);
+  }
+
   container.scrollTop = container.scrollHeight;
 }
 

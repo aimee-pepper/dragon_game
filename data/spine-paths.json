@@ -992,14 +992,14 @@
         "t": 0.45294117647058824,
         "mul": 1.5475115901517278,
         "rot": 63.239568863444944,
-        "wid": 1,
+        "wid": 0.65,
         "spc": 0.7812210246206804
       },
       {
         "t": 0.579412,
         "mul": 1.6,
         "rot": 12,
-        "wid": 1,
+        "wid": 0.25,
         "spc": 0.65
       },
       {
@@ -1379,7 +1379,7 @@
         "t": 0,
         "mul": 2.45,
         "rot": 81,
-        "wid": 1,
+        "wid": 1.25,
         "spc": 2.4
       },
       {
@@ -1400,14 +1400,14 @@
         "t": 0.578125,
         "mul": 2.6,
         "rot": -3,
-        "wid": 1,
+        "wid": 0.25,
         "spc": 0.85
       },
       {
         "t": 0.604688,
         "mul": 2.05,
         "rot": -46,
-        "wid": 1,
+        "wid": 0.6,
         "spc": 0.75
       },
       {
@@ -1997,16 +1997,16 @@
         "y": 1201
       },
       {
-        "x": 1842,
-        "y": 1248
+        "x": 1851,
+        "y": 1258
       },
       {
-        "x": 2200,
-        "y": 1302
+        "x": 2164,
+        "y": 1286
       },
       {
-        "x": 2293,
-        "y": 1468
+        "x": 2283,
+        "y": 1464
       },
       {
         "x": 2247,
@@ -2045,7 +2045,7 @@
       {
         "t": 0.338462,
         "mul": 2.55,
-        "rot": 82,
+        "rot": 94,
         "wid": 1,
         "spc": 0.85
       },
@@ -2171,99 +2171,96 @@
     ]
   },
   "standard:whip_short_sail_tall": {
+    "controlPoints": [
+      {
+        "x": 1037,
+        "y": 925
+      },
+      {
+        "x": 1143,
+        "y": 1048
+      },
+      {
+        "x": 1273,
+        "y": 1115
+      },
+      {
+        "x": 1467,
+        "y": 1135
+      },
+      {
+        "x": 1660,
+        "y": 1192
+      },
+      {
+        "x": 1783,
+        "y": 1218
+      },
+      {
+        "x": 1867,
+        "y": 1250
+      },
+      {
+        "x": 2023,
+        "y": 1223
+      },
+      {
+        "x": 2133,
+        "y": 1292
+      },
+      {
+        "x": 2163,
+        "y": 1407
+      }
+    ],
+    "spineCount": 33,
+    "spineSpacing": 1.05,
+    "spineScale": 0.55,
+    "heightOffset": 66,
+    "globalRotation": 0,
+    "perSpineOverrides": {},
+    "heightControlPoints": [
+      {
+        "t": 0,
+        "mul": 2.1,
+        "rot": 99,
+        "wid": 1,
+        "spc": 1.7
+      },
+      {
+        "t": 0.338462,
+        "mul": 1.95,
+        "rot": 87,
+        "wid": 1,
+        "spc": 1
+      },
+      {
+        "t": 0.6875,
+        "mul": 1.45,
+        "rot": 95,
+        "wid": 1,
+        "spc": 0.35
+      },
+      {
+        "t": 0.880556,
+        "mul": 0.7,
+        "rot": 90,
+        "wid": 1,
+        "spc": 0.1
+      },
+      {
+        "t": 1,
+        "mul": 0,
+        "rot": 19,
+        "wid": 1,
+        "spc": 0.5
+      }
+    ],
     "spineType": "sail",
     "spineHeight": "tall",
-    "spineCount": 33,
-    "heightOffset": 66,
-    "spineSpacing": 1.05,
-    "spineScale": 0.55,
-    "controlPoints": [
-      {
-        "x": 1037,
-        "y": 925
-      },
-      {
-        "x": 1143,
-        "y": 1048
-      },
-      {
-        "x": 1273,
-        "y": 1115
-      },
-      {
-        "x": 1467,
-        "y": 1135
-      },
-      {
-        "x": 1660,
-        "y": 1192
-      },
-      {
-        "x": 1783,
-        "y": 1218
-      },
-      {
-        "x": 1867,
-        "y": 1250
-      },
-      {
-        "x": 2023,
-        "y": 1223
-      },
-      {
-        "x": 2143,
-        "y": 1287
-      },
-      {
-        "x": 2163,
-        "y": 1407
-      }
-    ],
-    "heightControlPoints": [
-      {
-        "t": 0,
-        "mul": 2.1,
-        "rot": 0,
-        "wid": 1,
-        "spc": 1.7
-      },
-      {
-        "t": 0.338462,
-        "mul": 1.95,
-        "rot": 0,
-        "wid": 1,
-        "spc": 1
-      },
-      {
-        "t": 0.6875,
-        "mul": 1.45,
-        "rot": 0,
-        "wid": 1,
-        "spc": 0.35
-      },
-      {
-        "t": 0.880556,
-        "mul": 0.7,
-        "rot": 0,
-        "wid": 1,
-        "spc": 0.1
-      },
-      {
-        "t": 1,
-        "mul": 0,
-        "rot": 0,
-        "wid": 1,
-        "spc": 0.5
-      }
-    ]
+    "splitIndex": 5
   },
   "standard:whip_short_spike_medium": {
-    "spineType": "spike",
-    "spineHeight": "medium",
-    "spineCount": 33,
-    "heightOffset": 66,
-    "spineSpacing": 1.05,
-    "spineScale": 0.55,
     "controlPoints": [
       {
         "x": 1037,
@@ -2286,8 +2283,8 @@
         "y": 1192
       },
       {
-        "x": 1783,
-        "y": 1218
+        "x": 1770,
+        "y": 1215
       },
       {
         "x": 1867,
@@ -2298,59 +2295,62 @@
         "y": 1223
       },
       {
-        "x": 2143,
-        "y": 1287
+        "x": 2137,
+        "y": 1296
       },
       {
         "x": 2163,
         "y": 1407
       }
     ],
+    "spineCount": 33,
+    "spineSpacing": 1.05,
+    "spineScale": 0.55,
+    "heightOffset": 66,
+    "globalRotation": 0,
+    "perSpineOverrides": {},
     "heightControlPoints": [
       {
         "t": 0,
         "mul": 2.1,
-        "rot": 0,
+        "rot": 99,
         "wid": 1,
         "spc": 1.7
       },
       {
         "t": 0.338462,
         "mul": 1.95,
-        "rot": 0,
+        "rot": 87,
         "wid": 1,
         "spc": 1
       },
       {
         "t": 0.6875,
         "mul": 1.45,
-        "rot": 0,
+        "rot": 95,
         "wid": 1,
         "spc": 0.35
       },
       {
         "t": 0.880556,
         "mul": 0.7,
-        "rot": 0,
+        "rot": 90,
         "wid": 1,
         "spc": 0.1
       },
       {
         "t": 1,
         "mul": 0,
-        "rot": 0,
+        "rot": 19,
         "wid": 1,
         "spc": 0.5
       }
-    ]
+    ],
+    "spineType": "spike",
+    "spineHeight": "medium",
+    "splitIndex": 5
   },
   "standard:whip_short_spike_tall": {
-    "spineType": "spike",
-    "spineHeight": "tall",
-    "spineCount": 33,
-    "heightOffset": 66,
-    "spineSpacing": 1.05,
-    "spineScale": 0.55,
     "controlPoints": [
       {
         "x": 1037,
@@ -2373,63 +2373,72 @@
         "y": 1192
       },
       {
-        "x": 1783,
-        "y": 1218
+        "x": 1777,
+        "y": 1220
       },
       {
-        "x": 1867,
-        "y": 1250
+        "x": 1852,
+        "y": 1249
       },
       {
         "x": 2023,
         "y": 1223
       },
       {
-        "x": 2143,
-        "y": 1287
+        "x": 2132,
+        "y": 1286
       },
       {
         "x": 2163,
         "y": 1407
       }
     ],
+    "spineCount": 33,
+    "spineSpacing": 1.05,
+    "spineScale": 0.55,
+    "heightOffset": 66,
+    "globalRotation": 0,
+    "perSpineOverrides": {},
     "heightControlPoints": [
       {
         "t": 0,
         "mul": 2.1,
-        "rot": 0,
-        "wid": 0.45,
+        "rot": 99,
+        "wid": 0.5,
         "spc": 1.7
       },
       {
         "t": 0.338462,
         "mul": 1.95,
-        "rot": 0,
-        "wid": 0.55,
+        "rot": 87,
+        "wid": 0.6,
         "spc": 1
       },
       {
         "t": 0.6875,
         "mul": 1.45,
-        "rot": 0,
+        "rot": 95,
         "wid": 0.6,
         "spc": 0.35
       },
       {
         "t": 0.880556,
         "mul": 0.7,
-        "rot": 0,
-        "wid": 0.55,
+        "rot": 90,
+        "wid": 1,
         "spc": 0.1
       },
       {
         "t": 1,
         "mul": 0,
-        "rot": 0,
+        "rot": 19,
         "wid": 1,
         "spc": 0.5
       }
-    ]
+    ],
+    "spineType": "spike",
+    "spineHeight": "tall",
+    "splitIndex": 5
   },
   "standard:normal_short_ridge_low": {
     "controlPoints": [
@@ -5006,6 +5015,276 @@
     ],
     "spineType": "ridge",
     "spineHeight": "medium",
+    "splitIndex": 5
+  },
+  "standard:whip_short_ridge_low": {
+    "controlPoints": [
+      {
+        "x": 1037,
+        "y": 925
+      },
+      {
+        "x": 1143,
+        "y": 1048
+      },
+      {
+        "x": 1273,
+        "y": 1115
+      },
+      {
+        "x": 1467,
+        "y": 1135
+      },
+      {
+        "x": 1660,
+        "y": 1192
+      },
+      {
+        "x": 1783,
+        "y": 1218
+      },
+      {
+        "x": 1867,
+        "y": 1250
+      },
+      {
+        "x": 2023,
+        "y": 1223
+      },
+      {
+        "x": 2130,
+        "y": 1290
+      },
+      {
+        "x": 2163,
+        "y": 1407
+      }
+    ],
+    "spineCount": 43,
+    "spineSpacing": 1,
+    "spineScale": 0.55,
+    "heightOffset": 66,
+    "globalRotation": 0,
+    "perSpineOverrides": {},
+    "heightControlPoints": [
+      {
+        "t": 0,
+        "mul": 2.1,
+        "rot": 99,
+        "wid": 1,
+        "spc": 1.7
+      },
+      {
+        "t": 0.338462,
+        "mul": 1.95,
+        "rot": 87,
+        "wid": 1,
+        "spc": 1
+      },
+      {
+        "t": 0.6875,
+        "mul": 1.45,
+        "rot": 95,
+        "wid": 1,
+        "spc": 0.35
+      },
+      {
+        "t": 0.880556,
+        "mul": 0.7,
+        "rot": 90,
+        "wid": 1,
+        "spc": 0.1
+      },
+      {
+        "t": 1,
+        "mul": 0,
+        "rot": 19,
+        "wid": 1,
+        "spc": 0.5
+      }
+    ],
+    "spineType": "ridge",
+    "spineHeight": "low",
+    "splitIndex": 5
+  },
+  "standard:whip_short_sail_low": {
+    "controlPoints": [
+      {
+        "x": 1037,
+        "y": 925
+      },
+      {
+        "x": 1143,
+        "y": 1048
+      },
+      {
+        "x": 1273,
+        "y": 1115
+      },
+      {
+        "x": 1467,
+        "y": 1135
+      },
+      {
+        "x": 1660,
+        "y": 1192
+      },
+      {
+        "x": 1783,
+        "y": 1218
+      },
+      {
+        "x": 1867,
+        "y": 1250
+      },
+      {
+        "x": 2023,
+        "y": 1223
+      },
+      {
+        "x": 2135,
+        "y": 1292
+      },
+      {
+        "x": 2163,
+        "y": 1407
+      }
+    ],
+    "spineCount": 39,
+    "spineSpacing": 1.05,
+    "spineScale": 0.55,
+    "heightOffset": 66,
+    "globalRotation": 0,
+    "perSpineOverrides": {},
+    "heightControlPoints": [
+      {
+        "t": 0,
+        "mul": 2.1,
+        "rot": 99,
+        "wid": 1,
+        "spc": 1.7
+      },
+      {
+        "t": 0.338462,
+        "mul": 1.95,
+        "rot": 87,
+        "wid": 1,
+        "spc": 1
+      },
+      {
+        "t": 0.6875,
+        "mul": 1.45,
+        "rot": 95,
+        "wid": 1,
+        "spc": 0.35
+      },
+      {
+        "t": 0.880556,
+        "mul": 0.7,
+        "rot": 90,
+        "wid": 1,
+        "spc": 0.1
+      },
+      {
+        "t": 1,
+        "mul": 0,
+        "rot": 19,
+        "wid": 1,
+        "spc": 0.5
+      }
+    ],
+    "spineType": "sail",
+    "spineHeight": "low",
+    "splitIndex": 5
+  },
+  "standard:whip_short_ridge_tall": {
+    "controlPoints": [
+      {
+        "x": 1037,
+        "y": 925
+      },
+      {
+        "x": 1143,
+        "y": 1048
+      },
+      {
+        "x": 1273,
+        "y": 1115
+      },
+      {
+        "x": 1467,
+        "y": 1135
+      },
+      {
+        "x": 1660,
+        "y": 1192
+      },
+      {
+        "x": 1783,
+        "y": 1218
+      },
+      {
+        "x": 1867,
+        "y": 1250
+      },
+      {
+        "x": 2023,
+        "y": 1223
+      },
+      {
+        "x": 2133,
+        "y": 1292
+      },
+      {
+        "x": 2163,
+        "y": 1407
+      }
+    ],
+    "spineCount": 33,
+    "spineSpacing": 1.05,
+    "spineScale": 0.55,
+    "heightOffset": 66,
+    "globalRotation": 0,
+    "perSpineOverrides": {},
+    "heightControlPoints": [
+      {
+        "t": 0,
+        "mul": 2.1,
+        "rot": 99,
+        "wid": 1,
+        "spc": 1.7
+      },
+      {
+        "t": 0.338462,
+        "mul": 1.95,
+        "rot": 87,
+        "wid": 1,
+        "spc": 1
+      },
+      {
+        "t": 0.6875,
+        "mul": 1.45,
+        "rot": 95,
+        "wid": 1,
+        "spc": 0.35
+      },
+      {
+        "t": 0.880556,
+        "mul": 0.7,
+        "rot": 90,
+        "wid": 1,
+        "spc": 0.1
+      },
+      {
+        "t": 1,
+        "mul": 0,
+        "rot": 19,
+        "wid": 1,
+        "spc": 0.5
+      }
+    ],
+    "spineType": "ridge",
+    "spineHeight": "tall",
     "splitIndex": 5
   }
 }

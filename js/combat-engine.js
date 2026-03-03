@@ -3,11 +3,12 @@
 // Takes pre-computed stat objects from stat-config.js
 //
 // Stat shape expected:
-//   { hp, armor, speed, evasion, accuracy, height,
+//   { hp, armor, speed, evasion, accuracy, height, distance?,
 //     meleeDamage, breathDamage, thorns, breathReflect,
 //     fireResist, iceResist, lightningResist,
 //     breathType, breathShape, breathRange,
 //     elementDebuff, isVoid, isPlasma, name? }
+// distance: 0=Melee, 1=Short, 2=Medium, 3=Long (defaults to 0 if omitted)
 
 import { getElementResistance, getHeightName } from './stat-config.js';
 
@@ -37,6 +38,46 @@ function getBreathHeightMod(atkHeight, defHeight) {
   if (diff <= 1) return { accMod: 0, dmgMod: 0, details: '' };
   if (diff === 2) return { accMod: -10, dmgMod: -10, details: ' (2-tier height: -10% Acc, -10% dmg)' };
   return { accMod: -20, dmgMod: -20, details: ' (3-tier height: -20% Acc, -20% dmg)' };
+}
+
+// ── Distance Targeting Rules ─────────────────────────────────
+
+/**
+ * Get melee modifier based on distance gap (attacker vs defender).
+ * Gap = |atkDistance - defDistance|
+ * Returns { canMelee, meleeMult, details }
+ */
+function getDistanceMeleeMod(atkDistance, defDistance) {
+  const gap = Math.abs((atkDistance ?? 0) - (defDistance ?? 0));
+  if (gap <= 0) return { canMelee: true, meleeMult: 1.0, details: '' };
+  if (gap === 1) return { canMelee: true, meleeMult: 0.75, details: ' (distance -25%)' };
+  return { canMelee: false, meleeMult: 0, details: ' (too far for melee)' };
+}
+
+/**
+ * Get breath modifier based on distance gap vs dragon's breath range.
+ * breathRange: 1=Close, 2=Mid, 3=Far
+ * Optimal gap ranges: Close→[0,1], Mid→[1,2], Far→[2,3]
+ * Each tier outside optimal: -15% acc, -10% dmg
+ * Returns { accMod, dmgMod, details }
+ */
+function getDistanceBreathMod(atkDistance, defDistance, breathRange) {
+  const gap = Math.abs((atkDistance ?? 0) - (defDistance ?? 0));
+  const range = breathRange || 1;
+  // Optimal gap band: [range-1, range] clamped to [0,3]
+  const optLo = Math.max(0, range - 1);
+  const optHi = range;
+  let tiersOut = 0;
+  if (gap < optLo) tiersOut = optLo - gap;
+  else if (gap > optHi) tiersOut = gap - optHi;
+  if (tiersOut <= 0) return { accMod: 0, dmgMod: 0, details: '' };
+  const accPen = tiersOut * -15;
+  const dmgPen = tiersOut * -10;
+  return {
+    accMod: accPen,
+    dmgMod: dmgPen,
+    details: ` (dist ${tiersOut > 1 ? tiersOut + ' tiers' : '1 tier'} off-range: ${accPen}% Acc, ${dmgPen}% dmg)`,
+  };
 }
 
 // ── Breath Shape Damage Multiplier (1v1) ─────────────────────
@@ -95,22 +136,25 @@ function hasStun(fighter) {
 
 function chooseBestAttack(attacker, defender) {
   const meleeHM = getMeleeHeightMod(attacker.stats.height, defender.stats.height);
+  const meleeDM = getDistanceMeleeMod(attacker.stats.distance, defender.stats.distance);
+  const canMelee = meleeHM.canMelee && meleeDM.canMelee;
   const armor = getEffectiveArmor(defender);
 
   // Expected melee damage
   let expectedMelee = 0;
-  if (meleeHM.canMelee) {
-    expectedMelee = Math.max(1, attacker.stats.meleeDamage - armor) * meleeHM.meleeMult;
+  if (canMelee) {
+    expectedMelee = Math.max(1, attacker.stats.meleeDamage - armor) * meleeHM.meleeMult * meleeDM.meleeMult;
   }
 
   // Expected breath damage
   const breathBase = attacker.stats.breathDamage || 0;
   const shapeMult = getBreathShapeMult(attacker.stats.breathShape);
   const resist = attacker.stats.isVoid ? 0 : getElementResistance(defender.stats, attacker.stats.breathType);
-  const expectedBreath = breathBase * shapeMult * (1 - resist / 100);
+  const distBM = getDistanceBreathMod(attacker.stats.distance, defender.stats.distance, attacker.stats.breathRange);
+  const expectedBreath = breathBase * shapeMult * (1 - resist / 100) * (1 + distBM.dmgMod / 100);
 
   // Prefer breath if it does more damage, or if we can't melee
-  if (!meleeHM.canMelee || expectedBreath > expectedMelee) {
+  if (!canMelee || expectedBreath > expectedMelee) {
     return 'breath';
   }
   return 'melee';
@@ -120,11 +164,20 @@ function chooseBestAttack(attacker, defender) {
 
 function resolveMeleeAttack(attacker, defender, turnNum) {
   const heightMod = getMeleeHeightMod(attacker.stats.height, defender.stats.height);
+  const distMod = getDistanceMeleeMod(attacker.stats.distance, defender.stats.distance);
+
   if (!heightMod.canMelee) {
     return {
       turn: turnNum, attacker: attacker.side, damage: 0,
       attackType: 'melee', dodged: false,
       details: `${attacker.name} can't reach ${defender.name} with melee${heightMod.details}`,
+    };
+  }
+  if (!distMod.canMelee) {
+    return {
+      turn: turnNum, attacker: attacker.side, damage: 0,
+      attackType: 'melee', dodged: false,
+      details: `${attacker.name} can't reach ${defender.name} with melee${distMod.details}`,
     };
   }
 
@@ -145,15 +198,17 @@ function resolveMeleeAttack(attacker, defender, turnNum) {
   const armor = getEffectiveArmor(defender);
   const baseDmg = Math.max(1, attacker.stats.meleeDamage - armor);
   const heightMultDmg = heightMod.meleeMult;
+  const distMultDmg = distMod.meleeMult;
   const vulnMult = getVulnerabilityMult(defender);
   const variance = 0.9 + Math.random() * 0.2;
-  const finalDmg = Math.max(1, Math.round(baseDmg * heightMultDmg * vulnMult * variance));
+  const finalDmg = Math.max(1, Math.round(baseDmg * heightMultDmg * distMultDmg * vulnMult * variance));
 
   defender.hp = Math.max(0, defender.hp - finalDmg);
 
   let details = `${attacker.name} melee → ${finalDmg} dmg`;
   details += ` (${attacker.stats.meleeDamage} - ${armor} armor = ${baseDmg}`;
   if (heightMultDmg !== 1.0) details += ` ×${heightMultDmg} height`;
+  if (distMultDmg !== 1.0) details += ` ×${distMultDmg} dist`;
   if (vulnMult !== 1.0) details += ` ×${vulnMult.toFixed(2)} vuln`;
   details += ')';
 
@@ -187,18 +242,15 @@ function resolveBreathAttack(attacker, defender, turnNum) {
     };
   }
 
-  // Accuracy with height and range modifiers
+  // Accuracy with height, range, and distance modifiers
   let acc = getEffectiveAccuracy(attacker);
   const heightMod = getBreathHeightMod(attacker.stats.height, defender.stats.height);
   acc += heightMod.accMod;
 
-  // Far range at close engagement: -15% accuracy
+  // Distance-based breath penalty (replaces old flat Far-range penalty)
   const breathRange = attacker.stats.breathRange || 1;
-  let rangeNote = '';
-  if (breathRange === 3) { // Far range
-    acc -= 15;
-    rangeNote = ', Far range -15% Acc';
-  }
+  const distBM = getDistanceBreathMod(attacker.stats.distance, defender.stats.distance, breathRange);
+  acc += distBM.accMod;
 
   const eva = defender.stats.evasion || 0;
   const hitChance = clamp((acc - eva) / 100, 0.05, 0.99);
@@ -207,7 +259,7 @@ function resolveBreathAttack(attacker, defender, turnNum) {
     return {
       turn: turnNum, attacker: attacker.side, damage: 0,
       attackType: 'breath', dodged: true,
-      details: `${attacker.name} breath → miss! (${Math.round(hitChance * 100)}% hit${rangeNote}${heightMod.details})`,
+      details: `${attacker.name} breath → miss! (${Math.round(hitChance * 100)}% hit${distBM.details}${heightMod.details})`,
     };
   }
 
@@ -223,8 +275,11 @@ function resolveBreathAttack(attacker, defender, turnNum) {
     heightDmgPenalty = 1 - (heightDiff * 0.10);
   }
 
+  // Distance damage penalty
+  const distDmgMult = 1 + distBM.dmgMod / 100;
+
   const variance = 0.9 + Math.random() * 0.2;
-  const rawDmg = breathDmg * shapeMult * (1 - resist / 100) * vulnMult * heightDmgPenalty * variance;
+  const rawDmg = breathDmg * shapeMult * (1 - resist / 100) * vulnMult * heightDmgPenalty * distDmgMult * variance;
   const finalDmg = Math.max(1, Math.round(rawDmg));
 
   defender.hp = Math.max(0, defender.hp - finalDmg);
@@ -237,6 +292,7 @@ function resolveBreathAttack(attacker, defender, turnNum) {
   if (resist > 0) details += ` -${Math.round(resist)}% resist`;
   if (vulnMult !== 1.0) details += ` ×${vulnMult.toFixed(2)} vuln`;
   if (heightDmgPenalty !== 1.0) details += ` ×${heightDmgPenalty.toFixed(1)} height`;
+  if (distDmgMult !== 1.0) details += ` ×${distDmgMult.toFixed(2)} dist`;
   details += ')';
 
   // Breath reflect
@@ -255,6 +311,7 @@ function resolveBreathAttack(attacker, defender, turnNum) {
 
   // Apply element debuff on hit
   let statusApplied = null;
+  let statusEntry = null;
   const debuffConfig = attacker.stats.elementDebuff;
   if (debuffConfig) {
     // Refresh or apply debuff
@@ -264,14 +321,21 @@ function resolveBreathAttack(attacker, defender, turnNum) {
     } else {
       defender.statuses.push({ ...debuffConfig, remaining: debuffConfig.duration });
       statusApplied = debuffConfig.type;
-      details += ` 💥 ${debuffConfig.emoji} ${debuffConfig.label} applied! (${debuffConfig.desc})`;
+      statusEntry = {
+        turn: turnNum, attacker: attacker.side, damage: 0,
+        details: `💥 ${debuffConfig.emoji} ${debuffConfig.label} applied to ${defender.name}! (${debuffConfig.desc})`,
+        statusApplied: debuffConfig.type,
+        statusLabel: debuffConfig.label,
+        statusEmoji: debuffConfig.emoji,
+        statusDuration: debuffConfig.duration,
+      };
     }
   }
 
   return {
     turn: turnNum, attacker: attacker.side, damage: finalDmg,
     attackType: 'breath', dodged: false,
-    details, statusApplied, reflectEntry,
+    details, reflectEntry, statusEntry,
   };
 }
 
@@ -356,9 +420,12 @@ export function simulateCombat(statsA, statsB, options = {}) {
 
   const hA = getHeightName(statsA.height);
   const hB = getHeightName(statsB.height);
+  const DIST_NAMES = ['Melee', 'Short', 'Medium', 'Long'];
+  const dA = DIST_NAMES[statsA.distance ?? 0];
+  const dB = DIST_NAMES[statsB.distance ?? 0];
   rounds.push({
     turn: 0, attacker: 'system', damage: 0,
-    details: `⚔ ${fighterA.name} (${spdA} SPD, ${hA}) vs ${fighterB.name} (${spdB} SPD, ${hB}) — ${first.name} goes first${fasterGetsExtraTurn ? ' with extra turn!' : ''}`,
+    details: `⚔ ${fighterA.name} (${spdA} SPD, ${hA}/${dA}) vs ${fighterB.name} (${spdB} SPD, ${hB}/${dB}) — ${first.name} goes first${fasterGetsExtraTurn ? ' with extra turn!' : ''}`,
   });
 
   // ── Round Loop ──
@@ -387,9 +454,8 @@ export function simulateCombat(statsA, statsB, options = {}) {
       if (label) result.details = label + result.details;
       rounds.push(result);
 
-      // Push thorns/reflect entries if present
-      if (result.thornsEntry) rounds.push(result.thornsEntry);
-      if (result.reflectEntry) rounds.push(result.reflectEntry);
+      // Push status entry if present (thorns/reflect are rendered as sub-entries of the main attack)
+      if (result.statusEntry) rounds.push(result.statusEntry);
     };
 
     // First fighter attacks
@@ -430,3 +496,6 @@ export function simulateCombat(statsA, statsB, options = {}) {
     },
   };
 }
+
+// Exported for heatmap calculation in UI
+export { getDistanceMeleeMod, getDistanceBreathMod, getMeleeHeightMod, getBreathHeightMod };

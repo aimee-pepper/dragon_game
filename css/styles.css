@@ -788,8 +788,13 @@ header {
   padding: 0 var(--spacing);
 }
 
-.hue-col, .finish-col {
+.hue-col {
   flex: 1;
+  min-width: 0;
+}
+
+.finish-col {
+  flex: 1.3;
   min-width: 0;
 }
 
@@ -6156,6 +6161,7 @@ header {
 
 .zone-picker-select-btn {
   flex-shrink: 0;
+  width: auto;
   font-size: 11px;
   padding: 4px 10px;
 }
@@ -6169,6 +6175,9 @@ header {
 .zone-combat-screen {
   padding: 0 var(--spacing);
   padding-bottom: 80px;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
 }
 
 .zone-combat-title {
@@ -6180,10 +6189,19 @@ header {
   margin: 0 0 var(--spacing);
 }
 
+/* Arena fills remaining space below title/back btn */
+.zone-combat-arena {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Mobile: stacked layout (fighters on top, log below) */
 .zone-combat-fighters {
   display: flex;
+  flex-direction: column;
   gap: var(--spacing-sm);
-  align-items: stretch;
   margin-bottom: var(--spacing);
 }
 
@@ -6295,13 +6313,22 @@ header {
   margin-bottom: var(--spacing);
 }
 
+/* Center column for fight btn + log + results */
+.zone-combat-center {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
 .zone-combat-log-content {
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   margin-bottom: var(--spacing);
   padding: 8px;
-  max-height: 300px;
+  flex: 1;
+  min-height: 80px;
   overflow-y: auto;
   font-size: 11px;
   font-family: monospace;
@@ -6315,15 +6342,30 @@ header {
   align-items: baseline;
   gap: 4px;
 }
-.zone-combat-entry.log-side-a { color: #e0a030; }
-.zone-combat-entry.log-side-b { color: #5588cc; }
+/* Attacker A: left-aligned, warm color, gold bar on left */
+.zone-combat-entry.log-side-a {
+  color: #e0a030;
+  justify-content: flex-start;
+  text-align: left;
+  border-left: 3px solid rgba(224, 160, 48, 0.6);
+  padding-left: 6px;
+}
+/* Attacker B: right-aligned, cool color, blue bar on right */
+.zone-combat-entry.log-side-b {
+  color: #5588cc;
+  justify-content: flex-end;
+  text-align: right;
+  border-right: 3px solid rgba(85, 136, 204, 0.6);
+  padding-right: 6px;
+}
+/* Defender lines: slightly muted */
+.zone-combat-entry.log-defender {
+  opacity: 0.8;
+  font-size: 10px;
+}
 .zone-combat-entry.log-system { justify-content: center; font-style: italic; color: var(--accent); }
-.zone-combat-entry.log-miss { color: #888; font-style: italic; }
-.zone-combat-entry.log-reflect { color: #aa88dd; }
-.zone-combat-entry.log-status { color: #cc6666; }
-.zone-combat-entry.log-dot { color: #cc6666; }
-.zone-combat-entry.log-hit.log-side-a { color: #e0a030; }
-.zone-combat-entry.log-hit.log-side-b { color: #5588cc; }
+.zone-combat-entry.log-miss { opacity: 0.6; font-style: italic; }
+.zone-combat-entry.log-reflect { justify-content: center; color: #aa88dd; font-style: italic; }
 
 .zone-combat-turn-badge {
   display: inline-block;
@@ -6338,17 +6380,261 @@ header {
 }
 
 .zone-combat-log-text {
-  flex: 1;
-}
-
-.zone-combat-log-hp-inline {
-  font-size: 10px;
-  margin-left: 4px;
+  flex-shrink: 1;
 }
 
 .zone-combat-log-hp-val {
   font-weight: bold;
 }
+
+/* ── 5-column combat layout base styles ── */
+.zone-combat-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.zone-combat-stats {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--spacing-sm);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.combat-dragon-card {
+  margin-bottom: 0;
+  overflow-y: auto;
+}
+
+/* Status badges on stats columns */
+.zone-combat-status-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: center;
+  margin: 6px 0;
+  min-height: 18px;
+}
+
+.status-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(200, 120, 40, 0.25);
+  border: 1px solid rgba(200, 120, 40, 0.4);
+  color: #ffcc66;
+  white-space: nowrap;
+}
+
+/* HP bar spanning card + stats */
+.zone-combat-hp-span {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Status log entries (prominent in combat log) */
+/* Side bar comes from log-side-a / log-side-b; status classes add bg + color only */
+.zone-combat-entry.log-status-applied {
+  background: rgba(200, 120, 40, 0.2);
+  color: #ffcc66;
+  font-weight: 600;
+  padding: 4px 8px;
+  margin: 3px 0;
+  border-radius: var(--radius);
+}
+
+.zone-combat-entry.log-status-tick {
+  background: rgba(180, 60, 60, 0.15);
+  color: #ff8866;
+}
+
+.zone-combat-entry.log-status-expired {
+  background: rgba(100, 100, 100, 0.15);
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ── Desktop combat layout: 5-column ── */
+@media (min-width: 768px) {
+  .zone-combat-screen {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 160px);
+    overflow: hidden;
+  }
+
+  .zone-combat-arena {
+    display: grid;
+    grid-template-columns: 1fr 140px minmax(180px, 1fr) 140px 1fr;
+    grid-template-rows: 1fr auto;
+    gap: var(--spacing-sm);
+    flex: 1;
+    min-height: 0;
+    align-items: stretch;
+  }
+
+  .zone-combat-fighters {
+    display: contents;
+  }
+
+  .zone-combat-panel {
+    display: contents;
+  }
+
+  .zone-combat-vs {
+    display: none;
+  }
+
+  /* Explicit grid placement for 5-column layout */
+  .panel-a > .combat-dragon-card { grid-column: 1; grid-row: 1; }
+  .panel-a > .zone-combat-stats  { grid-column: 2; grid-row: 1; }
+  .zone-combat-center            { grid-column: 3; grid-row: 1; }
+  .panel-b > .zone-combat-stats  { grid-column: 4; grid-row: 1; }
+  .panel-b > .combat-dragon-card { grid-column: 5; grid-row: 1; }
+  .hp-span-a { grid-column: 1 / span 2; grid-row: 2; }
+  .hp-span-b { grid-column: 4 / span 2; grid-row: 2; }
+
+  .zone-combat-center {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .zone-combat-log-content {
+    flex: 1;
+    max-height: unset;
+    min-height: 200px;
+  }
+}
+
+/* ── Placement grid (4×4 height × distance) ── */
+.placement-grid-wrapper {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin-top: 8px;
+}
+
+.grid-y-ticks {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  padding-right: 2px;
+}
+
+.grid-x-ticks {
+  display: flex;
+  justify-content: space-around;
+  padding-top: 2px;
+  /* offset to align with the grid (skip y-tick column) */
+  margin-left: 14px;
+}
+
+.grid-tick {
+  position: relative;
+  cursor: pointer;
+}
+
+.grid-y-ticks .grid-tick {
+  width: 10px;
+  height: 4px;
+  background: var(--border);
+  border-radius: 1px;
+}
+
+.grid-x-ticks .grid-tick {
+  height: 10px;
+  width: 4px;
+  background: var(--border);
+  border-radius: 1px;
+}
+
+.grid-tick:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  background: var(--bg-card);
+  color: var(--text-bright);
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.grid-y-ticks .grid-tick:hover::after {
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-right: 4px;
+}
+
+.grid-x-ticks .grid-tick:hover::after {
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 4px;
+}
+
+.placement-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(4, 1fr);
+  width: 120px;
+  height: 120px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.grid-cell {
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+
+.grid-cell.dimmed {
+  opacity: 0.25;
+}
+
+.grid-cell.height-row {
+  opacity: 1;
+}
+
+.grid-cell.selectable {
+  cursor: pointer;
+}
+
+.grid-cell.selectable:hover {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+  z-index: 1;
+}
+
+.grid-cell.selected {
+  outline: 2px solid var(--text-bright);
+  outline-offset: -2px;
+  z-index: 2;
+}
+
+.grid-cell .grid-sprite {
+  width: 24px;
+  height: 24px;
+  image-rendering: pixelated;
+}
+
+/* Heatmap colors (set via inline style, these are fallback classes) */
+.grid-cell.heat-good { background: rgba(60, 180, 60, 0.35); }
+.grid-cell.heat-ok   { background: rgba(180, 180, 60, 0.25); }
+.grid-cell.heat-bad  { background: rgba(180, 60, 60, 0.3); }
+.grid-cell.heat-neutral { background: rgba(255, 255, 255, 0.05); }
 
 /* ── Region cards ── */
 .map-region-list {
