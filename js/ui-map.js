@@ -25,6 +25,7 @@ import { simulateCombat, getDistanceMeleeMod, getDistanceBreathMod, getMeleeHeig
 import { renderDragonSprite as renderLegacySprite } from './ui-dragon-sprite.js';
 import { renderDragon } from './sprite-renderer.js';
 import { SPRITE_WIDTH, SPRITE_HEIGHT } from './sprite-config.js';
+import { checkTrigger } from './tutorial-engine.js';
 
 // ── Module state ────────────────────────────────────────────
 
@@ -167,6 +168,7 @@ export async function initMapTab(container, registry) {
       for (const zone of newlyUnlocked) {
         showDiscoveryToast(zone);
       }
+      checkTrigger('zone-unlock');
       // Refresh whichever view is active
       if (currentZoneScreenId) {
         renderZoneScreen(currentZoneScreenId, false);
@@ -1108,6 +1110,9 @@ function renderCombatView(wildDragon, playerDragon, zoneId) {
   mapContainer.innerHTML = '';
   const screen = el('div', 'zone-combat-screen');
 
+  // Tutorial: first combat
+  checkTrigger('combat-start');
+
   // Back to explore
   const backBtn = el('button', 'btn btn-secondary zone-back-btn', '\u2190 Back to Explore');
   backBtn.addEventListener('click', () => {
@@ -1357,6 +1362,9 @@ function renderCombatView(wildDragon, playerDragon, zoneId) {
             stableBtn.disabled = true;
             stableBtn.textContent = '\u2713 Stabled!';
             stableBtn.classList.add('disabled');
+            checkTrigger('dragon-captured');
+            // Check for dark energy
+            if (wildDragon.isDarkEnergy) checkTrigger('dark-energy-discovered');
           } else {
             showMapToast('Stables full! Make room first.');
           }

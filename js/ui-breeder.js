@@ -14,6 +14,7 @@ import { getHatchBudget, addToEggRack, isEggRackFull, getEggRack, getEggProgress
 import { incrementBreedCycle, consumeItem, getInventory, isEggSaleUnlocked } from './shop-engine.js';
 import { POTION_PRICES } from './economy-config.js';
 import { buildBreedModifiers } from './potion-engine.js';
+import { checkTrigger } from './tutorial-engine.js';
 
 let dragonRegistry = null;
 let parentA = null;
@@ -425,6 +426,17 @@ function doBreed() {
 
   triggerSave();
   renderClutch();
+
+  // Tutorial: first breed
+  checkTrigger('breed-complete');
+
+  // Tutorial: check for mutations
+  for (const child of offspring) {
+    if (child.mutations && child.mutations.length > 0) {
+      checkTrigger('mutation-detected');
+      break;
+    }
+  }
 }
 
 function renderClutch() {
@@ -576,6 +588,7 @@ function renderUnhatchedEgg(egg, index, instantRemaining, timedRemaining) {
         egg.status = 'sold';
         triggerSave();
         renderClutch();
+        checkTrigger('egg-sell');
       });
       actions.appendChild(sellBtn);
     }

@@ -330,29 +330,28 @@ export function renderDragonCard(dragon, options = {}) {
     const traitsLabel = tintedIcon('t_traits.png', 'var(--accent)', 'section-label-img');
     card.appendChild(traitsLabel);
 
-    // --- Body traits ---
-    const bodySection = renderTraitSection('Body', [
+    // --- 3-column traits grid ---
+    const traitsGrid = el('div', 'traits-columns');
+
+    traitsGrid.appendChild(renderTraitColumn('Body', [
       { label: 'Size', value: p.traits.body_size?.name || '???' },
       { label: 'Type', value: p.traits.body_type?.name || '???' },
       { label: 'Scales', value: p.traits.body_scales?.name || '???' },
-    ]);
-    card.appendChild(bodySection);
+    ]));
 
-    // --- Frame traits ---
-    const frameSection = renderTraitSection('Frame', [
+    traitsGrid.appendChild(renderTraitColumn('Frame', [
       { label: 'Wings', value: p.traits.frame_wings?.name || '???' },
       { label: 'Limbs', value: p.traits.frame_limbs?.name || '???' },
       { label: 'Bones', value: p.traits.frame_bones?.name || '???' },
-    ]);
-    card.appendChild(frameSection);
+    ]));
 
-    // --- Sub traits ---
-    const subSection = renderTraitSection('Features', [
+    traitsGrid.appendChild(renderTraitColumn('Features', [
       { label: 'Horns', value: formatHorns(p.traits) },
       { label: 'Spines', value: formatSpines(p.traits) },
       { label: 'Tail', value: formatTail(p.traits) },
-    ]);
-    card.appendChild(subSection);
+    ]));
+
+    card.appendChild(traitsGrid);
   }
 
   // --- Action buttons (breed offspring + save to stables) ---
@@ -446,6 +445,18 @@ function renderTraitSection(label, traits) {
   }
   section.appendChild(row);
   return section;
+}
+
+function renderTraitColumn(label, traits) {
+  const col = el('div', 'trait-col');
+  col.appendChild(el('div', 'trait-col-label', label));
+  for (const t of traits) {
+    const item = el('div', 'trait-col-item');
+    item.appendChild(el('span', 'trait-label', t.label + ': '));
+    item.appendChild(document.createTextNode(t.value));
+    col.appendChild(item);
+  }
+  return col;
 }
 
 function formatHorns(traits) {

@@ -127,6 +127,24 @@ const server = http.createServer((req, res) => {
   serveStatic(req, res);
 });
 
+// ── Keep-alive: prevent silent crashes ──
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use. Server may already be running.`);
+    process.exit(1);
+  }
+  console.error('Server error:', err);
+  // Don't exit — let it try to recover
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception (server staying alive):', err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled rejection (server staying alive):', reason);
+});
+
 server.listen(PORT, () => {
   console.log(`Dev server running at http://127.0.0.1:${PORT}/`);
   console.log(`Save endpoints: ${Object.keys(SAVE_ROUTES).join(', ')}`);

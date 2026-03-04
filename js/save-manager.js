@@ -123,6 +123,16 @@ export function registerMapHooks(getSaveData, restore) {
   _restoreMapState = restore;
 }
 
+// ── Tutorial hooks (set by app.js to avoid circular dependency) ──
+
+let _getTutorialSaveData = () => ({});
+let _restoreTutorialState = () => {};
+
+export function registerTutorialHooks(getSaveData, restore) {
+  _getTutorialSaveData = getSaveData;
+  _restoreTutorialState = restore;
+}
+
 // ── Breed parent hooks (set by app.js) ──
 
 let _getBreedParentAId = () => null;
@@ -346,6 +356,7 @@ export function saveGame(registry) {
       shop: _getShopSaveData(),
       skills: _getSkillSaveData(),
       map: _getMapSaveData(),
+      tutorials: _getTutorialSaveData(),
       hotbar: [...hotbar],
       pendingBreedEffects: [...pendingBreedEffects],
     };
@@ -535,6 +546,11 @@ export function loadGame(registry) {
     // Restore map state
     if (saveData.map) {
       _restoreMapState(saveData.map);
+    }
+
+    // Restore tutorial state
+    if (saveData.tutorials) {
+      _restoreTutorialState(saveData.tutorials);
     }
 
     // Restore hotbar (migrate old string-only entries → { type: 'item', id })

@@ -17,6 +17,7 @@ import { incrementStat, addToStat, triggerSave, getStats } from './save-manager.
 import { getAvailableXP } from './skill-engine.js';
 import { calculateQuestReward } from './reward-engine.js';
 import { QUEST_REWARDS } from './reward-config.js';
+import { checkTrigger } from './tutorial-engine.js';
 
 let questContainer = null;
 let dragonRegistry = null;
@@ -304,7 +305,7 @@ function openQuestPicker(quest) {
   const dragons = getStabledDragons();
 
   if (dragons.length === 0) {
-    showQuestMessage('No stabled dragons! Stable dragons from the Capture or Breed tabs first.', 'error');
+    showQuestMessage('No stabled dragons! Stable dragons from the Explore or Breed tabs first.', 'error');
     return;
   }
 
@@ -335,6 +336,11 @@ function openQuestPicker(quest) {
         triggerSave();
         const rewardMsg = ` +${rewards.gold} gold, +${rewards.exp} EXP, +${rewards.rep} rep`;
         showQuestMessage(result.message + rewardMsg, 'success');
+        checkTrigger('quest-complete');
+        // Generation bonus tutorial
+        if (result.difficulty >= 3 && result.generation > 0) {
+          checkTrigger('generation-bonus');
+        }
         // Clear highlight if this was the highlighted quest
         const hl = getHighlightedQuest();
         if (hl && hl.id === quest.id) {

@@ -10,6 +10,7 @@ import { SHOP_UNLOCK_REP } from './economy-config.js';
 import { getStats } from './save-manager.js';
 import { isUnlocked as isAchievementUnlocked } from './achievements.js';
 import { uiImg } from './ui-card.js';
+import { checkTrigger } from './tutorial-engine.js';
 
 let shopContainer = null;
 let activeShop = 'carpenter'; // 'carpenter' | 'potion' | 'talisman' | 'arcana'
@@ -301,6 +302,7 @@ function renderCarpenterVisit(content, currentGold) {
       content.appendChild(departing);
       // Re-render after delay (carpenter tab will be gone)
       setTimeout(() => renderShop(), 2500);
+      checkTrigger('shop-purchase');
     } else {
       buyBtn.textContent = result.message;
       buyBtn.classList.add('btn-error');
@@ -477,6 +479,7 @@ function renderShopItem(item, shopKey, currentGold, currentRep) {
         buyBtn.classList.add('btn-purchased');
         // Re-render after a short delay to update gold and items
         setTimeout(() => renderShop(), 600);
+        checkTrigger('shop-purchase');
       } else {
         buyBtn.textContent = result.message;
         buyBtn.classList.add('btn-error');

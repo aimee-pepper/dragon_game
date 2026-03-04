@@ -1,6 +1,7 @@
-// Almanac tab: two-tier navigation — Encyclopedia + Achievements
+// Almanac tab: two-tier navigation — Encyclopedia + Bestiary + Achievements + Help
 // Encyclopedia: Colors, Finishes, Elements, Combos, Traits
 // Achievements: Trophy Wall, Stats Dashboard
+// Help: Comprehensive game guide
 import {
   COLOR_PHENOTYPES,
   FINISH_PHENOTYPES,
@@ -38,6 +39,7 @@ import {
   ACHIEVEMENT_CATEGORIES,
   getColorThemes,
 } from './achievements.js';
+import { renderHelpGuide } from './ui-help.js';
 
 let containerEl = null;
 let dragonRegistry = null;
@@ -168,6 +170,7 @@ function render() {
     { key: 'encyclopedia', label: 'Encyclopedia' },
     { key: 'bestiary', label: 'Bestiary' },
     { key: 'achievements', label: 'Achievements' },
+    { key: 'help', label: 'Help' },
   ];
   topTabs.forEach(tab => {
     const btn = el('button', 'almanac-top-btn' + (tab.key === activeTopTab ? ' active' : ''), tab.label);
@@ -184,6 +187,10 @@ function render() {
     renderEncyclopedia();
   } else if (activeTopTab === 'bestiary') {
     renderBestiary();
+  } else if (activeTopTab === 'help') {
+    const helpContainer = el('div', 'almanac-help-container');
+    containerEl.appendChild(helpContainer);
+    renderHelpGuide(helpContainer);
   } else {
     renderAchievements();
   }

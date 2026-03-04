@@ -7,9 +7,11 @@ import {
 import { hasTome } from './shop-engine.js';
 import { uiImg } from './ui-card.js';
 import { getStats, triggerSave } from './save-manager.js';
+import { checkTrigger } from './tutorial-engine.js';
 
 let container = null;
 let activeBranch = 'geneticist';
+let activeLines = {}; // tracks active line per branch
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -185,97 +187,79 @@ function renderBranch(branchKey) {
   const lineOrder = getLineOrder(branchKey);
   const skillsByLine = getSkillsByLine(branchKey);
 
-  // Find the first line with an available skill (for auto-expand)
-  let autoExpandLine = null;
-  for (const lineKey of lineOrder) {
-    const skills = skillsByLine.get(lineKey) || [];
-    if (skills.some(s => getSkillState(s.id) === 'available')) {
-      autoExpandLine = lineKey;
-      break;
+  // Determine active line — auto-select first line with available skill
+  if (!activeLines[branchKey]) {
+    for (const lineKey of lineOrder) {
+      const skills = skillsByLine.get(lineKey) || [];
+      if (skills.some(s => getSkillState(s.id) === 'available')) {
+        activeLines[branchKey] = lineKey;
+        break;
+      }
+    }
+    if (!activeLines[branchKey] && lineOrder.length > 0) {
+      activeLines[branchKey] = lineOrder[0];
     }
   }
-  // If no available skill, expand first line
-  if (!autoExpandLine && lineOrder.length > 0) {
-    autoExpandLine = lineOrder[0];
-  }
+  const activeLine = activeLines[branchKey];
 
+  // Line tab bar
+  const lineBar = el('div', 'skill-line-bar');
   for (const lineKey of lineOrder) {
     const skills = skillsByLine.get(lineKey) || [];
     if (skills.length === 0) continue;
     const lineDef = LINE_DEFS[lineKey];
+    const unlocked = countUnlocked(skills);
+    const isActive = lineKey === activeLine;
 
-    // Special: tome-sub line
-    if (lineKey === 'tome-sub') {
-      section.appendChild(renderTomeSubLine(skills, autoExpandLine === lineKey));
-      continue;
-    }
+    const tab = el('button', `skill-line-tab${isActive ? ' skill-line-active' : ''}`);
+    const nameSpan = el('span', 'skill-line-tab-name', lineDef.name);
+    tab.appendChild(nameSpan);
+    const countSpan = el('span', 'skill-line-tab-count', `${unlocked}/${skills.length}`);
+    tab.appendChild(countSpan);
 
-    // Check for parallel chains
-    const chains = splitChains(skills);
+    tab.addEventListener('click', () => {
+      activeLines[branchKey] = lineKey;
+      renderSkills();
+    });
+    lineBar.appendChild(tab);
+  }
+  section.appendChild(lineBar);
 
-    if (chains && chains.length > 1) {
-      section.appendChild(renderParallelLine(lineKey, lineDef, chains, autoExpandLine === lineKey));
+  // Render active line content
+  const skills = skillsByLine.get(activeLine) || [];
+  if (skills.length > 0) {
+    if (activeLine === 'tome-sub') {
+      section.appendChild(renderTomeSubContent(skills));
     } else {
-      section.appendChild(renderLine(lineKey, lineDef, skills, autoExpandLine === lineKey));
+      const chains = splitChains(skills);
+      if (chains && chains.length > 1) {
+        section.appendChild(renderParallelContent(chains));
+      } else {
+        section.appendChild(renderLineContent(skills));
+      }
     }
   }
 
   return section;
 }
 
-// ── Line renderers ──────────────────────────────────────────
+// ── Line content renderers (no accordion wrapper) ───────────
 
-function renderLine(lineKey, lineDef, skills, startExpanded) {
-  const lineEl = el('div', 'skill-line');
-  const unlocked = countUnlocked(skills);
-  const total = skills.length;
-
-  // Header
-  const header = el('div', 'skill-line-header');
-  const chevron = el('span', 'skill-line-chevron', startExpanded ? '▾' : '▸');
-  header.appendChild(chevron);
-  header.appendChild(el('span', 'skill-line-name', lineDef.name));
-  header.appendChild(el('span', 'skill-line-count', `${unlocked}/${total}`));
-  lineEl.appendChild(header);
-
-  // Body
-  const body = el('div', `skill-line-body${startExpanded ? ' expanded' : ''}`);
+function renderLineContent(skills) {
+  const body = el('div', 'skill-line-content');
   for (const skill of skills) {
     body.appendChild(renderSkillCard(skill.id, skill));
   }
-  lineEl.appendChild(body);
-
-  // Toggle
-  header.addEventListener('click', () => {
-    const isOpen = body.classList.toggle('expanded');
-    chevron.textContent = isOpen ? '▾' : '▸';
-  });
-
-  return lineEl;
+  return body;
 }
 
-function renderParallelLine(lineKey, lineDef, chains, startExpanded) {
-  const lineEl = el('div', 'skill-line');
-  const allSkills = chains.flat();
-  const unlocked = countUnlocked(allSkills);
-  const total = allSkills.length;
-
-  // Header
-  const header = el('div', 'skill-line-header');
-  const chevron = el('span', 'skill-line-chevron', startExpanded ? '▾' : '▸');
-  header.appendChild(chevron);
-  header.appendChild(el('span', 'skill-line-name', lineDef.name));
-  header.appendChild(el('span', 'skill-line-count', `${unlocked}/${total}`));
-  lineEl.appendChild(header);
-
-  // Body with parallel columns
-  const body = el('div', `skill-line-body${startExpanded ? ' expanded' : ''}`);
+function renderParallelContent(chains) {
+  const body = el('div', 'skill-line-content');
   const parallel = el('div', 'skill-parallel');
   parallel.style.gridTemplateColumns = `repeat(${chains.length}, 1fr)`;
 
   for (const chain of chains) {
     const col = el('div', 'skill-parallel-col');
-    // Column label from first skill name (extract the common prefix)
     const colLabel = chain[0].name.replace(/ I+$/, '').replace(/ [IVX]+$/, '');
     col.appendChild(el('div', 'skill-parallel-header', colLabel));
     for (const skill of chain) {
@@ -284,32 +268,11 @@ function renderParallelLine(lineKey, lineDef, chains, startExpanded) {
     parallel.appendChild(col);
   }
   body.appendChild(parallel);
-  lineEl.appendChild(body);
-
-  header.addEventListener('click', () => {
-    const isOpen = body.classList.toggle('expanded');
-    chevron.textContent = isOpen ? '▾' : '▸';
-  });
-
-  return lineEl;
+  return body;
 }
 
-function renderTomeSubLine(skills, startExpanded) {
-  const lineEl = el('div', 'skill-line');
-  const lineDef = LINE_DEFS['tome-sub'];
-  const unlocked = countUnlocked(skills);
-  const total = skills.length;
-
-  // Header
-  const header = el('div', 'skill-line-header');
-  const chevron = el('span', 'skill-line-chevron', startExpanded ? '▾' : '▸');
-  header.appendChild(chevron);
-  header.appendChild(el('span', 'skill-line-name', lineDef.name));
-  header.appendChild(el('span', 'skill-line-count', `${unlocked}/${total}`));
-  lineEl.appendChild(header);
-
-  // Body
-  const body = el('div', `skill-line-body${startExpanded ? ' expanded' : ''}`);
+function renderTomeSubContent(skills) {
+  const body = el('div', 'skill-line-content');
   const tomeGroups = groupTomeSkills(skills);
 
   for (const [tomeKey, group] of tomeGroups) {
@@ -334,7 +297,6 @@ function renderTomeSubLine(skills, startExpanded) {
     tomeEl.appendChild(tomeHeader);
 
     if (owned) {
-      // Show pressure and lock chains side by side
       if (group.pressure.length > 0 || group.lock.length > 0) {
         const parallel = el('div', 'skill-parallel');
         parallel.style.gridTemplateColumns = '1fr 1fr';
@@ -361,14 +323,7 @@ function renderTomeSubLine(skills, startExpanded) {
     body.appendChild(tomeEl);
   }
 
-  lineEl.appendChild(body);
-
-  header.addEventListener('click', () => {
-    const isOpen = body.classList.toggle('expanded');
-    chevron.textContent = isOpen ? '▾' : '▸';
-  });
-
-  return lineEl;
+  return body;
 }
 
 // ── Skill card ──────────────────────────────────────────────
@@ -377,6 +332,11 @@ function renderSkillCard(skillId, def, compact = false) {
   const state = getSkillState(skillId);
   const cost = getSkillCost(skillId);
   const card = el('div', `skill-card skill-${state}`);
+
+  // Grey out skills locked behind a prerequisite skill
+  if (state === 'locked' && def.requires?.skill && !hasSkill(def.requires.skill)) {
+    card.classList.add('skill-prereq-locked');
+  }
 
   // Tier badge
   const badge = el('div', 'skill-tier-badge');
@@ -424,6 +384,7 @@ function renderSkillCard(skillId, def, compact = false) {
         card.classList.add('skill-just-unlocked');
         triggerSave();
         setTimeout(() => renderSkills(), 400);
+        checkTrigger('skill-unlock');
       }
     });
     right.appendChild(btn);

@@ -5,12 +5,12 @@ import { initStablesTab, addToStables } from './ui-stables.js';
 import { onStablesChange } from './ui-stables.js';
 import { initQuestsTab } from './ui-quests.js';
 import { initAlmanacTab, refreshAlmanac } from './ui-almanac.js';
-import { initOptionsTab } from './ui-options.js';
+import { initOptionsTab, refreshOptionsTab } from './ui-options.js';
 import { initSettings, getSetting, setSetting, onSettingChange } from './settings.js';
 import { initQuestWidget } from './ui-quest-widget.js';
 import { restoreHighlightedQuest } from './quest-highlight.js';
 import { getActiveQuests } from './quest-engine.js';
-import { loadGame, saveGame, triggerSave, onStatChange, getStats, getHotbar, setHotbarSlot, clearHotbarSlot, registerAchievementHooks, registerBreedHooks, applyPendingBreedRestore, registerClutchHooks, applyPendingClutchRestore, registerCaptureHooks, applyPendingCapturedRestore, registerShopHooks, registerSkillHooks, registerMapHooks } from './save-manager.js';
+import { loadGame, saveGame, triggerSave, onStatChange, getStats, getHotbar, setHotbarSlot, clearHotbarSlot, registerAchievementHooks, registerBreedHooks, applyPendingBreedRestore, registerClutchHooks, applyPendingClutchRestore, registerCaptureHooks, applyPendingCapturedRestore, registerShopHooks, registerSkillHooks, registerMapHooks, registerTutorialHooks } from './save-manager.js';
 import { uiImg } from './ui-card.js';
 import { checkAchievements, onAchievementUnlock, getAchievementSaveData, restoreAchievements } from './achievements.js';
 import { decodeDragonParams } from './dragon-url.js';
@@ -28,6 +28,8 @@ import { getSkillSaveData, restoreSkillState, getAvailableXP } from './skill-eng
 import { initSkillsTab, refreshSkills } from './ui-skills.js';
 import { initMapTab } from './ui-map.js';
 import { getMapSaveData, restoreMapState } from './map-engine.js';
+import { initTutorialSystem, checkTrigger, getTutorialSaveData, restoreTutorialState, onTutorialComplete } from './tutorial-engine.js';
+import { showTutorial } from './ui-tutorial.js';
 
 // Shared dragon registry — all dragons accessible across tabs
 class DragonRegistry {
@@ -435,6 +437,7 @@ function initHotbar(registry) {
           showPotionToast(result.message);
           refreshHotbar();
           refreshPendingEffectsBar(); // update breed modifier display
+          checkTrigger('hotbar-use');
         } else {
           showPotionToast(result.message);
         }
@@ -553,12 +556,18 @@ function initTabs() {
 
       // Persist active tab
       setSetting('active-tab', target);
+
+      // Tutorial trigger on first visit to each tab
+      checkTrigger('tab-switch', { tab: target });
+
+      // Refresh dynamic content on specific tabs
+      if (target === 'options') refreshOptionsTab();
     });
   });
 
   // Restore saved tab (if not the default)
   const savedTab = getSetting('active-tab');
-  if (savedTab && savedTab !== 'generate') {
+  if (savedTab && savedTab !== 'stables') {
     const targetBtn = document.querySelector(`.tab-btn[data-tab="${savedTab}"]`);
     if (targetBtn) targetBtn.click();
   }
@@ -642,6 +651,7 @@ async function init() {
   registerShopHooks(getShopSaveData, restoreShopState);
   registerSkillHooks(getSkillSaveData, restoreSkillState);
   registerMapHooks(getMapSaveData, restoreMapState);
+  registerTutorialHooks(getTutorialSaveData, restoreTutorialState);
 
   // Load saved game state (restores dragons, stables, quests, stats, ID counters, achievements)
   // Breed parents + captured dragons are deferred (stored as IDs, applied after UI init)
@@ -712,6 +722,7 @@ async function init() {
   // Toast notification for achievement unlocks
   onAchievementUnlock((achievement) => {
     showAchievementToast(achievement);
+    checkTrigger('first-achievement');
   });
 
   // Initial achievement check (in case save data triggers unlocks)
@@ -729,6 +740,19 @@ async function init() {
   // Initial save to persist the registry reference
   saveGame(registry);
 
+  // ── Tutorial system ──
+  initTutorialSystem(showTutorial);
+
+  // Grant starter dragon after stables tutorial completes
+  onTutorialComplete((id) => {
+    if (id === 'stables-first-visit') {
+      const starter = Dragon.createRandom();
+      registry.add(starter);
+      addToStables(starter, true);
+      triggerSave();
+    }
+  });
+
   // Dismiss loading screen after a frame so the DOM has painted
   requestAnimationFrame(() => {
     const loader = document.getElementById('loading-screen');
@@ -736,6 +760,9 @@ async function init() {
       loader.classList.add('fade-out');
       loader.addEventListener('transitionend', () => loader.remove());
     }
+
+    // Fire tutorials after loading screen is dismissed
+    checkTrigger('app-load', { hadSave });
   });
 }
 

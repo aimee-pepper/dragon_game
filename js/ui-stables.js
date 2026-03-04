@@ -374,7 +374,7 @@ function refreshStablesList() {
 
   if (dragons.length === 0) {
     const empty = el('div', 'stables-empty');
-    empty.textContent = 'No dragons in the nests yet. Save dragons from the Capture or Breed tabs!';
+    empty.textContent = 'No dragons in the nests yet. Save dragons from the Explore or Breed tabs!';
     stablesList.appendChild(empty);
     return;
   }

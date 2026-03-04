@@ -7,6 +7,8 @@ import { triggerSave, addToStat, getStats, listBackups, restoreFromBackup } from
 import { resetMapProgress } from './map-engine.js';
 import { decodeDragonParams } from './dragon-url.js';
 import { Dragon } from './dragon.js';
+import { resetAllTutorials, isTutorialCompleted, areTutorialsEnabled } from './tutorial-engine.js';
+import { getAllTutorialIds } from './tutorial-config.js';
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -16,6 +18,19 @@ function el(tag, className, text) {
 }
 
 let _registry = null;
+let _tutorialCountEl = null; // reference for dynamic refresh
+
+function _refreshTutorialCount() {
+  if (!_tutorialCountEl) return;
+  const allIds = getAllTutorialIds();
+  const completedCount = allIds.filter(id => isTutorialCompleted(id)).length;
+  _tutorialCountEl.textContent = `${completedCount}/${allIds.length} tutorials completed`;
+}
+
+/** Call when Options tab becomes visible to refresh dynamic counts */
+export function refreshOptionsTab() {
+  _refreshTutorialCount();
+}
 
 export function initOptionsTab(container, registry) {
   _registry = registry;
@@ -59,6 +74,32 @@ export function initOptionsTab(container, registry) {
   wrapper.appendChild(
     makeBoolToggle('Pinned Quest Widget', 'Show floating quest panel on all tabs', 'pinned-quest-widget')
   );
+
+  // --- Tutorials ---
+  wrapper.appendChild(el('div', 'options-section-header', 'Tutorials'));
+
+  wrapper.appendChild(
+    makeBoolToggle('Tutorials Enabled', 'Show contextual tutorial popups when you encounter new features', 'tutorials-enabled')
+  );
+
+  const tutorialBtns = el('div', 'options-btn-row');
+
+  const replayBtn = el('button', 'btn btn-secondary', 'Replay All Tutorials');
+  replayBtn.addEventListener('click', () => {
+    if (!confirm('Reset all tutorial progress? Tutorials will show again as you play.')) return;
+    resetAllTutorials();
+    triggerSave();
+    showToast('Tutorials reset! They will appear again as you play.', 'success');
+  });
+  tutorialBtns.appendChild(replayBtn);
+
+  // Show completion count (refreshed dynamically when tab is shown)
+  _tutorialCountEl = el('div', 'options-toggle-desc');
+  _tutorialCountEl.style.marginTop = '4px';
+  _refreshTutorialCount();
+
+  wrapper.appendChild(tutorialBtns);
+  wrapper.appendChild(_tutorialCountEl);
 
   // --- Dragons (Import / Export) ---
   wrapper.appendChild(el('div', 'options-section-header', 'Dragons'));
